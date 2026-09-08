@@ -23,7 +23,7 @@ This repository/document bundle is intentionally clean-slate. It does **not** in
 11. `docs/TEST_PLAN.md`
 
 ## Current status — 2026-09-08
-The clean-slate free-stack implementation is underway. A dedicated Supabase project is live and secured; the private GitHub repository is the canonical code/documentation home. Lovable remains frozen because the workspace is out of credits. No public app, outbound automation, paid AI call, QuickBooks/Goodshuffle integration, or external customer commitment has been made.
+The clean-slate free-stack implementation is underway. A dedicated Supabase project is live and secured; the private GitHub repository is the canonical code/documentation home. The first internal account is authorized as ADMIN and RLS has been verified against both member and non-member contexts. Lovable remains frozen because the workspace is out of credits. No public app, outbound automation, paid AI call, QuickBooks/Goodshuffle integration, or external customer commitment has been made.
 
 ## Existing prototypes
 Historical Lovable prototypes exist and should be treated as reference only:
@@ -33,13 +33,15 @@ Historical Lovable prototypes exist and should be treated as reference only:
 
 They are not the canonical architecture for Stage Presence OS.
 
-## Free-stack starter
+## Free-stack implementation
 The repository now includes a zero-cost-first implementation scaffold:
 - React 19 + TypeScript + Vite
 - Tailwind CSS
 - Supabase client boundary
-- Cloudflare Pages SPA fallback
-- draft v0.1 database/RLS schema under `database/`
+- Cloudflare Workers Static Assets configuration in `wrangler.jsonc`
+- applied v0.1 database/RLS migrations under `database/`
+
+The Cloudflare target is intentionally static-only in First Breath: no Worker script is required. `dist/` is served with single-page-app fallback, leaving server-side Workers as a future capability only if evidence earns it.
 
 The UI runs in explicit DEMO MODE when Supabase environment variables are absent. Demo records are synthetic and never presented as Stage Presence data.
 
