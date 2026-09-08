@@ -17,6 +17,7 @@ export function EngagementDetailScreen({ engagement, onBack, onChanged }: { enga
   const unknownFacts = useMemo(() => detail.facts.filter((fact) => ['UNKNOWN', 'REQUESTED'].includes(fact.certainty_state)), [detail.facts])
 
   if (!engagement) return <div className="sm:ml-48"><button onClick={onBack}>← Back</button><p className="mt-6 text-zinc-500">Engagement not found.</p></div>
+  const engagementId = engagement.id
 
   async function act(operation: () => Promise<unknown>) {
     setBusy(true)
@@ -37,7 +38,7 @@ export function EngagementDetailScreen({ engagement, onBack, onChanged }: { enga
     const blockedReason = clean(formData.get('blocked_reason'))
     if (attention === 'WAITING' && !waitingOn) { setError('Say what or who this Engagement is waiting on.'); return }
     if (attention === 'BLOCKED' && !blockedReason) { setError('Give the blocker a reason so it can be resolved.'); return }
-    await act(() => updateEngagement(engagement.id, {
+    await act(() => updateEngagement(engagementId, {
       next_action: clean(formData.get('next_action')),
       next_action_at: clean(formData.get('next_action_at')) ? new Date(String(formData.get('next_action_at'))).toISOString() : null,
       attention_state: attention,
@@ -52,7 +53,7 @@ export function EngagementDetailScreen({ engagement, onBack, onChanged }: { enga
     const label = clean(formData.get('label'))
     if (!label) return
     await act(() => createFact({
-      engagement_id: engagement.id,
+      engagement_id: engagementId,
       category: String(formData.get('category')) as FactCategory,
       kind: String(formData.get('kind')) as FactKind,
       label,
@@ -68,7 +69,7 @@ export function EngagementDetailScreen({ engagement, onBack, onChanged }: { enga
   async function saveParty(formData: FormData) {
     const name = clean(formData.get('name'))
     if (!name) return
-    await act(() => createPartyAndLink(engagement.id, {
+    await act(() => createPartyAndLink(engagementId, {
       name,
       party_type: String(formData.get('party_type')) as 'PERSON' | 'ORGANIZATION',
       role: String(formData.get('role')),
@@ -82,14 +83,14 @@ export function EngagementDetailScreen({ engagement, onBack, onChanged }: { enga
   async function saveResource(formData: FormData) {
     const resourceId = clean(formData.get('resource_id'))
     if (!resourceId) return
-    await act(() => linkResource(engagement.id, resourceId, String(formData.get('relationship'))))
+    await act(() => linkResource(engagementId, resourceId, String(formData.get('relationship'))))
     setResourceOpen(false)
   }
 
   async function saveNote() {
     if (!note.trim()) return
     const value = note.trim()
-    await act(() => addNote(engagement.id, value))
+    await act(() => addNote(engagementId, value))
     setNote('')
   }
 
@@ -130,7 +131,7 @@ export function EngagementDetailScreen({ engagement, onBack, onChanged }: { enga
         <div className="mt-4 divide-y divide-zinc-900">{detail.events.length ? detail.events.map((event) => <div key={event.id} className="py-3"><div className="text-sm text-zinc-300">{event.summary ?? event.event_type.replaceAll('_', ' ')}</div><div className="mt-1 text-xs text-zinc-600">{new Date(event.created_at).toLocaleString()} • {event.event_type.replaceAll('_', ' ')}</div></div>) : <EmptyText text="No activity yet." />}</div>
       </section>
 
-      <div className="mt-8 border-t border-zinc-900 pt-6"><button disabled={busy} onClick={() => void act(async () => { await archiveEngagement(engagement.id); onBack() })} className="text-sm text-zinc-600 hover:text-red-300">Archive engagement</button></div>
+      <div className="mt-8 border-t border-zinc-900 pt-6"><button disabled={busy} onClick={() => void act(async () => { await archiveEngagement(engagementId); onBack() })} className="text-sm text-zinc-600 hover:text-red-300">Archive engagement</button></div>
 
       {factMode && <FactModal mode={factMode} onClose={() => setFactMode(null)} onSave={saveFact} />}
       {partyOpen && <PartyModal onClose={() => setPartyOpen(false)} onSave={saveParty} />}
