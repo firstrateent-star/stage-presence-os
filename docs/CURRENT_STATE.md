@@ -54,8 +54,26 @@
 ## Hosting stance
 Cloudflare's current platform direction favors Workers for new applications. Stage Presence OS therefore uses Workers Static Assets rather than a new Pages project. First Breath has no Worker script; Cloudflare serves the compiled `dist/` bundle with SPA fallback. Static-asset requests are free/unlimited. Workers Builds currently supplies 3,000 build minutes/month on Free.
 
+## First connected build evidence
+Cloudflare successfully:
+- initialized its build environment,
+- cloned the private GitHub repository,
+- installed project dependencies,
+- resolved React/Vite/Tailwind/Supabase/Wrangler packages,
+- reached the strict TypeScript compiler.
+
+The first build stopped on two localized TypeScript issues rather than infrastructure/dependency failure:
+1. `EngagementDetailScreen.tsx`: async closures referenced the optional `engagement` prop after narrowing, so TypeScript correctly treated it as possibly undefined.
+2. `TodayScreen.tsx`: `Array.filter(isWaiting)` supplied the array index as the helper's optional second argument, which is typed as a `Date`.
+
+Both issues were corrected on `main` without weakening compiler strictness:
+- Engagement detail now captures `engagementId` immediately after the not-found guard and uses that stable ID in async callbacks.
+- Today wraps `isWaiting` in a one-argument filter callback.
+
+The next Cloudflare build is the next compiler proof.
+
 ## Not yet done / intentionally dormant
-- No Cloudflare Worker/deployment exists in the user's account yet
+- First successful Cloudflare deployment has not yet been confirmed
 - No paid AI model
 - No photo/voice file storage workflow yet
 - No QuickBooks or Goodshuffle integration
@@ -64,13 +82,10 @@ Cloudflare's current platform direction favors Workers for new applications. Sta
 - No resource holds/reservations or fake availability
 - No crew scheduling, warehouse movement, maintenance, profitability, training, customer portal, or public website
 
-## Build verification constraint
-This execution environment cannot currently reach the npm registry, so a dependency lockfile/full compiled build has not been produced here. Package versions are pinned in `package.json`; Node is constrained to `>=22.12`. The first connected Cloudflare Workers Build should run dependency installation and become the authoritative TypeScript/Vite compiler check before production use.
-
 ## Immediate next proof
-1. Connect/import the private GitHub repo into Cloudflare Workers Builds.
-2. Add only `VITE_SUPABASE_URL` and `VITE_SUPABASE_PUBLISHABLE_KEY` as build environment values.
-3. Let Cloudflare perform the first authoritative build/deploy to the default `workers.dev` address.
-4. Fix any compile/runtime defects before entering real customer information.
-5. Sign in with the first authorized ADMIN and verify browser-level RLS-backed access.
-6. Use 3–10 real Engagements and evaluate Shared Reality before activating another petal.
+1. Let Cloudflare rebuild `main` after the compiler fixes.
+2. Fix any additional compile/deploy/runtime defect exposed by that build rather than relaxing strictness.
+3. Confirm deployment to the default `workers.dev` address.
+4. Sign in with the first authorized ADMIN and verify browser-level RLS-backed access.
+5. Enter only test/internal Engagements initially; no real customer data until the deployed loop is verified.
+6. Use 3–10 real Engagements after verification and evaluate Shared Reality before activating another petal.
