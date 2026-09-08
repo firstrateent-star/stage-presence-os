@@ -52,7 +52,12 @@ export async function listFacts(engagementId: string): Promise<EngagementFact[]>
 
 export async function createFact(input: Omit<EngagementFact, 'id' | 'created_at' | 'updated_at'>) {
   const client = requireClient()
-  const { data, error } = await client.from('engagement_facts').insert(input).select('*').single()
+  const { data: userData } = await client.auth.getUser()
+  const { data, error } = await client
+    .from('engagement_facts')
+    .insert({ ...input, created_by: input.created_by ?? userData.user?.id ?? null })
+    .select('*')
+    .single()
   if (error) throw error
   return data as EngagementFact
 }
@@ -120,7 +125,15 @@ export async function listEngagementEvents(engagementId: string): Promise<Ledger
 
 export async function addNote(engagementId: string, note: string) {
   const client = requireClient()
-  const { error } = await client.from('events').insert({ engagement_id: engagementId, entity_type: 'engagement', entity_id: engagementId, event_type: 'NOTE_ADDED', summary: note })
+  const { data: userData } = await client.auth.getUser()
+  const { error } = await client.from('events').insert({
+    engagement_id: engagementId,
+    entity_type: 'engagement',
+    entity_id: engagementId,
+    event_type: 'NOTE_ADDED',
+    actor_user_id: userData.user?.id ?? null,
+    summary: note,
+  })
   if (error) throw error
 }
 
@@ -139,12 +152,42 @@ export interface CreateEngagementInput {
 export async function createEngagement(input: CreateEngagementInput): Promise<Engagement> {
   const client = requireClient()
   const { data: userData } = await client.auth.getUser()
+  const actorUserId = userData.user?.id ?? null
   let sourceArtifactId: string | null = null
 
-  if (input.raw_capture?.trim()) {
+  const hasSubmittedSource = Boolean(
+    input.raw_capture?.trim() ||
+    input.name.trim() ||
+    input.customer_request?.trim() ||
+    input.desired_outcome?.trim() ||
+    input.event_start ||
+    input.venue_name?.trim() ||
+    input.next_action?.trim() ||
+    input.next_action_at,
+  )
+
+  if (hasSubmittedSource) {
     const { data: artifact, error: artifactError } = await client
       .from('source_artifacts')
-      .insert({ artifact_type: 'TEXT', raw_text: input.raw_capture.trim(), processing_state: 'NOT_REQUIRED', created_by: userData.user?.id ?? null, metadata: { capture_surface: 'new_engagement' } })
+      .insert({
+        artifact_type: 'TEXT',
+        raw_text: input.raw_capture?.trim() || null,
+        processing_state: 'NOT_REQUIRED',
+        created_by: actorUserId,
+        metadata: {
+          capture_surface: 'new_engagement',
+          submitted_fields: {
+            name: input.name.trim(),
+            engagement_type: input.engagement_type,
+            customer_request: input.customer_request?.trim() || null,
+            desired_outcome: input.desired_outcome?.trim() || null,
+            event_start: input.event_start || null,
+            venue_name: input.venue_name?.trim() || null,
+            next_action: input.next_action?.trim() || null,
+            next_action_at: input.next_action_at || null,
+          },
+        },
+      })
       .select('id')
       .single()
     if (artifactError) throw artifactError
@@ -162,14 +205,23 @@ export async function createEngagement(input: CreateEngagementInput): Promise<En
       venue_name: engagementInput.venue_name || null,
       next_action: engagementInput.next_action || null,
       next_action_at: engagementInput.next_action_at || null,
-      created_by: userData.user?.id ?? null,
+      created_by: actorUserId,
     })
     .select('*')
     .single()
   if (error) throw error
 
   if (sourceArtifactId) {
-    await client.from('events').insert({ engagement_id: data.id, entity_type: 'source_artifact', entity_id: sourceArtifactId, event_type: 'SOURCE_ADDED', summary: 'Initial typed capture preserved', metadata: { source_type: 'TEXT' } })
+    const { error: sourceEventError } = await client.from('events').insert({
+      engagement_id: data.id,
+      entity_type: 'source_artifact',
+      entity_id: sourceArtifactId,
+      event_type: 'SOURCE_ADDED',
+      actor_user_id: actorUserId,
+      summary: 'Initial typed capture preserved',
+      metadata: { source_type: 'TEXT' },
+    })
+    if (sourceEventError) throw sourceEventError
   }
 
   return data as Engagement
