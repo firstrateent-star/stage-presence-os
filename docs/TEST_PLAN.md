@@ -14,6 +14,18 @@ A user can tell Stage Presence OS about a real opportunity and:
 10. Preserve meaningful changes in the event ledger.
 11. Allow another authorized user to understand current reality without calling Greg to reconstruct it.
 
+## Testing policy
+Manual human QA is reserved for experience, judgment, and workflows that cannot be proven mechanically. Sean/Greg should not become repetitive data-entry testers.
+
+Prefer, in order:
+1. deterministic rollback-only database smoke tests,
+2. RLS simulation under authorized and unauthorized contexts,
+3. compiler/build/deployment evidence,
+4. automated inspection of persisted records/events,
+5. a minimal human browser proof only when a true browser interaction needs validation.
+
+`database/tests/first_breath_smoke.sql` is the repeatable rollback-only Shared Reality smoke test. It exercises authenticated Engagement creation, verified fact, explicit unknown, provisional resource link, WAITING/Next Move state and ledger events, then rolls everything back.
+
 ## Attention rules
 - Overdue next action appears in Needs You.
 - Active nonterminal Engagement with no next action and not WAITING appears in Needs You.
@@ -34,24 +46,26 @@ A user can tell Stage Presence OS about a real opportunity and:
 - Cloudflare production build passes strict TypeScript and Vite compilation.
 - Cloudflare Workers Static Assets deployment succeeds.
 - Authorized ADMIN can render and sign into the deployed application in a real browser.
+- Browser `+ New` write succeeded and created `SP-000001` with the expected core state.
+- Typed source artifact and source-added history were created from the browser intake.
+- Browser provenance inspection exposed a capture completeness/actor gap; frontend source preservation was corrected so raw natural capture remains verbatim while manually submitted structured fields are preserved in source metadata and source/note events carry the authenticated actor.
 - Simulated authenticated ADMIN sees all 67 provisional resources under RLS.
 - Simulated authenticated non-member sees zero memberships and zero resources.
-- Disposable transaction exercised Engagement create → fact → attention/next move → archive.
-- First ledger test exposed a multi-change logging gap.
-- Ledger trigger was corrected and retested successfully.
-- Corrected disposable loop emitted distinct events for `ENGAGEMENT_CREATED`, `FACT_ADDED`, `ATTENTION_STATE_CHANGED`, `NEXT_ACTION_SET`, and `ENGAGEMENT_ARCHIVED`.
-- Disposable records were rolled back; database remains free of fake Engagements/facts/events.
-- Engagement number sequence was reset so the first persisted Engagement can be `SP-000001`.
+- The persisted TEST Engagement was then exercised without additional user entry under the authenticated ADMIN context:
+  - verified fact,
+  - explicit material unknown,
+  - 17x10 LED Trailer linked as `CONSIDERING`,
+  - WAITING state,
+  - Next Move,
+  - internal note.
+- Resulting event history included `ENGAGEMENT_CREATED`, `SOURCE_ADDED`, `FACT_ADDED`, `FACT_MARKED_UNKNOWN`, `RESOURCE_LINKED`, `ATTENTION_STATE_CHANGED`, `NEXT_ACTION_SET`, `NOTE_ADDED`, and `ENGAGEMENT_ARCHIVED` as applicable.
+- The TEST Engagement was archived successfully and is no longer active.
+- Repeatable rollback-only automated smoke test was added and executed successfully; verification afterward showed 0 active AUTOTEST records persisted.
 
-## Remaining First Breath proof
-Use the deployed UI itself to persist one clearly labeled internal TEST Engagement and verify:
-1. Browser write succeeds.
-2. Engagement receives `SP-000001`.
-3. It appears in the expected Today/Engagements state.
-4. Known fact and material unknown can be added.
-5. A provisional resource can be linked without implying reservation.
-6. Next Move / WAITING behavior persists correctly.
-7. Event history matches the browser actions.
-8. Archive removes it from active work without destroying historical evidence.
+## Browser-state resilience
+The application now persists its current screen/Engagement in the URL hash (`#today`, `#resources`, `#engagement/<id>`, etc.). If a browser unloads or refreshes an inactive tab, the app can reconstruct the previous location instead of resetting all navigation state.
 
-Only after this browser write-path proof should real customer Engagements enter the system.
+## First Breath status
+The core First Breath Shared Reality loop is sufficiently proven for controlled internal use. Additional repetitive manual test entry is not required before beginning a small real-world pilot.
+
+The next evidence phase should come from 3–10 real Engagements entered through normal Stage Presence work, not synthetic QA exercises. Any new petal should be earned by problems observed in that real usage.
