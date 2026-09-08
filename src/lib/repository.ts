@@ -65,7 +65,7 @@ export async function createFact(input: Omit<EngagementFact, 'id' | 'created_at'
   const { data: userData } = await client.auth.getUser()
   const { data, error } = await client
     .from('engagement_facts')
-    .insert({ ...input, created_by: input.created_by ?? userData.user?.id ?? null })
+    .insert({ ...input, created_by: userData.user?.id ?? null })
     .select('*')
     .single()
   if (error) throw error
