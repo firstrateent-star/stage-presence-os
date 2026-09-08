@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { listEngagementEvents, listEngagementResources, listFacts, listPartiesForEngagement, listResources, type PartyLink, type ResourceLink } from './repository'
+import { listEngagementSourceArtifacts, type SourceArtifact } from './sourceArtifacts'
 import type { EngagementFact, LedgerEvent, Resource } from '../types/domain'
 
 export function useEngagementDetail(engagementId: string | undefined) {
@@ -8,6 +9,7 @@ export function useEngagementDetail(engagementId: string | undefined) {
   const [resourceLinks, setResourceLinks] = useState<ResourceLink[]>([])
   const [resourceLibrary, setResourceLibrary] = useState<Resource[]>([])
   const [events, setEvents] = useState<LedgerEvent[]>([])
+  const [sourceArtifacts, setSourceArtifacts] = useState<SourceArtifact[]>([])
   const [loading, setLoading] = useState(Boolean(engagementId))
   const [error, setError] = useState<string | null>(null)
 
@@ -16,18 +18,20 @@ export function useEngagementDetail(engagementId: string | undefined) {
     setLoading(true)
     setError(null)
     try {
-      const [nextFacts, nextParties, nextResourceLinks, nextResources, nextEvents] = await Promise.all([
+      const [nextFacts, nextParties, nextResourceLinks, nextResources, nextEvents, nextSourceArtifacts] = await Promise.all([
         listFacts(engagementId),
         listPartiesForEngagement(engagementId),
         listEngagementResources(engagementId),
         listResources(),
         listEngagementEvents(engagementId),
+        listEngagementSourceArtifacts(engagementId),
       ])
       setFacts(nextFacts)
       setParties(nextParties)
       setResourceLinks(nextResourceLinks)
       setResourceLibrary(nextResources)
       setEvents(nextEvents)
+      setSourceArtifacts(nextSourceArtifacts)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unable to load engagement detail.')
     } finally {
@@ -36,5 +40,5 @@ export function useEngagementDetail(engagementId: string | undefined) {
   }, [engagementId])
 
   useEffect(() => { void refresh() }, [refresh])
-  return { facts, parties, resourceLinks, resourceLibrary, events, loading, error, refresh }
+  return { facts, parties, resourceLinks, resourceLibrary, events, sourceArtifacts, loading, error, refresh }
 }
