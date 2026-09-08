@@ -248,7 +248,6 @@ export async function createEngagement(input: CreateEngagementInput): Promise<En
 
   const hasSubmittedSource = Boolean(
     input.raw_capture?.trim() ||
-    input.name.trim() ||
     input.customer_request?.trim() ||
     input.desired_outcome?.trim() ||
     input.event_start ||
