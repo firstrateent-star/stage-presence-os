@@ -16,7 +16,7 @@ The authorization boundary was tested directly under simulated `authenticated` P
 - first active ADMIN member: 67/67 provisional resources visible
 - simulated authenticated non-member: 0 memberships visible, 0 resources visible
 
-This confirms that login alone does not expose Stage Presence business data. Browser/runtime verification is required on the deployed Cloudflare URL before real business data is entered.
+The deployed browser login and a real browser Engagement write were subsequently proven with the authorized ADMIN account.
 
 ## API grants
 Grants are explicit. Authenticated users do not receive DELETE grants on core business records. Archive semantics are used instead.
@@ -24,13 +24,32 @@ Grants are explicit. Authenticated users do not receive DELETE grants on core bu
 ## History
 `events` is append-oriented. Authenticated clients can SELECT and INSERT but not UPDATE or DELETE. Shared Reality mutations are increasingly logged at the database boundary so event history does not depend on a second browser write succeeding.
 
+## Private source evidence storage
+Original lead-sheet/source photos use the Supabase Storage bucket `source-artifacts`.
+
+Controls:
+- bucket is private (`public = false`);
+- maximum object size is 15 MB;
+- allowed MIME types are JPEG, PNG, WebP, HEIC and HEIF;
+- SELECT is restricted to authenticated users who also pass `private.is_app_member()`;
+- INSERT is restricted to authenticated active app members and only when the object's top-level folder equals the uploader's `auth.uid()`;
+- browser clients receive no UPDATE or DELETE policy on stored originals;
+- uploads use `upsert: false`;
+- no public Storage URL is used for source evidence;
+- private reads must pass authenticated Storage RLS;
+- source metadata is represented separately in `public.source_artifacts` and linked to Engagement history through `SOURCE_ADDED` events.
+
+Original evidence and interpretation are deliberately separate. Future OCR/AI output must not overwrite the original file or silently become verified business truth.
+
+The PHOTO source-artifact -> Engagement -> SOURCE_ADDED relationship has been verified in a rollback-only authenticated test. No fake Storage object was written by that test.
+
 ## Keys
-The browser receives only the project URL and Supabase publishable key. Never commit or expose service-role keys, secret API keys, or database passwords.
+The browser receives only the project URL and Supabase publishable key. Never commit or expose service-role keys, secret API keys, database passwords, or privileged Storage credentials.
 
 ## Account provisioning
 The app has a login screen, not self-service signup. Creating an auth user does not automatically create an `app_members` row. Membership must be deliberately granted.
 
-The first real internal account has now been bootstrapped as active `ADMIN`. Additional users should not be added until their actual Stage Presence role and need for access are explicit.
+The first real internal account is active `ADMIN`. Additional users should not be added until their actual Stage Presence role and need for access are explicit.
 
 ## Free-plan Auth limitation
 The Supabase security advisor currently warns that Leaked Password Protection is disabled. Supabase's current Password Security documentation states that HaveIBeenPwned leaked-password protection is available on the Pro plan and above.
