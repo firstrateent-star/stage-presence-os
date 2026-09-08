@@ -32,7 +32,7 @@ export function AppShell({
           <div className="flex items-center gap-2">
             {accountLabel && <span className="hidden text-xs font-medium text-zinc-500 sm:inline">{accountLabel}</span>}
             {onSignOut && (
-              <button type="button" onClick={onSignOut} className="hidden rounded-xl border border-zinc-800 px-3 py-2 text-xs font-semibold text-zinc-400 hover:border-zinc-700 hover:text-zinc-200 sm:block">
+              <button type="button" onClick={onSignOut} className="rounded-xl border border-zinc-800 px-3 py-2 text-xs font-semibold text-zinc-500 hover:border-zinc-700 hover:text-zinc-200">
                 Sign out
               </button>
             )}
@@ -76,11 +76,6 @@ export function AppShell({
               {label}
             </button>
           ))}
-          {onSignOut && (
-            <button type="button" onClick={onSignOut} className="mt-4 w-full rounded-xl px-3 py-2 text-left text-xs font-medium text-zinc-600 hover:text-zinc-300 sm:hidden">
-              Sign out
-            </button>
-          )}
         </div>
       </aside>
     </div>
