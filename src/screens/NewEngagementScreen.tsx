@@ -27,6 +27,7 @@ export function NewEngagementScreen({ onCreated, onCancel }: { onCreated: () => 
         engagement_type: 'EVENT',
         customer_request: request.trim() || capture.trim(),
         next_action: nextAction.trim(),
+        raw_capture: capture.trim(),
       })
       onCreated()
     } catch (err) {
@@ -44,16 +45,8 @@ export function NewEngagementScreen({ onCreated, onCancel }: { onCreated: () => 
         <h1 className="mt-1 text-3xl font-semibold tracking-tight">New Engagement</h1>
 
         <label className="mt-7 block text-sm font-medium text-zinc-300">Natural capture</label>
-        <textarea
-          value={capture}
-          onChange={(event) => setCapture(event.target.value)}
-          placeholder="Example: Nancy from Bridge Run called. April 4. Wants the big trailer again and maybe audio. Setup day before."
-          rows={6}
-          className="mt-2 w-full rounded-2xl border border-zinc-800 bg-zinc-950 p-4 text-base leading-7 text-zinc-100 outline-none placeholder:text-zinc-700 focus:border-amber-600"
-        />
-        <div className="mt-2 rounded-xl border border-zinc-900 bg-zinc-950/60 p-3 text-xs leading-5 text-zinc-600">
-          Future Engagement Interpreter boundary: this text can become candidate facts, parties, resources, unknowns and next moves. No paid AI is connected yet and no inference is being presented as verified truth.
-        </div>
+        <textarea value={capture} onChange={(event) => setCapture(event.target.value)} placeholder="Example: Nancy from Bridge Run called. April 4. Wants the big trailer again and maybe audio. Setup day before." rows={6} className="mt-2 w-full rounded-2xl border border-zinc-800 bg-zinc-950 p-4 text-base leading-7 text-zinc-100 outline-none placeholder:text-zinc-700 focus:border-amber-600" />
+        <div className="mt-2 rounded-xl border border-zinc-900 bg-zinc-950/60 p-3 text-xs leading-5 text-zinc-600">Future Engagement Interpreter boundary: this text can become candidate facts, parties, resources, unknowns and next moves. No paid AI is connected yet and no inference is being presented as verified truth.</div>
 
         <div className="mt-8 border-t border-zinc-900 pt-6">
           <div className="text-xs font-semibold tracking-[0.15em] text-zinc-600">MANUAL FALLBACK</div>
@@ -66,9 +59,7 @@ export function NewEngagementScreen({ onCreated, onCancel }: { onCreated: () => 
         </div>
 
         {message && <div className="mt-5 rounded-xl border border-amber-900/50 bg-amber-950/20 p-3 text-sm text-amber-200">{message}</div>}
-        <button type="button" onClick={submit} disabled={saving} className="mt-6 w-full rounded-xl bg-amber-500 px-5 py-4 font-bold text-zinc-950 disabled:opacity-50">
-          {saving ? 'Saving…' : 'Create Engagement'}
-        </button>
+        <button type="button" onClick={submit} disabled={saving} className="mt-6 w-full rounded-xl bg-amber-500 px-5 py-4 font-bold text-zinc-950 disabled:opacity-50">{saving ? 'Saving…' : 'Create Engagement'}</button>
       </div>
     </div>
   )

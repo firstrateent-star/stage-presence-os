@@ -58,7 +58,7 @@ export default function App() {
       ) : screen === 'new' ? (
         <NewEngagementScreen onCancel={() => setScreen('today')} onCreated={() => { void data.refresh(); setScreen('engagements') }} />
       ) : (
-        <EngagementDetailScreen engagement={data.engagements.find((item) => item.id === selectedId)} onBack={() => setScreen('engagements')} />
+        <EngagementDetailScreen engagement={data.engagements.find((item) => item.id === selectedId)} onBack={() => setScreen('engagements')} onChanged={data.refresh} />
       )}
     </AppShell>
   )
