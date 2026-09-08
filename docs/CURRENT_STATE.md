@@ -20,6 +20,8 @@
 - Explicit DEMO mode when backend environment variables are absent
 - Real Engagement create/list/detail paths
 - Typed natural capture is preserved as a source artifact; no AI inference is fabricated
+- Source preservation now keeps the raw natural capture verbatim while also preserving manually submitted structured fields in source metadata
+- Source-added and manual-note events carry the authenticated actor
 - Multidimensional Engagement states
 - Deterministic attention logic, including WAITING resurfacing when its follow-up becomes due
 - Engagement detail loads real facts, parties, linked resources, and activity
@@ -31,9 +33,11 @@
 - Archive rather than destructive delete
 - Exact applied database migrations recorded under `database/`
 - Database-level event triggers for Engagement, Fact, Party-link, and Resource-link history
-- Engagement update ledger now records every semantic dimension changed in one save rather than only the first detected change
+- Engagement update ledger records every semantic dimension changed in one save rather than only the first detected change
 - Inventory source/conflict evidence recorded under `data/`
 - Cloudflare Workers static-asset configuration committed in `wrangler.jsonc`
+- URL-hash navigation state (`#today`, `#resources`, `#engagement/<id>`, etc.) preserves/restores location after refresh or tab unloading
+- Repeatable rollback-only First Breath smoke test under `database/tests/first_breath_smoke.sql`
 - Constitution, data model, security model, AI contract, deployment runbook, roadmap, value ledger, and permission gates
 
 ## Live Supabase state
@@ -43,9 +47,12 @@
 - Explicit `app_members` allowlist means authentication alone does not authorize company data
 - One real internal account is active as `ADMIN`
 - RLS verification passed: simulated ADMIN sees all 67 provisional resources; simulated authenticated non-member sees zero resources and zero memberships
-- Browser login on the deployed Cloudflare app was successfully completed by the authorized ADMIN on 2026-09-08
-- Current clean data state after disposable tests: 0 Engagements, 0 Engagement facts, 0 Events; 67 provisional Resources remain
-- Engagement numbering sequence was reset after rolled-back verification transactions so the first persisted Engagement will be `SP-000001`
+- Browser login on the deployed Cloudflare app successfully completed by the authorized ADMIN
+- Browser `+ New` write successfully created `SP-000001`
+- TEST Engagement was subsequently exercised under authenticated ADMIN context with a verified fact, explicit unknown, provisional resource link, WAITING/Next Move state and note, then archived
+- Event history preserved the material changes and attributed the automated verification writes to the ADMIN identity
+- Current active Engagement count: 0
+- Rollback-only automated smoke test executed successfully; 0 AUTOTEST Engagements persisted afterward
 - Security advisor reports one Auth warning: Leaked Password Protection is disabled. Current Supabase documentation states this feature is Pro-only, so this is recorded as a known Free-plan limitation rather than silently creating a paid dependency.
 - Core table/RLS security remains intact; use a strong unique password for every internal account.
 - Performance advisor currently reports only `unused_index` INFO findings expected on a new/no-traffic database
@@ -63,7 +70,7 @@ Cloudflare's current platform direction favors Workers for new applications. Sta
 ## Connected build evidence
 The first connected build reached strict TypeScript and exposed two localized compiler issues. Both were corrected on `main` without weakening strictness.
 
-The second Cloudflare build on 2026-09-08 completed the full pipeline successfully:
+The second Cloudflare build completed the full pipeline successfully:
 - initialized Cloudflare build environment
 - cloned the private GitHub repository
 - installed project dependencies
@@ -76,29 +83,38 @@ The second Cloudflare build on 2026-09-08 completed the full pipeline successful
 - produced the default `workers.dev` URL
 - Cloudflare reported `Success: Build completed`
 
-The build-cache warning is not an application failure. Cloudflare could not cache dependencies because no lockfile is committed yet. Package versions are pinned exactly; committing a lockfile remains a supply-chain/reproducibility cleanup item.
+## First Breath evidence
+The First Breath Shared Reality loop is now sufficiently proven for controlled internal use.
 
-## First Breath disposable database proof
-A full authorized test was executed inside a transaction and rolled back so no fake Stage Presence record persisted. It exercised:
-- Engagement creation
-- Fact creation
-- Attention state change
-- Next Move change
-- Archive
-- Event ledger
+Evidence includes:
+- deployed browser login,
+- real browser Engagement creation,
+- source/provenance creation,
+- authenticated RLS reads/writes,
+- verified fact,
+- explicit unknown,
+- provisional resource link,
+- WAITING + Next Move,
+- activity note,
+- archive semantics,
+- durable event ledger,
+- unauthorized-user denial,
+- repeatable rollback-only automated smoke test.
 
-The first pass revealed that one Engagement update changing several semantic dimensions could log only the first change. The trigger was corrected and retested. The corrected loop produced distinct events for:
-- `ENGAGEMENT_CREATED`
-- `FACT_ADDED`
-- `ATTENTION_STATE_CHANGED`
-- `NEXT_ACTION_SET`
-- `ENGAGEMENT_ARCHIVED`
+Manual human QA should now be reserved for usability/judgment, not repetitive data-entry testing.
 
-The transaction was rolled back and the Engagement number sequence reset afterward.
+## Current design priority
+Do not expand simply because more features are imaginable. The next evidence phase should be 3–10 real Stage Presence Engagements handled through normal work. Observe where friction actually occurs, especially:
+- how much Greg/Sean still has to type,
+- which facts are repeatedly missing,
+- where quote/commitment latency occurs,
+- whether Today accurately surfaces attention,
+- whether resource uncertainty creates friction,
+- where Goodshuffle/QuickBooks duplication appears.
 
-## Not yet done / intentionally dormant
-- No persisted customer or Engagement records yet
-- Browser write-path verification through `+ New` is still pending
+Evidence should determine the next petal. Given Stage Presence's stated operating goal, reducing capture/data-entry friction remains a high-priority candidate, but it should be implemented from observed use rather than adding complexity preemptively.
+
+## Intentionally dormant
 - No paid AI model
 - No photo/voice file storage workflow yet
 - No QuickBooks or Goodshuffle integration
@@ -106,13 +122,3 @@ The transaction was rolled back and the Engagement number sequence reset afterwa
 - No proposal/signature/payment system
 - No resource holds/reservations or fake availability
 - No crew scheduling, warehouse movement, maintenance, profitability, training, customer portal, or public website
-
-## Immediate next proof
-1. Through the deployed UI, create one clearly labeled internal TEST Engagement.
-2. Confirm it receives `SP-000001`, appears in Engagements/Today as expected, and can be opened.
-3. Add one known fact and one material unknown.
-4. Link one provisional resource.
-5. Set a Next Move / WAITING state.
-6. Verify the resulting live database/event-ledger records from ChatGPT.
-7. Archive the TEST Engagement and verify it no longer appears as active while its history remains preserved.
-8. Only after that browser write proof should 3–10 real Engagements be entered to evaluate Shared Reality before activating another petal.
