@@ -28,7 +28,7 @@ export function NewEngagementScreen({ onCreated, onCancel }: { onCreated: () => 
     const literalRequest = request.trim()
     const explicitName = name.trim()
 
-    if (!natural && !literalRequest && !explicitName && !photoFile) {
+    if (!natural && !literalRequest && !photoFile) {
       setMessage('Add a short note or take a photo. Everything else is optional.')
       return
     }
