@@ -1,52 +1,69 @@
 # Current State — 2026-09-08
 
-## Confirmed context
-- Vlourish Lovable workspace exists on Pro and is named `Vlourish`.
-- Existing Stage Presence Lovable prototypes: Stage Presence Hub, Stage Presence Hub (57), Stage Presence Intake.
-- Stage Presence Intake previously implemented concepts worth preserving in principle: private auth/roles, source uploads, extracted-field confidence, an activity ledger, and an AI processing boundary.
-- Existing Intake schema should not become canonical because it hard-codes leads, quotes, and placeholder pricing too early.
-- Current Stage Presence inventory workbook has been reviewed as a partial/reference snapshot.
-- GitHub account `firstrateent-star` is connected. Dedicated repository `firstrateent-star/stage-presence-os` now exists and has been changed to private; it is the canonical code/documentation home.
+## Canonical project
+- Private GitHub repository: `firstrateent-star/stage-presence-os`
+- Dedicated Supabase project: `stage-presence-os` (`yaojcuvgtlncytujfxef`), `us-east-1`
+- Hosting target: Cloudflare Pages
+- Lovable prototypes are frozen historical references only.
 
-## Implemented / prepared
-- Stage Presence OS v0.1 constitution and current business-model reference
-- Nine-object Shared Reality database kernel
+## Business reference
+`docs/BUSINESS_MODEL_CURRENT.md` is the current whole-company reference. It distinguishes observed/current context from the working strategic thesis and open hypotheses so future builders do not reduce Stage Presence to a CRM or treat strategy as fact.
+
+## Implemented in GitHub
+- React + TypeScript + Vite + Tailwind application shell
+- Mobile-first `Today / Engagements / Resources / + New` navigation
+- Supabase auth boundary and login screen
+- Explicit DEMO mode when backend environment variables are absent
+- Real Engagement create/list/detail paths
+- Typed natural capture is preserved as a source artifact; no AI inference is fabricated
 - Multidimensional Engagement states
-- Deterministic Today/Attention rules in frontend code
-- Party/fact/resource/event architecture
-- Typed/manual Engagement intake UI wired to the repository boundary
-- Database-triggered Engagement event history
-- AI interpreter contract boundary (no paid AI connected)
-- Inventory import policy and real provisional resource seed
-- Roadmap and test criteria
+- Deterministic attention logic, including WAITING resurfacing when its follow-up becomes due
+- Engagement detail loads real facts, parties, linked resources, and activity
+- Add known fact / material unknown
+- Link person or organization
+- Link provisional resource without implying availability
+- Edit next movement / waiting / blocked state
+- Internal notes
+- Archive rather than destructive delete
+- Exact applied database migration recorded under `database/`
+- Foreign-key index patch recorded
+- Database-level event triggers for Engagement, Fact, Party-link, and Resource-link history
+- Inventory source/conflict evidence recorded under `data/`
+- Constitution, data model, security model, AI contract, deployment runbook, roadmap, value ledger, and permission gates
 
-## Not yet done
-- Cloudflare deployment
-- First authorized Stage Presence app user / app_members bootstrap
-- Full fact/party/resource editing flows in the frontend
-- AI interpreter implementation
-- Any QuickBooks, Goodshuffle, outbound messaging, payment, or other external operational integration
+## Live Supabase state
+- Free organization/project; cost check at creation: $0/month
+- 10 public application tables, all RLS-enabled
+- Explicit `app_members` allowlist means authentication alone does not authorize company data
+- Security advisor currently returns no lints
+- Performance advisor currently returns only `unused_index` INFO findings expected on a new/no-traffic database
+- No live customer or Engagement records yet
+- Provisional inventory import is live:
+  - 67 resource rows
+  - 62 quantity states `UNVERIFIED`
+  - 5 quantity states `UNKNOWN`
+  - 5 prices marked `LEGACY_REFERENCE`
+  - 1 explicitly `SUBCONTRACTED` capability row
+- Known workbook conflicts remain preserved rather than silently reconciled
 
-## Current infrastructure stance
-Lovable remains frozen because the workspace is out of credits. The canonical build has moved to GitHub + Cloudflare Pages + Supabase rather than waiting for Lovable credits.
+## Not yet done / intentionally dormant
+- No Cloudflare Pages project/deployment yet
+- No authorized Stage Presence app user has been bootstrapped into `app_members`
+- No paid AI model
+- No photo/voice file storage workflow yet
+- No QuickBooks or Goodshuffle integration
+- No outbound email/text automation
+- No proposal/signature/payment system
+- No resource holds/reservations or fake availability
+- No crew scheduling, warehouse movement, maintenance, profitability, training, customer portal, or public website
 
-## Free-stack preparation update
-- Cloudflare Pages + React/Vite + Supabase selected as the preferred $0 First Breath architecture.
-- Connected Supabase organization is Free; dedicated Stage Presence project now exists at $0/month.
-- Dedicated private GitHub repository now exists and is the canonical project home.
-- Starter application source, schema, security model, deployment runbook, permission gates, and current business-model reference are prepared for canonical commit.
-- Cloudflare Pages project has not been created yet.
-- Dependency lockfile is not generated in this offline preparation environment; generate and commit `package-lock.json` on the first dependency install before deployment.
+## Build verification constraint
+This execution environment cannot currently reach the npm registry, so a dependency lockfile/full compiled build has not been produced here. Package versions are pinned in `package.json`; the first connected build environment should run dependency installation, commit `package-lock.json`, and treat its TypeScript/Vite build as the authoritative compiler check before production use.
 
-## 2026-09-08 — Supabase provisioned
-
-- Dedicated Supabase project created: `stage-presence-os` (`yaojcuvgtlncytujfxef`) in `us-east-1`.
-- Supabase organization remains on Free plan; project cost check was $0/month at creation.
-- Shared Reality kernel migration applied successfully.
-- Foreign-key covering indexes added after performance advisor review.
-- Security advisor returned no lints.
-- All ten public application tables have RLS enabled.
-- Database intentionally contains no live Engagement/customer records yet.
-- Inventory reference seed has been imported: 67 resource rows, 62 quantity states UNVERIFIED, 5 UNKNOWN, 5 LEGACY_REFERENCE price rows, and one explicitly SUBCONTRACTED capability row.
-- Known workbook conflicts remain preserved in resource attributes instead of being silently reconciled.
-- GitHub repository visibility has been corrected to private; canonical source/docs are being committed.
+## Immediate next proof
+1. Bootstrap one real authorized internal user.
+2. Connect the private GitHub repo to Cloudflare Pages.
+3. Add only `VITE_SUPABASE_URL` and `VITE_SUPABASE_PUBLISHABLE_KEY` as build environment values.
+4. Let Cloudflare perform the first authoritative build.
+5. Fix any compile/runtime defects before entering real customer information.
+6. Use 3–10 real Engagements and evaluate Shared Reality before activating another petal.
