@@ -13,6 +13,8 @@
 - React + TypeScript + Vite + Tailwind application shell
 - Mobile-first `Today / Engagements / Resources / + New` navigation
 - Supabase auth boundary and login screen
+- Authentication and Stage Presence membership are separate gates; Shared Reality data loads only after an active `app_members` check succeeds
+- Explicit unauthorized-account state and sign-out path
 - Explicit DEMO mode when backend environment variables are absent
 - Real Engagement create/list/detail paths
 - Typed natural capture is preserved as a source artifact; no AI inference is fabricated
@@ -35,6 +37,7 @@
 - Free organization/project; cost check at creation: $0/month
 - 10 public application tables, all RLS-enabled
 - Explicit `app_members` allowlist means authentication alone does not authorize company data
+- One real internal account has been bootstrapped as active `ADMIN`
 - Security advisor currently returns no lints
 - Performance advisor currently returns only `unused_index` INFO findings expected on a new/no-traffic database
 - No live customer or Engagement records yet
@@ -48,7 +51,6 @@
 
 ## Not yet done / intentionally dormant
 - No Cloudflare Pages project/deployment yet
-- No authorized Stage Presence app user has been bootstrapped into `app_members`
 - No paid AI model
 - No photo/voice file storage workflow yet
 - No QuickBooks or Goodshuffle integration
@@ -58,12 +60,12 @@
 - No crew scheduling, warehouse movement, maintenance, profitability, training, customer portal, or public website
 
 ## Build verification constraint
-This execution environment cannot currently reach the npm registry, so a dependency lockfile/full compiled build has not been produced here. Package versions are pinned in `package.json`; the first connected build environment should run dependency installation, commit `package-lock.json`, and treat its TypeScript/Vite build as the authoritative compiler check before production use.
+This execution environment cannot currently reach the npm registry, so a dependency lockfile/full compiled build has not been produced here. Package versions are pinned in `package.json`; Node is constrained to `>=22.12` for the current Vite toolchain. The first connected build environment should run dependency installation, commit `package-lock.json`, and treat its TypeScript/Vite build as the authoritative compiler check before production use.
 
 ## Immediate next proof
-1. Bootstrap one real authorized internal user.
-2. Connect the private GitHub repo to Cloudflare Pages.
-3. Add only `VITE_SUPABASE_URL` and `VITE_SUPABASE_PUBLISHABLE_KEY` as build environment values.
-4. Let Cloudflare perform the first authoritative build.
-5. Fix any compile/runtime defects before entering real customer information.
+1. Connect the private GitHub repo to Cloudflare Pages.
+2. Add only `VITE_SUPABASE_URL` and `VITE_SUPABASE_PUBLISHABLE_KEY` as build environment values.
+3. Let Cloudflare perform the first authoritative build.
+4. Fix any compile/runtime defects before entering real customer information.
+5. Sign in with the first authorized ADMIN and verify RLS-backed access.
 6. Use 3–10 real Engagements and evaluate Shared Reality before activating another petal.
