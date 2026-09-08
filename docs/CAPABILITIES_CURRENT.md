@@ -1,7 +1,9 @@
 # Stage Presence OS — Current Capability Matrix
 
 Status vocabulary:
-- LIVE: implemented and available in the deployed internal app/backend.
+- LIVE: implemented and available in the proven deployed internal app/backend.
+- LIVE BACKEND: live in Supabase/security/data layer; browser UX may still await organic runtime proof.
+- MAIN / PENDING RUNTIME PROOF: implemented and pushed to `main`; latest Cloudflare/browser result is not independently observable yet.
 - PARTIAL: kernel/data support exists but the operating experience is incomplete.
 - STAGED: architecture/contract exists but execution is not enabled yet.
 - DORMANT: intentionally not built until evidence earns it.
@@ -16,7 +18,7 @@ Status vocabulary:
 - Canonical Engagement record: LIVE
 - New opportunity/lead capture as Engagement: LIVE
 - Event Engagements: LIVE
-- Long-Term Rental / Installation / Equipment Sale / Service / Other types: LIVE in kernel and now exposed in optional Quick Capture details
+- Long-Term Rental / Installation / Equipment Sale / Service / Other types: LIVE in kernel and exposed in optional Quick Capture details on current `main`
 - Lead -> quote -> job as one persistent record: architectural rule LIVE; downstream quote/job operations PARTIAL
 - Archive instead of destructive delete: LIVE
 - Commercial / commitment / operational / attention state dimensions: LIVE in kernel; editing beyond attention/next move is PARTIAL in UI
@@ -43,7 +45,7 @@ Status vocabulary:
 - Verified / known / estimated / assumed / unknown / requested / conflicting / obsolete / N/A states: LIVE in kernel
 - Customer request distinct from technical requirement: LIVE architecture
 - Requirements / constraints / observations / assumptions / preferences: LIVE
-- Provenance to source artifacts: LIVE in kernel; capture coverage improving
+- Provenance to source artifacts: LIVE in kernel and current capture paths
 
 ## Resources / inventory
 - 67 provisional resource/capability records: LIVE
@@ -68,15 +70,25 @@ Status vocabulary:
 - Multiple semantic changes in one Engagement save logged separately: LIVE
 - Internal note events: LIVE
 - Actor attribution for new capture/note paths: LIVE in current code; legacy first test source event predates fix
+- PHOTO source -> Engagement -> SOURCE_ADDED relationship: LIVE backend / rollback verified
 
 ## Capture
 - Natural typed/pasted note: LIVE
-- One-note-only Quick Capture: LIVE in current main branch; deployment follows Cloudflare auto-build
-- Optional type/date/venue/request/next move: LIVE in current main branch
+- Low-friction one-note Quick Capture: implemented on current `main`; previously proven typed browser capture exists
+- Optional type/date/venue/request/next move: MAIN / PENDING RUNTIME PROOF for latest UI revision
 - Quick Lead Sheet design standard: LIVE as operating document
 - Source-agnostic Capture Contract: LIVE as architecture
-- Photo of Quick Lead Sheet -> secure source artifact: STAGED; storage not enabled yet
-- Photo interpretation/OCR/AI extraction: STAGED; no AI model connected yet
+- Private source-artifact Storage bucket: LIVE BACKEND
+  - private only
+  - 15 MB cap
+  - JPEG / PNG / WebP / HEIC / HEIF
+  - active-member reads
+  - own-user-folder uploads
+  - no browser update/delete of originals
+- Take Photo / Choose Image Quick Capture UI: MAIN / PENDING RUNTIME PROOF
+- Photo -> PHOTO source artifact metadata -> Engagement -> SOURCE_ADDED linkage: LIVE BACKEND / rollback verified; actual binary browser upload awaits first organic capture
+- Private source-artifact download/read-back helper: MAIN / PENDING RUNTIME PROOF; no polished source gallery yet
+- Photo interpretation/OCR/AI extraction: STAGED; no model connected
 - Voice note -> transcript/Engagement: STAGED
 - Email reference -> Engagement: STAGED
 - Website inquiry -> Engagement: STAGED
@@ -111,12 +123,12 @@ Status vocabulary:
 ## AI
 - AI boundary/contracts: STAGED
 - Paid AI API calls: NONE
-- Engagement Interpreter: next Capture petal, not enabled yet
+- Engagement Interpreter: likely next Capture petal after organic photo-capture evidence and separate privacy/cost permission
 - AI may propose candidates but may not silently convert inference into verified truth
 
 ## Current strategic interpretation
-The system is already a functioning private Shared Reality kernel for clients/opportunities/jobs, dates, contacts, facts, unknowns, resources, next moves and history.
+The system is a functioning private Shared Reality kernel for clients/opportunities/jobs, dates, contacts, facts, unknowns, resources, next moves and history.
 
-Its largest current limitation is not storage capacity; it is low-friction ingestion and downstream business automation.
+The private photo evidence vault is now live, and photo-first Quick Capture is implemented in `main`. The remaining evidence gate is the first organic browser photo upload, not repetitive manual QA.
 
-Therefore the next earned petal is Capture rather than more CRM fields.
+If that seam works in normal Stage Presence use, the next high-leverage problem becomes interpretation: turning preserved source evidence into candidate business structure without making Greg retype it.
