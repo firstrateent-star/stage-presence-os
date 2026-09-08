@@ -4,15 +4,15 @@ import { demoEngagements, demoEvents, demoResources } from './demo'
 import { listEngagements, listRecentEvents, listResources } from './repository'
 import type { Engagement, LedgerEvent, Resource } from '../types/domain'
 
-export function useAppData() {
+export function useAppData(enabled = true) {
   const [engagements, setEngagements] = useState<Engagement[]>(isBackendConfigured ? [] : demoEngagements)
   const [resources, setResources] = useState<Resource[]>(isBackendConfigured ? [] : demoResources)
   const [events, setEvents] = useState<LedgerEvent[]>(isBackendConfigured ? [] : demoEvents)
-  const [loading, setLoading] = useState(isBackendConfigured)
+  const [loading, setLoading] = useState(isBackendConfigured && enabled)
   const [error, setError] = useState<string | null>(null)
 
   async function refresh() {
-    if (!isBackendConfigured) return
+    if (!isBackendConfigured || !enabled) return
     setLoading(true)
     setError(null)
     try {
@@ -32,8 +32,13 @@ export function useAppData() {
   }
 
   useEffect(() => {
+    if (!isBackendConfigured) return
+    if (!enabled) {
+      setLoading(false)
+      return
+    }
     void refresh()
-  }, [])
+  }, [enabled])
 
   return { engagements, resources, events, loading, error, refresh, demoMode: !isBackendConfigured }
 }
