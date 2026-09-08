@@ -26,30 +26,25 @@ create temporary table _first_breath_ids (
   resource_id uuid
 ) on commit drop;
 
-insert into public.engagements (
-  name,
-  engagement_type,
-  customer_request,
-  next_action,
-  created_by
+with created as (
+  insert into public.engagements (
+    name,
+    engagement_type,
+    customer_request,
+    next_action,
+    created_by
+  )
+  values (
+    'AUTOTEST — First Breath',
+    'EVENT',
+    'Automated rollback-only verification',
+    'Verify automated smoke test',
+    auth.uid()
+  )
+  returning id
 )
-values (
-  'AUTOTEST — First Breath',
-  'EVENT',
-  'Automated rollback-only verification',
-  'Verify automated smoke test',
-  auth.uid()
-)
-returning id into temp table _first_breath_engagement;
-
--- PostgreSQL does not support RETURNING INTO a temp table by name in plain SQL,
--- so capture the created row through the deterministic AUTOTEST name.
 insert into _first_breath_ids (engagement_id)
-select id
-from public.engagements
-where name = 'AUTOTEST — First Breath'
-order by created_at desc
-limit 1;
+select id from created;
 
 update _first_breath_ids
 set resource_id = (
