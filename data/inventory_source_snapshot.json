@@ -1,0 +1,18 @@
+{
+  "source_file": "Stage Pressense Inventorypricing(1).xlsx",
+  "source_authority": "REFERENCE",
+  "completeness": "PARTIAL",
+  "verification": "MIXED / MOSTLY UNVERIFIED",
+  "candidate_count": 67,
+  "conflict_count": 3,
+  "incomplete_detail_count": 1,
+  "imported_to_supabase_on": "2026-09-08",
+  "supabase_resource_count": 67,
+  "notes": [
+    "No resource price is treated as approved current pricing authority.",
+    "Known quantities import as UNVERIFIED unless separately verified.",
+    "Blank quantities import as UNKNOWN.",
+    "Conflicting spec values remain explicit until verified.",
+    "Resource existence does not imply availability."
+  ]
+}
