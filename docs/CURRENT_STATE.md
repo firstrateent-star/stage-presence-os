@@ -3,7 +3,7 @@
 ## Canonical project
 - Private GitHub repository: `firstrateent-star/stage-presence-os`
 - Dedicated Supabase project: `stage-presence-os` (`yaojcuvgtlncytujfxef`), `us-east-1`
-- Hosting target: Cloudflare Pages
+- Hosting target: Cloudflare Workers Static Assets
 - Lovable prototypes are frozen historical references only.
 
 ## Business reference
@@ -31,13 +31,15 @@
 - Foreign-key index patch recorded
 - Database-level event triggers for Engagement, Fact, Party-link, and Resource-link history
 - Inventory source/conflict evidence recorded under `data/`
+- Cloudflare Workers static-asset configuration committed in `wrangler.jsonc`
 - Constitution, data model, security model, AI contract, deployment runbook, roadmap, value ledger, and permission gates
 
 ## Live Supabase state
 - Free organization/project; cost check at creation: $0/month
 - 10 public application tables, all RLS-enabled
 - Explicit `app_members` allowlist means authentication alone does not authorize company data
-- One real internal account has been bootstrapped as active `ADMIN`
+- One real internal account is active as `ADMIN`
+- RLS verification passed: simulated ADMIN sees all 67 provisional resources; simulated authenticated non-member sees zero resources and zero memberships
 - Security advisor currently returns no lints
 - Performance advisor currently returns only `unused_index` INFO findings expected on a new/no-traffic database
 - No live customer or Engagement records yet
@@ -49,8 +51,11 @@
   - 1 explicitly `SUBCONTRACTED` capability row
 - Known workbook conflicts remain preserved rather than silently reconciled
 
+## Hosting stance
+Cloudflare's current platform direction favors Workers for new applications. Stage Presence OS therefore uses Workers Static Assets rather than a new Pages project. First Breath has no Worker script; Cloudflare serves the compiled `dist/` bundle with SPA fallback. Static-asset requests are free/unlimited. Workers Builds currently supplies 3,000 build minutes/month on Free.
+
 ## Not yet done / intentionally dormant
-- No Cloudflare Pages project/deployment yet
+- No Cloudflare Worker/deployment exists in the user's account yet
 - No paid AI model
 - No photo/voice file storage workflow yet
 - No QuickBooks or Goodshuffle integration
@@ -60,12 +65,12 @@
 - No crew scheduling, warehouse movement, maintenance, profitability, training, customer portal, or public website
 
 ## Build verification constraint
-This execution environment cannot currently reach the npm registry, so a dependency lockfile/full compiled build has not been produced here. Package versions are pinned in `package.json`; Node is constrained to `>=22.12` for the current Vite toolchain. The first connected build environment should run dependency installation, commit `package-lock.json`, and treat its TypeScript/Vite build as the authoritative compiler check before production use.
+This execution environment cannot currently reach the npm registry, so a dependency lockfile/full compiled build has not been produced here. Package versions are pinned in `package.json`; Node is constrained to `>=22.12`. The first connected Cloudflare Workers Build should run dependency installation and become the authoritative TypeScript/Vite compiler check before production use.
 
 ## Immediate next proof
-1. Connect the private GitHub repo to Cloudflare Pages.
+1. Connect/import the private GitHub repo into Cloudflare Workers Builds.
 2. Add only `VITE_SUPABASE_URL` and `VITE_SUPABASE_PUBLISHABLE_KEY` as build environment values.
-3. Let Cloudflare perform the first authoritative build.
+3. Let Cloudflare perform the first authoritative build/deploy to the default `workers.dev` address.
 4. Fix any compile/runtime defects before entering real customer information.
-5. Sign in with the first authorized ADMIN and verify RLS-backed access.
+5. Sign in with the first authorized ADMIN and verify browser-level RLS-backed access.
 6. Use 3–10 real Engagements and evaluate Shared Reality before activating another petal.
