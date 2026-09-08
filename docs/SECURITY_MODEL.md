@@ -16,7 +16,7 @@ The authorization boundary was tested directly under simulated `authenticated` P
 - first active ADMIN member: 67/67 provisional resources visible
 - simulated authenticated non-member: 0 memberships visible, 0 resources visible
 
-This confirms that login alone does not expose Stage Presence business data. Browser/runtime verification is still required after the first Cloudflare deployment.
+This confirms that login alone does not expose Stage Presence business data. Browser/runtime verification is required on the deployed Cloudflare URL before real business data is entered.
 
 ## API grants
 Grants are explicit. Authenticated users do not receive DELETE grants on core business records. Archive semantics are used instead.
@@ -31,3 +31,16 @@ The browser receives only the project URL and Supabase publishable key. Never co
 The app has a login screen, not self-service signup. Creating an auth user does not automatically create an `app_members` row. Membership must be deliberately granted.
 
 The first real internal account has now been bootstrapped as active `ADMIN`. Additional users should not be added until their actual Stage Presence role and need for access are explicit.
+
+## Free-plan Auth limitation
+The Supabase security advisor currently warns that Leaked Password Protection is disabled. Supabase's current Password Security documentation states that HaveIBeenPwned leaked-password protection is available on the Pro plan and above.
+
+First Breath remains intentionally on the Free plan, so this warning is accepted as a documented plan limitation rather than triggering an unapproved recurring cost. Compensating controls for v0.1:
+- every internal account uses a strong, unique password generated/stored by a password manager where possible;
+- no self-service signup;
+- explicit `app_members` allowlist remains the authorization boundary;
+- additional accounts are provisioned deliberately;
+- RLS remains final authority for company data;
+- paid Auth hardening can be reconsidered when usage/value evidence earns it.
+
+Reference: Supabase Password Security documentation, `Password strength and leaked password protection`.
