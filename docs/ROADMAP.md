@@ -1,7 +1,10 @@
 # Roadmap — Evidence-Driven Petals
 
 ## First Breath — Shared Reality
-- Private auth
+Status: sufficiently proven for controlled internal use.
+
+Implemented/proven:
+- private auth
 - Today / Engagements / Resources / + New shell
 - Engagement kernel
 - Parties
@@ -11,11 +14,40 @@
 - Engagement-resource links
 - Event ledger
 - Deterministic attention rules
-- Typed intake
-- AI boundary only, no paid model
+- typed intake
+- deployed Cloudflare build
+- browser login/write proof
+- RLS member/non-member proof
+- rollback-only automated smoke test
 
-## Shared Reality validation
-Use real Stage Presence engagements and measure adoption, capture quality, next-action continuity, stale work, and reconstruction burden.
+## Next earned petal — Capture Layer
+Why this petal now:
+The Shared Reality brain works, but the largest remaining adoption constraint is getting real-world information into it without forcing Greg/Sean/Nancy into repetitive data entry.
+
+Sequence:
+1. Standardize the one-page Stage Presence Quick Lead Sheet.
+2. Establish the source-agnostic Capture Contract.
+3. Improve private typed/paste capture around the same contract.
+4. Add secure source-document/photo storage after explicit permission.
+5. Add photographed Quick Lead Sheet ingestion.
+6. Add Engagement Interpreter: extract candidates, preserve provenance, surface only material ambiguity.
+7. Add voice capture/transcription.
+8. Add private/internal web intake where useful.
+9. Add selected public Stage Presence website inquiries through a tightly scoped server-side intake boundary.
+10. Add email/reference ingestion only if it reduces inbox fragmentation rather than creating another inbox.
+
+Capture sources must converge into the same Engagement/Party/Fact/Resource/Event model. Do not create separate lead databases by channel.
+
+## Shared Reality + Capture validation
+Use real Stage Presence opportunities and measure:
+- capture latency
+- manual-entry burden
+- reconstruction burden
+- next-action continuity
+- stale/missed opportunities
+- provenance completeness
+- duplicate client/Engagement rate
+- clarification/interruption rate
 
 ## Dormant petals — activate only when evidence earns them
 1. Pricing / Quick Quote
@@ -27,6 +59,6 @@ Use real Stage Presence engagements and measure adoption, capture quality, next-
 7. Relationship / recurrence intelligence
 8. Installation/service specialization
 9. Training / capability development
-10. Automation / external integrations
+10. Deeper external integrations / automation
 
-Reality chooses sequencing after Shared Reality works.
+Reality chooses sequencing after Capture begins feeding reliable Shared Reality with low human burden.
