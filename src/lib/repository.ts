@@ -1,6 +1,9 @@
 import { supabase } from './supabase'
 import type { Engagement, EngagementFact, LedgerEvent, Resource } from '../types/domain'
 
+const SOURCE_BUCKET = 'source-artifacts'
+const MAX_SOURCE_IMAGE_BYTES = 15 * 1024 * 1024
+
 function requireClient() {
   if (!supabase) throw new Error('Backend is not configured. Copy .env.example to .env and add Supabase values.')
   return supabase
@@ -27,6 +30,13 @@ export interface ResourceLink {
   quantity: number | null
   notes: string | null
   resource: Resource | null
+}
+
+export interface UploadedSourceArtifact {
+  id: string
+  storage_path: string
+  mime_type: string
+  original_filename: string
 }
 
 export async function listEngagements(): Promise<Engagement[]> {
@@ -137,6 +147,86 @@ export async function addNote(engagementId: string, note: string) {
   if (error) throw error
 }
 
+function sourceImageType(file: File) {
+  const extension = file.name.split('.').pop()?.toLowerCase() ?? ''
+  const byExtension: Record<string, { mime: string; ext: string }> = {
+    jpg: { mime: 'image/jpeg', ext: 'jpg' },
+    jpeg: { mime: 'image/jpeg', ext: 'jpg' },
+    png: { mime: 'image/png', ext: 'png' },
+    webp: { mime: 'image/webp', ext: 'webp' },
+    heic: { mime: 'image/heic', ext: 'heic' },
+    heif: { mime: 'image/heif', ext: 'heif' },
+  }
+  const allowedMime = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/heic', 'image/heif'])
+  if (allowedMime.has(file.type)) {
+    const ext = file.type === 'image/jpeg' ? 'jpg' : file.type.split('/')[1]
+    return { mime: file.type, ext }
+  }
+  return byExtension[extension] ?? null
+}
+
+export async function uploadSourcePhoto(file: File): Promise<UploadedSourceArtifact> {
+  const client = requireClient()
+  if (!file.size) throw new Error('That image is empty. Choose another photo.')
+  if (file.size > MAX_SOURCE_IMAGE_BYTES) throw new Error('That image is larger than 15 MB. Use a smaller photo.')
+
+  const imageType = sourceImageType(file)
+  if (!imageType) throw new Error('Use a JPG, PNG, WebP, HEIC, or HEIF image.')
+
+  const { data: userData, error: userError } = await client.auth.getUser()
+  if (userError) throw userError
+  const userId = userData.user?.id
+  if (!userId) throw new Error('You must be signed in to preserve source evidence.')
+
+  const artifactId = crypto.randomUUID()
+  const storagePath = `${userId}/${artifactId}.${imageType.ext}`
+  const metadata = {
+    capture_surface: 'quick_capture',
+    evidence_role: 'original_source',
+    interpretation_state: 'not_connected',
+    upload_status: 'pending',
+    file_size: file.size,
+  }
+
+  const { error: artifactError } = await client.from('source_artifacts').insert({
+    id: artifactId,
+    artifact_type: 'PHOTO',
+    storage_path: storagePath,
+    original_filename: file.name,
+    mime_type: imageType.mime,
+    processing_state: 'RECEIVED',
+    created_by: userId,
+    metadata,
+  })
+  if (artifactError) throw artifactError
+
+  const { error: uploadError } = await client.storage.from(SOURCE_BUCKET).upload(storagePath, file, {
+    contentType: imageType.mime,
+    cacheControl: '3600',
+    upsert: false,
+  })
+
+  if (uploadError) {
+    await client.from('source_artifacts').update({
+      processing_state: 'FAILED',
+      metadata: { ...metadata, upload_status: 'failed' },
+    }).eq('id', artifactId)
+    throw uploadError
+  }
+
+  const { error: markStoredError } = await client.from('source_artifacts').update({
+    metadata: { ...metadata, upload_status: 'stored' },
+  }).eq('id', artifactId)
+  if (markStoredError) throw markStoredError
+
+  return {
+    id: artifactId,
+    storage_path: storagePath,
+    mime_type: imageType.mime,
+    original_filename: file.name,
+  }
+}
+
 export interface CreateEngagementInput {
   name: string
   engagement_type: Engagement['engagement_type']
@@ -147,13 +237,14 @@ export interface CreateEngagementInput {
   next_action?: string
   next_action_at?: string
   raw_capture?: string
+  source_artifact_ids?: string[]
 }
 
 export async function createEngagement(input: CreateEngagementInput): Promise<Engagement> {
   const client = requireClient()
   const { data: userData } = await client.auth.getUser()
   const actorUserId = userData.user?.id ?? null
-  let sourceArtifactId: string | null = null
+  let typedSourceArtifactId: string | null = null
 
   const hasSubmittedSource = Boolean(
     input.raw_capture?.trim() ||
@@ -191,10 +282,10 @@ export async function createEngagement(input: CreateEngagementInput): Promise<En
       .select('id')
       .single()
     if (artifactError) throw artifactError
-    sourceArtifactId = artifact.id
+    typedSourceArtifactId = artifact.id
   }
 
-  const { raw_capture: _rawCapture, ...engagementInput } = input
+  const { raw_capture: _rawCapture, source_artifact_ids: sourceArtifactIds = [], ...engagementInput } = input
   const { data, error } = await client
     .from('engagements')
     .insert({
@@ -211,16 +302,32 @@ export async function createEngagement(input: CreateEngagementInput): Promise<En
     .single()
   if (error) throw error
 
-  if (sourceArtifactId) {
-    const { error: sourceEventError } = await client.from('events').insert({
+  const sourceEvents = []
+  if (typedSourceArtifactId) {
+    sourceEvents.push({
       engagement_id: data.id,
       entity_type: 'source_artifact',
-      entity_id: sourceArtifactId,
+      entity_id: typedSourceArtifactId,
       event_type: 'SOURCE_ADDED',
       actor_user_id: actorUserId,
       summary: 'Initial typed capture preserved',
       metadata: { source_type: 'TEXT' },
     })
+  }
+  for (const sourceArtifactId of sourceArtifactIds) {
+    sourceEvents.push({
+      engagement_id: data.id,
+      entity_type: 'source_artifact',
+      entity_id: sourceArtifactId,
+      event_type: 'SOURCE_ADDED',
+      actor_user_id: actorUserId,
+      summary: 'Original lead-sheet photo preserved',
+      metadata: { source_type: 'PHOTO' },
+    })
+  }
+
+  if (sourceEvents.length) {
+    const { error: sourceEventError } = await client.from('events').insert(sourceEvents)
     if (sourceEventError) throw sourceEventError
   }
 
