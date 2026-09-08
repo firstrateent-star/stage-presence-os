@@ -5,7 +5,7 @@ import type { Engagement, LedgerEvent } from '../types/domain'
 
 export function TodayScreen({ engagements, events, onOpen }: { engagements: Engagement[]; events: LedgerEvent[]; onOpen: (id: string) => void }) {
   const needsYou = engagements.filter((item) => needsHumanAttention(item))
-  const waiting = engagements.filter(isWaiting)
+  const waiting = engagements.filter((item) => isWaiting(item))
   const upcoming = engagements
     .filter((item) => item.event_start)
     .sort((a, b) => new Date(a.event_start!).getTime() - new Date(b.event_start!).getTime())
