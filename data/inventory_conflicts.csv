@@ -1,0 +1,5 @@
+resource,field,overview_value,detail_value,state,severity,resolution,note
+17x10 LED Trailer,pixel_pitch,4.81 pixel pitch,4.9mm,CONFLICTING,MEDIUM,,Do not choose silently. Verify against equipment/spec label when useful.
+12x7 LED Trailer,pixel_pitch,4.81 pixel pitch,4.9mm,CONFLICTING,MEDIUM,,Do not choose silently. Verify against equipment/spec label when useful.
+10x5 LED Trailer,pixel_pitch,3.91 pixel pitch,4.9mm,CONFLICTING,HIGH,,Do not choose silently. Verify against equipment/spec label when useful.
+LED Poster Panels,quantity_detail_sheet,8,blank,INCOMPLETE,LOW,,Overview reports 8; detail sheet leaves quantity blank. Import quantity 8 as UNVERIFIED, not VERIFIED.
