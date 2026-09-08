@@ -5,10 +5,14 @@ export type ScreenName = 'today' | 'engagements' | 'resources' | 'new' | 'detail
 export function AppShell({
   current,
   onNavigate,
+  onSignOut,
+  accountLabel,
   children,
 }: {
   current: ScreenName
   onNavigate: (screen: ScreenName) => void
+  onSignOut?: () => void
+  accountLabel?: string
   children: ReactNode
 }) {
   const nav = [
@@ -20,18 +24,26 @@ export function AppShell({
   return (
     <div className="min-h-screen bg-zinc-950 text-zinc-100">
       <header className="sticky top-0 z-20 border-b border-zinc-900 bg-zinc-950/95 backdrop-blur">
-        <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-4 sm:px-6">
+        <div className="mx-auto flex max-w-6xl items-center justify-between gap-3 px-4 py-4 sm:px-6">
           <button type="button" onClick={() => onNavigate('today')} className="text-left">
             <div className="text-xs font-semibold tracking-[0.22em] text-amber-500">STAGE PRESENCE</div>
             <div className="text-sm font-medium text-zinc-300">Operating System</div>
           </button>
-          <button
-            type="button"
-            onClick={() => onNavigate('new')}
-            className="rounded-full bg-amber-500 px-4 py-2.5 text-sm font-bold text-zinc-950 shadow-sm transition hover:bg-amber-400"
-          >
-            + New
-          </button>
+          <div className="flex items-center gap-2">
+            {accountLabel && <span className="hidden text-xs font-medium text-zinc-500 sm:inline">{accountLabel}</span>}
+            {onSignOut && (
+              <button type="button" onClick={onSignOut} className="hidden rounded-xl border border-zinc-800 px-3 py-2 text-xs font-semibold text-zinc-400 hover:border-zinc-700 hover:text-zinc-200 sm:block">
+                Sign out
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={() => onNavigate('new')}
+              className="rounded-full bg-amber-500 px-4 py-2.5 text-sm font-bold text-zinc-950 shadow-sm transition hover:bg-amber-400"
+            >
+              + New
+            </button>
+          </div>
         </div>
       </header>
 
@@ -64,6 +76,11 @@ export function AppShell({
               {label}
             </button>
           ))}
+          {onSignOut && (
+            <button type="button" onClick={onSignOut} className="mt-4 w-full rounded-xl px-3 py-2 text-left text-xs font-medium text-zinc-600 hover:text-zinc-300 sm:hidden">
+              Sign out
+            </button>
+          )}
         </div>
       </aside>
     </div>
