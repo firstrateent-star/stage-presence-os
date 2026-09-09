@@ -1,13 +1,16 @@
 import { useEffect, useState } from 'react'
 import { isBackendConfigured } from './config'
 import { demoEngagements, demoEvents, demoResources } from './demo'
-import { listEngagements, listRecentEvents, listResources } from './repository'
-import type { Engagement, LedgerEvent, Resource } from '../types/domain'
+import { listAttentionFacts, listConfiguredResourceLinks, listCustomerLinks, listEngagements, listRecentEvents, listResources, type ConfiguredResourceLink, type CustomerLink } from './repository'
+import type { Engagement, EngagementFact, LedgerEvent, Resource } from '../types/domain'
 
 export function useAppData(enabled = true) {
   const [engagements, setEngagements] = useState<Engagement[]>(isBackendConfigured ? [] : demoEngagements)
   const [resources, setResources] = useState<Resource[]>(isBackendConfigured ? [] : demoResources)
   const [events, setEvents] = useState<LedgerEvent[]>(isBackendConfigured ? [] : demoEvents)
+  const [customerLinks, setCustomerLinks] = useState<CustomerLink[]>([])
+  const [configuredLinks, setConfiguredLinks] = useState<ConfiguredResourceLink[]>([])
+  const [attentionFacts, setAttentionFacts] = useState<EngagementFact[]>([])
   const [loading, setLoading] = useState(isBackendConfigured && enabled)
   const [error, setError] = useState<string | null>(null)
 
@@ -16,14 +19,20 @@ export function useAppData(enabled = true) {
     setLoading(true)
     setError(null)
     try {
-      const [nextEngagements, nextResources, nextEvents] = await Promise.all([
+      const [nextEngagements, nextResources, nextEvents, nextCustomers, nextConfigured, nextAttentionFacts] = await Promise.all([
         listEngagements(),
         listResources(),
         listRecentEvents(),
+        listCustomerLinks(),
+        listConfiguredResourceLinks(),
+        listAttentionFacts(),
       ])
       setEngagements(nextEngagements)
       setResources(nextResources)
       setEvents(nextEvents)
+      setCustomerLinks(nextCustomers)
+      setConfiguredLinks(nextConfigured)
+      setAttentionFacts(nextAttentionFacts)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unable to load Stage Presence data.')
     } finally {
@@ -40,5 +49,16 @@ export function useAppData(enabled = true) {
     void refresh()
   }, [enabled])
 
-  return { engagements, resources, events, loading, error, refresh, demoMode: !isBackendConfigured }
+  return {
+    engagements,
+    resources,
+    events,
+    customerLinks,
+    configuredLinks,
+    attentionFacts,
+    loading,
+    error,
+    refresh,
+    demoMode: !isBackendConfigured,
+  }
 }
