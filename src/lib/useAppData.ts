@@ -4,7 +4,8 @@ import { demoEngagements, demoEvents, demoResources } from './demo'
 import { listEngagementRelationships, type EngagementRelationship } from './engagementRelationships'
 import { listEngagementFinancialFacts, type EngagementFinancialFact } from './financialFacts'
 import { listLearningReviewSignals, type LearningReviewSignal } from './learningCloseout'
-import { listAttentionFacts, listConfiguredResourceLinks, listCustomerLinks, listEngagements, listRecentEvents, listResources, type ConfiguredResourceLink, type CustomerLink } from './repository'
+import { listEffectiveConfiguredResourceLinks } from './effectiveConfiguredLinks'
+import { listAttentionFacts, listCustomerLinks, listEngagements, listRecentEvents, listResources, type ConfiguredResourceLink, type CustomerLink } from './repository'
 import type { Engagement, EngagementFact, LedgerEvent, Resource } from '../types/domain'
 
 export function useAppData(enabled = true) {
@@ -30,7 +31,7 @@ export function useAppData(enabled = true) {
         listResources(),
         listRecentEvents(),
         listCustomerLinks(),
-        listConfiguredResourceLinks(),
+        listEffectiveConfiguredResourceLinks(),
         listAttentionFacts(),
         listEngagementRelationships(),
         listEngagementFinancialFacts(),
