@@ -32,6 +32,27 @@ export interface ResourceLink {
   resource: Resource | null
 }
 
+export interface CustomerLink {
+  engagement_id: string
+  party: {
+    id: string
+    party_type: 'PERSON' | 'ORGANIZATION'
+    name: string
+    organization_name: string | null
+    email: string | null
+    phone: string | null
+  } | null
+}
+
+export interface ConfiguredResourceLink {
+  id: string
+  engagement_id: string
+  resource_id: string
+  relationship: string
+  quantity: number | null
+  resource: Resource | null
+}
+
 export interface UploadedSourceArtifact {
   id: string
   storage_path: string
@@ -60,6 +81,17 @@ export async function listFacts(engagementId: string): Promise<EngagementFact[]>
   return (data ?? []) as EngagementFact[]
 }
 
+export async function listAttentionFacts(): Promise<EngagementFact[]> {
+  const client = requireClient()
+  const { data, error } = await client
+    .from('engagement_facts')
+    .select('*')
+    .in('certainty_state', ['UNKNOWN', 'REQUESTED', 'CONFLICTING'])
+    .order('updated_at', { ascending: false })
+  if (error) throw error
+  return (data ?? []) as EngagementFact[]
+}
+
 export async function createFact(input: Omit<EngagementFact, 'id' | 'created_at' | 'updated_at'>) {
   const client = requireClient()
   const { data: userData } = await client.auth.getUser()
@@ -77,6 +109,26 @@ export async function listResources(): Promise<Resource[]> {
   const { data, error } = await client.from('resources').select('*').is('archived_at', null).eq('active', true).order('category').order('name')
   if (error) throw error
   return (data ?? []) as Resource[]
+}
+
+export async function listCustomerLinks(): Promise<CustomerLink[]> {
+  const client = requireClient()
+  const { data, error } = await client
+    .from('engagement_parties')
+    .select('engagement_id,party:parties(id,party_type,name,organization_name,email,phone)')
+    .eq('role', 'CUSTOMER')
+  if (error) throw error
+  return (data ?? []) as unknown as CustomerLink[]
+}
+
+export async function listConfiguredResourceLinks(): Promise<ConfiguredResourceLink[]> {
+  const client = requireClient()
+  const { data, error } = await client
+    .from('engagement_resources')
+    .select('id,engagement_id,resource_id,relationship,quantity,resource:resources(*)')
+    .eq('relationship', 'CONFIGURED')
+  if (error) throw error
+  return (data ?? []) as unknown as ConfiguredResourceLink[]
 }
 
 export async function listEngagementResources(engagementId: string): Promise<ResourceLink[]> {
