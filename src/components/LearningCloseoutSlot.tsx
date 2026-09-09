@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
+import { isBackendConfigured } from '../lib/config'
 import { getEngagementCloseout, type CloseoutKind, type EngagementCloseout } from '../lib/learningCloseout'
 import { LearningCloseoutPanel } from './LearningCloseoutPanel'
 
@@ -19,15 +20,21 @@ export function LearningCloseoutSlot({
   const [ready, setReady] = useState(false)
 
   const refresh = useCallback(async () => {
+    if (!isBackendConfigured) {
+      setReady(true)
+      return
+    }
     try {
       setCloseout(await getEngagementCloseout(engagementId))
+    } catch {
+      setCloseout(null)
     } finally {
       setReady(true)
     }
   }, [engagementId])
 
   useEffect(() => { void refresh() }, [refresh])
-  if (!ready) return null
+  if (!ready || !isBackendConfigured) return null
 
   const defaultCloseoutKind: CloseoutKind = commitmentState === 'CANCELLED'
     ? 'CANCELLED'
