@@ -1,16 +1,30 @@
 import type { Engagement, LedgerEvent, Resource } from '../types/domain'
 
+function demoDate(daysFromNow: number) {
+  return new Date(Date.now() + daysFromNow * 86400000)
+}
+
+function dateOnly(value: Date) {
+  return value.toISOString().slice(0, 10)
+}
+
+const demoOneStart = demoDate(5)
+const demoTwoStart = demoDate(12)
+
 export const demoEngagements: Engagement[] = [
   {
     id: 'demo-engagement-1',
     engagement_number: 'DEMO-001',
+    source_key: null,
     name: 'DEMO — Outdoor Community Event',
     engagement_type: 'EVENT',
     customer_request: 'Large outdoor screen and basic audio',
     desired_outcome: 'Audience can clearly see sponsor content and hear announcements.',
     internal_summary: 'Synthetic record for UI preview only.',
-    event_start: new Date(Date.now() + 5 * 86400000).toISOString(),
+    event_start: demoOneStart.toISOString(),
     event_end: null,
+    event_start_date: dateOnly(demoOneStart),
+    event_end_date: null,
     venue_name: 'Demo Venue',
     venue_address: null,
     estimated_value: null,
@@ -30,13 +44,16 @@ export const demoEngagements: Engagement[] = [
   {
     id: 'demo-engagement-2',
     engagement_number: 'DEMO-002',
+    source_key: null,
     name: 'DEMO — Repeat Visual Rental',
     engagement_type: 'EVENT',
     customer_request: 'Same display package as last year',
     desired_outcome: null,
     internal_summary: 'Synthetic record for UI preview only.',
-    event_start: new Date(Date.now() + 12 * 86400000).toISOString(),
+    event_start: demoTwoStart.toISOString(),
     event_end: null,
+    event_start_date: dateOnly(demoTwoStart),
+    event_end_date: null,
     venue_name: null,
     venue_address: null,
     estimated_value: null,
