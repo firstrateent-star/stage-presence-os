@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import type { Session } from '@supabase/supabase-js'
 import { AppShell, type ScreenName } from './components/AppShell'
+import { LearningCloseoutSlot } from './components/LearningCloseoutSlot'
 import { TodayScreen } from './screens/TodayScreen'
 import { EngagementsScreen } from './screens/EngagementsScreen'
 import { ResourcesScreen } from './screens/ResourcesScreen'
@@ -52,6 +53,7 @@ export default function App() {
   const [screen, setScreen] = useState<ScreenName>(initialRoute.screen)
   const [selectedId, setSelectedId] = useState<string | null>(initialRoute.selectedId)
   const data = useAppData(!isBackendConfigured || accessState === 'authorized')
+  const selectedEngagement = data.engagements.find((item) => item.id === selectedId)
 
   async function verifyMembership(current: Session | null) {
     if (!supabase || !current) {
@@ -183,7 +185,16 @@ export default function App() {
       ) : screen === 'new' ? (
         <NewEngagementScreen onCancel={() => navigate('today')} onCreated={() => { void data.refresh(); navigate('engagements') }} />
       ) : (
-        <EngagementDetailScreen engagement={data.engagements.find((item) => item.id === selectedId)} onBack={() => navigate('engagements')} onChanged={data.refresh} />
+        <>
+          <EngagementDetailScreen engagement={selectedEngagement} onBack={() => navigate('engagements')} onChanged={data.refresh} />
+          {selectedEngagement && (
+            <LearningCloseoutSlot
+              engagementId={selectedEngagement.id}
+              eventEndDate={selectedEngagement.event_end_date}
+              onSaved={data.refresh}
+            />
+          )}
+        </>
       )}
     </AppShell>
   )
