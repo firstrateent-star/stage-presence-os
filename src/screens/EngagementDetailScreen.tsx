@@ -1,5 +1,6 @@
 import { useMemo, useState, type ReactNode } from 'react'
 import { StateBadge } from '../components/StateBadge'
+import { engagementDateLabel } from '../lib/businessSignals'
 import { addNote, archiveEngagement, createFact, createPartyAndLink, linkResource, updateEngagement } from '../lib/repository'
 import { useEngagementDetail } from '../lib/useEngagementDetail'
 import type { AttentionState, CertaintyState, Engagement, FactCategory, FactKind } from '../types/domain'
@@ -103,7 +104,7 @@ export function EngagementDetailScreen({ engagement, onBack, onChanged }: { enga
           <h1 className="mt-2 text-3xl font-semibold tracking-tight">{engagement.name}</h1>
           <div className="mt-3 flex flex-wrap gap-2"><StateBadge value={engagement.commercial_state} /><StateBadge value={engagement.commitment_state} /><StateBadge value={engagement.operational_state} /><StateBadge value={engagement.attention_state} /></div>
         </div>
-        <div className="text-sm text-zinc-500">{engagement.event_start ? new Date(engagement.event_start).toLocaleString() : 'Date unknown'}</div>
+        <div className="text-sm text-zinc-500">{engagementDateLabel(engagement)}</div>
       </div>
 
       {(error || detail.error) && <div className="mt-5 rounded-xl border border-red-900/60 bg-red-950/20 px-4 py-3 text-sm text-red-300">{error || detail.error}</div>}
