@@ -81,3 +81,15 @@ Reason: a full inventory audit creates work without necessarily creating value. 
 ## 2026-09-09 — Routine flow should be fast; humans handle exceptions
 Decision: future commercial and operating automation should default routine, well-evidenced work through deterministic paths and surface Greg/Sean/Nancy only for material exceptions.
 Reason: Stage Presence scales by moving continuity and calculation into systems while preserving human judgment for relationships, technical ambiguity, scarce capacity, pricing/risk exceptions and unusual commitments.
+
+## 2026-09-09 — Commitment readiness is a ladder, not one status
+Decision: model operational decision readiness conceptually as Quote Ready → Commit Ready → Reserve Ready → Execute Ready rather than adding one persisted `ready` or `confirmed` field.
+Reason: these decisions require different evidence. A job can be safe to quote without being safe to reserve, and a signed job can still lack deposit/capacity or execution evidence. Readiness should be derived, explainable and exception-aware. Canonical design: `docs/COMMITMENT_LADDER.md`.
+
+## 2026-09-09 — Standardize internal knowledge before customer-facing packages
+Decision: develop reusable internal solution archetypes from repeated evidence rather than forcing rigid public packages from the current sample.
+Reason: the import already contains exact recurring visual configurations, but complex production remains heterogeneous. Internal archetypes can reduce reconstruction, quoting and prep work while preserving custom outcome design.
+
+## 2026-09-09 — Lightweight closeout moves earlier because it creates future evidence
+Decision: prioritize a low-burden learning closeout before building a large warehouse/crew/operations module.
+Reason: actual resource use, timing, venue learning, labor, sourcing, scope changes and financial actuals are the inputs required to improve capacity, pricing, archetypes, training and recurrence. Every delivered Engagement should make future work easier. Canonical design: `docs/REPEATABILITY_ENGINE.md`.
