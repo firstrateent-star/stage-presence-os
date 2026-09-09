@@ -293,6 +293,7 @@ export interface CreateEngagementInput {
   customer_request?: string
   desired_outcome?: string
   event_start?: string
+  event_start_date?: string
   venue_name?: string
   next_action?: string
   next_action_at?: string
@@ -311,6 +312,7 @@ export async function createEngagement(input: CreateEngagementInput): Promise<En
     input.customer_request?.trim() ||
     input.desired_outcome?.trim() ||
     input.event_start ||
+    input.event_start_date ||
     input.venue_name?.trim() ||
     input.next_action?.trim() ||
     input.next_action_at,
@@ -332,6 +334,7 @@ export async function createEngagement(input: CreateEngagementInput): Promise<En
             customer_request: input.customer_request?.trim() || null,
             desired_outcome: input.desired_outcome?.trim() || null,
             event_start: input.event_start || null,
+            event_start_date: input.event_start_date || null,
             venue_name: input.venue_name?.trim() || null,
             next_action: input.next_action?.trim() || null,
             next_action_at: input.next_action_at || null,
@@ -352,6 +355,7 @@ export async function createEngagement(input: CreateEngagementInput): Promise<En
       customer_request: engagementInput.customer_request || null,
       desired_outcome: engagementInput.desired_outcome || null,
       event_start: engagementInput.event_start || null,
+      event_start_date: engagementInput.event_start_date || null,
       venue_name: engagementInput.venue_name || null,
       next_action: engagementInput.next_action || null,
       next_action_at: engagementInput.next_action_at || null,
