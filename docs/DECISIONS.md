@@ -69,3 +69,15 @@ Reason: imported evidence already shows substantial concentration and recurrence
 ## 2026-09-09 — Capacity pressure precedes reservation automation
 Decision: surface overlapping configured physical resources before implementing full holds/reservations.
 Reason: current evidence already reveals overlapping signed/proposed demand on scarce visual assets. Early warning is valuable now, while the system must still avoid claiming availability or reservation truth without signature/deposit/capacity evidence.
+
+## 2026-09-09 — Requirement Window is separate from configuration and reservation
+Decision: each configured Engagement-resource link may carry an explicit requirement window, epistemic state, and Engagement-specific planned sourcing model.
+Reason: event dates alone are not sufficient to represent when scarce capacity is actually occupied. At the same time, requirement timing is still not a hold or reservation. The OS must preserve the sequence CONFIGURED → REQUIREMENT WINDOW → PRESSURE → HOLD → RESERVATION rather than collapsing these truths.
+
+## 2026-09-09 — Capacity verification follows decision leverage
+Decision: verify uncertain resource quantity/timing/sourcing first where that uncertainty can change a live commitment decision.
+Reason: a full inventory audit creates work without necessarily creating value. Scarce resources participating in signed/open overlap deserve verification before low-use accessories with no current decision impact.
+
+## 2026-09-09 — Routine flow should be fast; humans handle exceptions
+Decision: future commercial and operating automation should default routine, well-evidenced work through deterministic paths and surface Greg/Sean/Nancy only for material exceptions.
+Reason: Stage Presence scales by moving continuity and calculation into systems while preserving human judgment for relationships, technical ambiguity, scarce capacity, pricing/risk exceptions and unusual commitments.
