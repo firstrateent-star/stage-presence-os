@@ -1,6 +1,6 @@
 import { useMemo, type ReactNode } from 'react'
 import { EngagementCard } from '../components/EngagementCard'
-import { buildBusinessSignals, engagementDateLabel, type CapacityPressure, type RelationshipSignal } from '../lib/businessSignals'
+import { buildBusinessSignals, engagementDateLabel, type CapacityPressure, type CapacityTruthPriority, type RelationshipSignal } from '../lib/businessSignals'
 import type { EngagementRelationship } from '../lib/engagementRelationships'
 import type { EngagementFinancialFact } from '../lib/financialFacts'
 import type { ConfiguredResourceLink, CustomerLink } from '../lib/repository'
@@ -33,6 +33,7 @@ export function TodayScreen({
   const delivery = signals.protect_delivery.slice(0, 6)
   const demand = signals.convert_demand.slice(0, 6)
   const pressure = signals.capacity_pressure.slice(0, 6)
+  const capacityTruth = signals.capacity_truth_priorities.slice(0, 6)
   const recurringRelationships = signals.relationships.filter((item) => item.engagements.length > 1).slice(0, 4)
   const unresolved = signals.unresolved_facts.slice(0, 6)
 
@@ -61,6 +62,10 @@ export function TodayScreen({
 
       <Section title="Capacity Pressure" count={signals.capacity_pressure.length} description="Overlapping configured physical resources where at least one Engagement is committed. These are review signals—not confirmed reservation conflicts.">
         {pressure.length ? pressure.map((item) => <CapacityCard key={item.id} pressure={item} onOpen={onOpen} />) : <Empty text="No configured physical-resource overlap currently requires review." />}
+      </Section>
+
+      <Section title="Verify Capacity Truth" count={signals.capacity_truth_priorities.length} description="Do not inventory everything. Verify the uncertain assets whose truth can actually change a commitment decision.">
+        {capacityTruth.length ? capacityTruth.map((item) => <CapacityTruthCard key={item.resource_id} priority={item} />) : <Empty text="No unverified physical resource currently has enough decision leverage to surface." />}
       </Section>
 
       <Section title="Relationships" count={recurringRelationships.length} description="Repeated customer nodes deserve relationship-level attention. Program components are separated from independent commercial breadth so execution count is not mistaken for diversification.">
@@ -114,6 +119,21 @@ function CapacityCard({ pressure, onOpen }: { pressure: CapacityPressure; onOpen
         ))}
       </div>
       <p className="mt-3 text-xs leading-5 text-zinc-600">Review sourcing, timing and actual reservation truth before making another commitment.</p>
+    </div>
+  )
+}
+
+function CapacityTruthCard({ priority }: { priority: CapacityTruthPriority }) {
+  return (
+    <div className="rounded-2xl border border-zinc-900 bg-zinc-950/70 p-4">
+      <div className="flex items-start justify-between gap-3">
+        <div><div className="font-semibold text-zinc-200">{priority.resource_name}</div><div className="mt-1 text-xs text-zinc-600">{priority.category} · quantity {priority.quantity ?? 'unknown'} · {priority.quantity_state}</div></div>
+        {priority.pressure_count > 0 && <span className="text-xs font-bold text-amber-400">DECISION LEVERAGE</span>}
+      </div>
+      <div className="mt-4 flex flex-wrap gap-2 text-xs text-zinc-600">
+        <span>{priority.engagement_count} configured Engagements</span><span>•</span><span>{priority.committed_count} committed</span><span>•</span><span>{priority.open_count} open</span>{priority.pressure_count > 0 && <><span>•</span><span>{priority.pressure_count} pressure signal{priority.pressure_count === 1 ? '' : 's'}</span></>}
+      </div>
+      <p className="mt-3 text-xs leading-5 text-zinc-600">Verification is valuable because this resource participates in live commitment decisions—not because the database wants every field filled in.</p>
     </div>
   )
 }
