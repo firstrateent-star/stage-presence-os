@@ -4,93 +4,154 @@
 Status: sufficiently proven for controlled internal use.
 
 Implemented/proven:
-- private auth
-- Today / Engagements / Resources / Quick Capture shell
-- Engagement kernel
-- Parties
-- Facts with certainty/provenance
-- Source artifacts
-- Resources
-- Engagement-resource links
-- Event ledger
-- Deterministic attention rules
-- typed intake
-- deployed Cloudflare build
+- private auth + explicit Stage Presence membership
+- canonical Engagement kernel
+- Parties / facts / uncertainty / resources / event ledger
+- next-move continuity
+- typed capture
+- deployed Cloudflare baseline
 - browser login/write proof
 - RLS member/non-member proof
-- rollback-only automated smoke test
+- rollback-only automated smoke tests
 
-## Current earned petal — Capture Layer
-Why this petal:
-The Shared Reality brain works. The primary adoption constraint is getting reality into it without forcing Greg/Sean/Nancy into repetitive administration.
+## Evidence inflection — Goodshuffle operating reality
+On 2026-09-09, 30 real Goodshuffle projects were translated into Stage Presence OS as evidence rather than copied as legacy architecture.
 
-### Completed / implemented
-1. Standardize the one-page Stage Presence Quick Lead Sheet. — COMPLETE
-2. Establish the source-agnostic Capture Contract. — COMPLETE
-3. Improve private typed/paste capture around the same contract. — COMPLETE IN MAIN
-4. Add secure source-document/photo storage after explicit permission. — COMPLETE / LIVE BACKEND
-5. Add photographed Quick Lead Sheet capture. — IMPLEMENTED IN MAIN; first organic browser upload remains the deployment/runtime proof
+The sample materially strengthened four observations:
+1. large-format VIDEO is the strongest observed strategic center;
+2. recurring relationship nodes create both compounding value and concentration risk;
+3. scarce visual capacity needs warning signals before more commitments are made;
+4. a raw attention queue will recreate Greg's cognitive bottleneck once real data exists.
 
-Current photo seam:
+Canonical evidence review: `docs/BUSINESS_MODEL_EVIDENCE_2026-09-09.md`.
+
+## Current earned petal — Business Command Layer
+Status: implemented in current `main`; newest Cloudflare deployment not independently proven from the current tool environment.
+
+Purpose:
+Allocate scarce human attention according to the Stage Presence business model rather than database status.
+
+Today order:
+1. Protect Delivery
+2. Convert Demand
+3. Capacity Pressure
+4. Relationships
+5. Unresolved Truth
+6. Recently Changed
+
+Current live-data signal set:
+- 3 delivery commitments inside 21 days
+- 15 open commercial opportunities
+- 3 physical capacity-pressure watch pairs
+- 3 recurring customer relationships
+- 2 conflicting facts
+- 6 explicit unknown facts
+
+Capacity pressure is deliberately advisory. It does not claim reservation, availability, ownership certainty or double-booking.
+
+### Evidence gate
+Observe whether the command surface actually helps Greg/Sean answer:
+- what must be protected today?
+- what demand is becoming time-sensitive?
+- where could another commitment create capacity pressure?
+- which relationships deserve account-level attention?
+- what uncertainty could invalidate a decision?
+
+Do not add KPI/dashboard complexity unless these questions require it.
+
+## Parallel earned petal — Capture Layer
+The Shared Reality brain works; new reality should enter with minimal administration.
+
+Completed / implemented:
+1. one-page Quick Lead Sheet standard
+2. source-agnostic Capture Contract
+3. low-friction typed/paste Quick Capture
+4. secure private source-artifact Storage
+5. photo/camera capture in current `main`
+
+Photo seam:
 Quick Lead Sheet / camera image -> private immutable source evidence -> source artifact -> canonical Engagement -> SOURCE_ADDED history.
 
-Security posture:
-- private bucket only
-- image-only 15 MB cap
-- active members only
-- uploader's user-ID folder for inserts
-- no client update/delete of original evidence
-- no public URLs
+Next evidence gate:
+Use the first real or low-stakes lead sheet organically. Measure capture time, retyping burden, ambiguity and duplicate risk. Do not make Sean/Greg perform repetitive synthetic QA.
 
-### Next evidence gate
-Use the first real or low-stakes Quick Lead Sheet organically. Do not create repetitive human QA work merely to prove the browser upload.
+Likely next Capture activation:
+- Engagement Interpreter: photo/text -> candidate people, company, date, venue, literal request, resource mentions, unknowns and next move.
 
-Measure:
-- capture time
-- whether one photo replaces retyping
-- whether placeholder Engagements are understandable before interpretation
-- which fields require automated interpretation most often
-- ambiguity frequency
-- duplicate client/contact/Engagement risk
+Before AI activation, make a separate decision about provider privacy, cost, confidence thresholds and projection authority.
 
-### Likely next activation after evidence
-6. Engagement Interpreter: photo/text -> candidate people, company, date, venue, literal request, resource mentions, unknowns, and next move.
+## Next likely petal — Capacity Truth
+Why it moved forward:
+The current Goodshuffle sample already contains overlapping configured physical resources between committed work and open opportunities.
 
-This is NOT enabled yet. Before activation, make a separate decision about:
-- privacy and data sent to an AI/model provider,
-- cost / paid API usage,
-- extraction confidence thresholds,
-- which candidates can be projected automatically versus require human review.
+Progression:
+1. pressure signal — CURRENT
+2. capability sourcing alternatives
+3. possession/setup/return windows
+4. provisional holds
+5. signed/deposit evidence
+6. reservation truth
+7. release/expiry rules
+8. conflict resolution and substitution
 
-Then, only if earned:
-7. Voice capture/transcription.
-8. Private/internal web intake where useful.
-9. Selected public Stage Presence website inquiries through a tightly scoped server-side intake boundary.
-10. Email/reference ingestion only if it reduces inbox fragmentation rather than creating another inbox.
+Constitution remains:
+**no signature/deposit/capacity evidence = do not assert reservation.**
 
-Capture sources must converge into the same Engagement/Party/Fact/Resource/Event model. Do not create separate lead databases by channel.
+The system should distinguish configured demand, hold, reservation and actual physical availability.
 
-## Shared Reality + Capture validation
-Use real Stage Presence opportunities and measure:
-- capture latency
-- manual-entry burden
-- reconstruction burden
-- next-action continuity
-- stale/missed opportunities
-- provenance completeness
-- duplicate client/Engagement rate
-- clarification/interruption rate
+## Next likely petal — Relationship Intelligence
+Why it moved forward:
+Imported evidence already shows repeated customer nodes and high known-value concentration.
 
-## Dormant petals — activate only when evidence earns them
-1. Pricing / Quick Quote
-2. Proposal / Signature / Deposit
-3. Capacity / Holds / Reservations
-4. Operational handoff / scheduling / crew
-5. Warehouse / pulls / returns / maintenance
-6. Economics / contribution / cash
-7. Relationship / recurrence intelligence
-8. Installation/service specialization
-9. Training / capability development
-10. Deeper external integrations / automation
+Progression:
+1. recurring-customer signal — CURRENT
+2. separate person / organization / account identity where evidence supports it
+3. cross-Engagement history
+4. venue / planner / referrer network
+5. recurring annual-event recognition
+6. next-relationship opportunity
+7. payment/delivery history
+8. lifetime contribution once economics exist
 
-Reality chooses sequencing after Capture begins feeding reliable Shared Reality with low human burden.
+Do not collapse a buyer, planner, venue, payer and end client into one fake `customer` merely for CRM convenience.
+
+## Economics / Pricing before quote optimization
+Fast quoting remains important, but a sophisticated quote engine should not outrun economic truth.
+
+Acquire:
+- direct labor cost
+- subcontract cost
+- delivery/travel cost
+- asset/capacity consumption
+- discounts / negotiated price
+- actual collected revenue
+- change-order leakage
+- founder-dependent effort where practical
+
+Then distinguish:
+1. direct cost
+2. economic floor
+3. commercial floor
+4. target price
+5. value-supported/recommended price
+6. final negotiated price
+7. actual contribution after delivery
+
+Only then should Quick Quote automation optimize speed and commercial quality together.
+
+## Later operational petals
+Activate according to real friction/evidence:
+- proposal / signature / deposit propagation
+- operational handoff / schedule / crew
+- warehouse pulls / returns / maintenance
+- economics / contribution / cash
+- installation/service specialization
+- training / capability development
+- Goodshuffle/QuickBooks integrations or replacement seams
+- voice / website / email intake
+- deeper automation
+
+## Governing sequencing rule
+> Evidence earns expansion.
+
+The roadmap is not a feature backlog. The next petal must reduce a real constraint, protect a real value engine, or improve the quality of a real business decision.
