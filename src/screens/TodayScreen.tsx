@@ -104,6 +104,7 @@ function SignalStat({ label, value }: { label: string; value: number }) {
 }
 
 function CapacityCard({ pressure, onOpen }: { pressure: CapacityPressure; onOpen: (id: string) => void }) {
+  const inferred = [pressure.first_window_state, pressure.second_window_state].some((state) => state === 'INFERRED_FROM_EVENT' || state === 'UNKNOWN')
   return (
     <div className="rounded-2xl border border-zinc-900 bg-zinc-950/70 p-4">
       <div className="flex items-start justify-between gap-3">
@@ -118,7 +119,8 @@ function CapacityCard({ pressure, onOpen }: { pressure: CapacityPressure; onOpen
           </button>
         ))}
       </div>
-      <p className="mt-3 text-xs leading-5 text-zinc-600">Review sourcing, timing and actual reservation truth before making another commitment.</p>
+      <div className="mt-3 text-[10px] font-semibold tracking-wide text-zinc-700">WINDOW EVIDENCE · {pressure.first_window_state.replaceAll('_', ' ')} / {pressure.second_window_state.replaceAll('_', ' ')}</div>
+      <p className="mt-2 text-xs leading-5 text-zinc-600">{inferred ? 'Timing is provisional. Verify actual possession/load-in/return windows before treating this as a capacity conflict.' : 'Requirement windows have stronger evidence, but this is still a pressure signal until reservation truth exists.'}</p>
     </div>
   )
 }
