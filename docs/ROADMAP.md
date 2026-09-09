@@ -38,7 +38,8 @@ Today order:
 4. Verify Capacity Truth
 5. Relationships
 6. Unresolved Truth
-7. Recently Changed
+7. Learn / Resolve
+8. Recently Changed
 
 Current live-data signal set:
 - 3 delivery commitments inside 21 days
@@ -48,6 +49,7 @@ Current live-data signal set:
 - 3 recurring customer relationships
 - 2 conflicting facts
 - 6 explicit unknown facts
+- 4 past-dated learning/review signals, currently split across delivery learning, stale commercial, program review and conflict review
 
 Capacity pressure is deliberately advisory. It does not claim reservation, availability, ownership certainty or double-booking.
 
@@ -59,6 +61,7 @@ Observe whether the command surface actually helps Greg/Sean answer:
 - which capacity truth is worth verifying now?
 - which relationships deserve account-level attention?
 - what uncertainty could invalidate a decision?
+- what completed/stale history is worth learning from rather than merely clearing?
 
 Do not add KPI/dashboard complexity unless these questions require it.
 
@@ -163,10 +166,10 @@ Progression:
 
 Do not collapse a buyer, planner, venue, payer and end client into one fake `customer` merely for CRM convenience.
 
-## Emerging earned design — Repeatability Engine / lightweight closeout
+## Current earned petal — Repeatability Engine / lightweight learning closeout
 Canonical design: `docs/REPEATABILITY_ENGINE.md`.
 
-Why it moved forward:
+Why it activated:
 The current import contains repeated exact configurations and repeated venues. Without actual-delivery learning, capacity windows, pricing, setup estimates, venue knowledge and archetypes remain guesses.
 
 Current repeatability evidence:
@@ -176,9 +179,26 @@ Current repeatability evidence:
 - 16 configured Engagements fall into the broad VIDEO + logistics/OTHER family;
 - Polk Place appears in 7 Engagements; 1750 Signal Point, Riverfront Park and The Refinery each recur.
 
+Implemented / live backend:
+1. one structured `engagement_closeouts` record per Engagement;
+2. closeout kind (`DELIVERY / CANCELLED / LOST / OTHER`) kept separate from Engagement commercial/operational state;
+3. broad actual outcome (`AS_EXPECTED / CHANGED / PARTIAL / ISSUE / UNKNOWN`);
+4. optional actual setup, strike and Greg-dependent minutes;
+5. optional solution-change, venue-learning, next-time and recurrence evidence;
+6. RLS member access and event-ledger history (`CLOSEOUT_RECORDED / CLOSEOUT_UPDATED`);
+7. derived `learning_review_signals` distinguishes delivery learning, stale commercial history, program-parent review and conflicting-history review;
+8. rollback proof passed: authenticated insert -> ledger event -> signal removal -> rollback; zero fake data persisted;
+9. current `main` includes a low-friction Learning panel and Today `Learn / Resolve` queue.
+
 Do not force customer-facing packages from this sample. Build internal solution archetypes from earned evidence.
 
-Promote a low-burden closeout before a giant operations module so every delivered Engagement can contribute:
+Operating rule:
+- do not auto-close because an event date passed;
+- do not force completion just to clear a queue;
+- record actuals only when someone actually knows them;
+- routine closeout should eventually take roughly two minutes and become increasingly prefilled by system events.
+
+What closeout should eventually teach:
 - actual resources used;
 - actual possession/setup/strike/return timing;
 - labor/crew evidence where practical;
@@ -188,8 +208,6 @@ Promote a low-burden closeout before a giant operations module so every delivere
 - financial actuals;
 - Greg-dependence reason;
 - recurrence / next opportunity.
-
-Target: routine closeout should eventually take roughly two minutes and be mostly prefilled by system events.
 
 ## Economics / Pricing before quote optimization
 Fast quoting remains important, but a sophisticated quote engine should not outrun economic truth.
