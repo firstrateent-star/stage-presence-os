@@ -1,14 +1,15 @@
 import type { ReactNode } from 'react'
 import { EngagementCard } from '../components/EngagementCard'
 import { isWaiting, needsHumanAttention } from '../lib/attention'
+import { engagementStartSortValue } from '../lib/engagementDates'
 import type { Engagement, LedgerEvent } from '../types/domain'
 
 export function TodayScreen({ engagements, events, onOpen }: { engagements: Engagement[]; events: LedgerEvent[]; onOpen: (id: string) => void }) {
   const needsYou = engagements.filter((item) => needsHumanAttention(item))
   const waiting = engagements.filter((item) => isWaiting(item))
   const upcoming = engagements
-    .filter((item) => item.event_start)
-    .sort((a, b) => new Date(a.event_start!).getTime() - new Date(b.event_start!).getTime())
+    .filter((item) => engagementStartSortValue(item) !== null)
+    .sort((a, b) => (engagementStartSortValue(a) ?? Number.MAX_SAFE_INTEGER) - (engagementStartSortValue(b) ?? Number.MAX_SAFE_INTEGER))
     .slice(0, 4)
 
   return (
