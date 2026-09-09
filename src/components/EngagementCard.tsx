@@ -1,10 +1,6 @@
+import { formatEngagementDate } from '../lib/engagementDates'
 import type { Engagement } from '../types/domain'
 import { StateBadge } from './StateBadge'
-
-function formatDate(value: string | null) {
-  if (!value) return 'DATE UNKNOWN'
-  return new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', year: 'numeric' }).format(new Date(value))
-}
 
 export function EngagementCard({ engagement, onOpen }: { engagement: Engagement; onOpen: (id: string) => void }) {
   return (
@@ -15,7 +11,7 @@ export function EngagementCard({ engagement, onOpen }: { engagement: Engagement;
     >
       <div className="flex items-start justify-between gap-4">
         <div>
-          <div className="text-xs font-medium tracking-[0.15em] text-zinc-500">{formatDate(engagement.event_start)}</div>
+          <div className="text-xs font-medium tracking-[0.15em] text-zinc-500">{formatEngagementDate(engagement).toUpperCase()}</div>
           <h3 className="mt-1 text-lg font-semibold text-zinc-100">{engagement.name}</h3>
         </div>
         <div className="shrink-0 text-xs text-zinc-600">{engagement.engagement_number}</div>
