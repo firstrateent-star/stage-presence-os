@@ -172,6 +172,7 @@ export default function App() {
           configuredLinks={data.configuredLinks}
           attentionFacts={data.attentionFacts}
           engagementRelationships={data.engagementRelationships}
+          financialFacts={data.financialFacts}
           onOpen={openEngagement}
         />
       ) : screen === 'engagements' ? (
