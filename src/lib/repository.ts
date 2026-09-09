@@ -29,6 +29,10 @@ export interface ResourceLink {
   relationship: string
   quantity: number | null
   notes: string | null
+  required_from_date: string | null
+  required_through_date: string | null
+  requirement_window_state: 'UNKNOWN' | 'INFERRED_FROM_EVENT' | 'ESTIMATED' | 'KNOWN' | 'VERIFIED'
+  planned_sourcing_model: 'OWNED' | 'SUBCONTRACTED' | 'PARTNER' | 'VENUE' | 'UNKNOWN'
   resource: Resource | null
 }
 
@@ -50,6 +54,10 @@ export interface ConfiguredResourceLink {
   resource_id: string
   relationship: string
   quantity: number | null
+  required_from_date: string | null
+  required_through_date: string | null
+  requirement_window_state: 'UNKNOWN' | 'INFERRED_FROM_EVENT' | 'ESTIMATED' | 'KNOWN' | 'VERIFIED'
+  planned_sourcing_model: 'OWNED' | 'SUBCONTRACTED' | 'PARTNER' | 'VENUE' | 'UNKNOWN'
   resource: Resource | null
 }
 
@@ -125,7 +133,7 @@ export async function listConfiguredResourceLinks(): Promise<ConfiguredResourceL
   const client = requireClient()
   const { data, error } = await client
     .from('engagement_resources')
-    .select('id,engagement_id,resource_id,relationship,quantity,resource:resources(*)')
+    .select('id,engagement_id,resource_id,relationship,quantity,required_from_date,required_through_date,requirement_window_state,planned_sourcing_model,resource:resources(*)')
     .eq('relationship', 'CONFIGURED')
   if (error) throw error
   return (data ?? []) as unknown as ConfiguredResourceLink[]
@@ -135,7 +143,7 @@ export async function listEngagementResources(engagementId: string): Promise<Res
   const client = requireClient()
   const { data, error } = await client
     .from('engagement_resources')
-    .select('id,relationship,quantity,notes,resource:resources(*)')
+    .select('id,relationship,quantity,notes,required_from_date,required_through_date,requirement_window_state,planned_sourcing_model,resource:resources(*)')
     .eq('engagement_id', engagementId)
     .order('created_at', { ascending: true })
   if (error) throw error
