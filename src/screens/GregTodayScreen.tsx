@@ -1,4 +1,5 @@
 import { useMemo, type ReactNode } from 'react'
+import { businessNextMovement } from '../lib/businessPresentation'
 import { buildBusinessSignals, engagementDateLabel } from '../lib/businessSignals'
 import { buildDecisionSignals, buildResolutionQueues } from '../lib/decisionResolver'
 import { buildAttentionSummary, buildExceptionItems } from '../lib/exceptionEngine'
@@ -50,7 +51,10 @@ export function GregTodayScreen({
   const delivery = signals.protect_delivery.slice(0, 5)
   const demand = signals.convert_demand.slice(0, 5)
   const recurring = signals.relationships.filter((item) => item.engagements.length > 1).slice(0, 3)
-  const teamQueues = resolutionQueues.filter((queue) => queue.owner !== 'GREG' && queue.owner !== 'SYSTEM' && queue.items.length > 0)
+  const teamQueues = resolutionQueues
+    .filter((queue) => queue.owner !== 'GREG' && queue.owner !== 'SYSTEM')
+    .map((queue) => ({ ...queue, actionableItems: queue.items.filter((item) => item.gap.severity !== 'WATCH') }))
+    .filter((queue) => queue.actionableItems.length > 0)
   const highPressure = signals.capacity_pressure.filter((item) => item.severity === 'HIGH')
   const watchPressure = signals.capacity_pressure.filter((item) => item.severity === 'WATCH')
   const knownSignedValue = knownCommittedContractValue(engagements, financialFacts)
@@ -103,32 +107,33 @@ export function GregTodayScreen({
 
       <BusinessSection title="Next Up" count={signals.protect_delivery.length} description="Committed work approaching in the next 21 days.">
         {delivery.length ? delivery.map((engagement) => (
-          <BusinessRow key={engagement.id} title={engagement.name} meta={`${engagementDateLabel(engagement)} · ${humanCommitment(engagement)}`} status={humanOperational(engagement)} onClick={() => onOpen(engagement.id)} />
+          <BusinessRow key={engagement.id} title={engagement.name} meta={`${engagementDateLabel(engagement)} · ${humanCommitment(engagement)}`} status={businessNextMovement(engagement)} onClick={() => onOpen(engagement.id)} />
         )) : <Empty text="No committed work is approaching in the next 21 days." />}
       </BusinessSection>
 
       <BusinessSection title="Sales" count={signals.convert_demand.length} description="Current opportunities that can still move commercially. Past-dated stale records are kept out of this list.">
         {demand.length ? demand.map((engagement) => (
-          <BusinessRow key={engagement.id} title={engagement.name} meta={`${engagementDateLabel(engagement)} · ${humanCommercial(engagement)}`} status={engagement.waiting_on ? `Waiting on ${engagement.waiting_on}` : engagement.next_action || 'Needs next move'} onClick={() => onOpen(engagement.id)} />
+          <BusinessRow key={engagement.id} title={engagement.name} meta={`${engagementDateLabel(engagement)} · ${humanCommercial(engagement)}`} status={businessNextMovement(engagement)} onClick={() => onOpen(engagement.id)} />
         )) : <Empty text="No active opportunity currently needs commercial movement." />}
       </BusinessSection>
 
-      <BusinessSection title="Team Handling" count={teamQueues.length} description="Work already routed away from Greg. Open a role only when you want the underlying detail.">
+      <BusinessSection title="Team Handling" count={teamQueues.length} description="Only blocking or material work already routed away from Greg. Legacy/watch-level incompleteness stays underneath until it actually matters.">
         {teamQueues.length ? (
           <div className="grid gap-3 md:grid-cols-3">
             {teamQueues.map((queue) => {
-              const first = queue.items[0]
+              const first = queue.actionableItems[0]
+              const common = mostCommonGapLabel(queue.actionableItems)
               return (
                 <button key={queue.owner} type="button" onClick={() => first && onOpen(first.engagement.id)} className="rounded-2xl border border-zinc-900 bg-zinc-950/70 p-4 text-left hover:border-zinc-700">
                   <div className="text-xs font-bold tracking-[0.12em] text-zinc-600">{queue.owner}</div>
-                  <div className="mt-2 text-2xl font-semibold text-zinc-100">{queue.items.length}</div>
-                  <div className="mt-1 text-xs text-zinc-500">current resolution item{queue.items.length === 1 ? '' : 's'}</div>
-                  {queue.top_gaps[0] && <p className="mt-3 text-xs leading-5 text-zinc-600">Most common: {queue.top_gaps[0].label}</p>}
+                  <div className="mt-2 text-2xl font-semibold text-zinc-100">{queue.actionableItems.length}</div>
+                  <div className="mt-1 text-xs text-zinc-500">material item{queue.actionableItems.length === 1 ? '' : 's'} to clear</div>
+                  {common && <p className="mt-3 text-xs leading-5 text-zinc-600">Most common: {common}</p>}
                 </button>
               )
             })}
           </div>
-        ) : <Empty text="No team-specific resolution work is currently derived." />}
+        ) : <Empty text="No blocking or material team-specific resolution work is currently derived." />}
       </BusinessSection>
 
       <BusinessSection title="Capacity" count={signals.capacity_pressure.length} description="Only pressure that can affect real commitments. A watch is not a reservation conflict.">
@@ -175,6 +180,16 @@ export function GregTodayScreen({
   )
 }
 
+function mostCommonGapLabel(items: { gap: { code: string; label: string } }[]) {
+  const counts = new Map<string, { label: string; count: number }>()
+  for (const item of items) {
+    const current = counts.get(item.gap.code)
+    if (current) current.count += 1
+    else counts.set(item.gap.code, { label: item.gap.label, count: 1 })
+  }
+  return [...counts.values()].sort((a, b) => b.count - a.count)[0]?.label ?? null
+}
+
 function knownCommittedContractValue(engagements: Engagement[], financialFacts: EngagementFinancialFact[]) {
   const committedIds = new Set(engagements.filter((engagement) => engagement.commercial_state === 'WON' || ['SIGNED', 'DEPOSIT_PENDING', 'CONFIRMED'].includes(engagement.commitment_state)).map((engagement) => engagement.id))
   const values = new Map<string, EngagementFinancialFact>()
@@ -211,10 +226,6 @@ function humanCommercial(engagement: Engagement) {
 function humanCommitment(engagement: Engagement) {
   const labels: Record<string, string> = { UNCOMMITTED: 'Not committed', VERBAL_YES: 'Verbal yes', SIGNED: 'Signed', DEPOSIT_PENDING: 'Deposit pending', CONFIRMED: 'Confirmed', CANCELLED: 'Cancelled' }
   return labels[engagement.commitment_state] ?? engagement.commitment_state
-}
-
-function humanOperational(engagement: Engagement) {
-  return humanOperationalState(engagement.operational_state)
 }
 
 function humanOperationalState(state: string) {

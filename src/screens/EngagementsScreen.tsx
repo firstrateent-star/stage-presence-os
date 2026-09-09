@@ -1,3 +1,4 @@
+import { businessNextMovement } from '../lib/businessPresentation'
 import { engagementDateLabel } from '../lib/businessSignals'
 import type { Engagement } from '../types/domain'
 
@@ -57,7 +58,7 @@ function WorkSection({ title, count, description, children }: { title: string; c
 }
 
 function WorkCard({ engagement, onOpen, mode }: { engagement: Engagement; onOpen: (id: string) => void; mode: 'opportunity' | 'job' | 'history' }) {
-  const movement = movementLabel(engagement, mode)
+  const movement = mode === 'history' ? humanState(engagement) : businessNextMovement(engagement)
   return (
     <button type="button" onClick={() => onOpen(engagement.id)} className="rounded-2xl border border-zinc-900 bg-zinc-950/70 p-4 text-left transition hover:border-zinc-700 hover:bg-zinc-900/50">
       <div className="flex items-start justify-between gap-4">
@@ -139,13 +140,4 @@ function humanState(engagement: Engagement) {
   if (engagement.commitment_state === 'CANCELLED') return 'Cancelled'
   if (engagement.operational_state === 'CLOSED') return 'Closed'
   return 'New'
-}
-
-function movementLabel(engagement: Engagement, mode: 'opportunity' | 'job' | 'history') {
-  if (engagement.attention_state === 'BLOCKED' && engagement.blocked_reason) return `Blocked — ${engagement.blocked_reason}`
-  if (engagement.attention_state === 'WAITING' && engagement.waiting_on) return `Waiting on ${engagement.waiting_on}`
-  if (engagement.next_action) return engagement.next_action
-  if (mode === 'opportunity') return 'No next commercial move is represented yet.'
-  if (mode === 'job') return 'Protect delivery; no specific next action is represented yet.'
-  return humanState(engagement)
 }

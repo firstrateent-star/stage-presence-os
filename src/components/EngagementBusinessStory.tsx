@@ -1,3 +1,4 @@
+import { businessNextMovement, importedScopeFallback } from '../lib/businessPresentation'
 import { engagementDateLabel, type CapacityPressure } from '../lib/businessSignals'
 import type { EngagementFinancialFact } from '../lib/financialFacts'
 import type { ConfiguredResourceLink, CustomerLink } from '../lib/repository'
@@ -20,25 +21,26 @@ export function EngagementBusinessStory({
   const configured = configuredLinks.filter((link) => link.engagement_id === engagement.id)
   const commercialValue = bestCommercialValue(engagement, financialFacts)
   const need = engagement.desired_outcome || engagement.customer_request
+  const needFallback = importedScopeFallback(engagement, configured.length)
   const request = engagement.desired_outcome && engagement.customer_request && engagement.desired_outcome !== engagement.customer_request
     ? engagement.customer_request
     : null
   const capacity = capacityStory(engagement, configured, capacityPressures)
-  const nextMove = nextMoveStory(engagement)
+  const nextMove = businessNextMovement(engagement)
 
   return (
     <section className="mt-6 space-y-4">
       <div className="grid gap-3 lg:grid-cols-4">
         <StoryCard label="Customer" value={customer?.name ?? 'Customer not identified'} subvalue={customer ? contactLine(customer) : 'Keep unknown until evidence identifies them.'} />
         <StoryCard label="When" value={engagementDateLabel(engagement)} subvalue={engagement.venue_name || engagement.venue_address || 'Location not represented yet'} />
-        <StoryCard label="Commercial" value={humanCommercialPosition(engagement)} subvalue={commercialValue ? `${money(commercialValue.amount)} · ${commercialValue.label}` : 'Value not represented in current evidence'} />
+        <StoryCard label="Commercial" value={humanCommercialPosition(engagement)} subvalue={commercialValue ? `${money(commercialValue.amount)} · ${commercialValue.label}` : commercialValueFallback(engagement)} />
         <StoryCard label="Capacity" value={capacity.title} subvalue={capacity.detail} tone={capacity.tone} />
       </div>
 
       <div className="grid gap-4 lg:grid-cols-2">
         <section className="rounded-2xl border border-zinc-900 bg-zinc-950/70 p-5">
           <div className="text-xs font-semibold tracking-[0.14em] text-zinc-600">WHAT THEY NEED</div>
-          <p className="mt-3 text-base leading-7 text-zinc-200">{need || 'The customer need has not been explicitly captured in the current evidence.'}</p>
+          <p className={need ? 'mt-3 text-base leading-7 text-zinc-200' : 'mt-3 text-sm leading-6 text-zinc-500'}>{need || needFallback}</p>
           {request && (
             <div className="mt-4 border-t border-zinc-900 pt-3">
               <div className="text-[10px] font-semibold tracking-[0.12em] text-zinc-700">CUSTOMER SAID</div>
@@ -64,15 +66,15 @@ export function EngagementBusinessStory({
               )}
             </div>
           ) : (
-            <p className="mt-3 text-sm leading-6 text-zinc-600">No solution is represented yet. That is legitimate until Stage Presence has enough evidence to design one.</p>
+            <p className="mt-3 text-sm leading-6 text-zinc-600">No solution is represented yet. Fill this only when current commercial or delivery movement requires a real solution.</p>
           )}
         </section>
       </div>
 
       <section className="rounded-2xl border border-amber-950/70 bg-amber-950/10 p-5">
         <div className="text-xs font-semibold tracking-[0.14em] text-amber-500">WHAT HAPPENS NEXT</div>
-        <div className="mt-2 text-lg font-semibold text-zinc-100">{nextMove.title}</div>
-        <p className="mt-2 text-sm leading-6 text-zinc-500">{nextMove.detail}</p>
+        <div className="mt-2 text-lg font-semibold text-zinc-100">{nextMove}</div>
+        <p className="mt-2 text-sm leading-6 text-zinc-500">Legacy import placeholders are intentionally ignored here. This should become more specific only when a real next movement is known.</p>
       </section>
     </section>
   )
@@ -104,6 +106,12 @@ function bestCommercialValue(engagement: Engagement, facts: EngagementFinancialF
   return null
 }
 
+function commercialValueFallback(engagement: Engagement) {
+  if (engagement.commercial_state === 'PROPOSED' || engagement.commercial_state === 'NEGOTIATING') return 'Proposal value is not represented in the current OS evidence.'
+  if (engagement.commercial_state === 'WON' || ['SIGNED', 'DEPOSIT_PENDING', 'CONFIRMED'].includes(engagement.commitment_state)) return 'Standalone contract value is not represented for this Engagement.'
+  return 'Value not represented in current evidence.'
+}
+
 function capacityStory(engagement: Engagement, links: ConfiguredResourceLink[], pressures: CapacityPressure[]) {
   const related = pressures.filter((pressure) => pressure.first.id === engagement.id || pressure.second.id === engagement.id)
   if (related.some((pressure) => pressure.severity === 'HIGH')) {
@@ -116,18 +124,9 @@ function capacityStory(engagement: Engagement, links: ConfiguredResourceLink[], 
   const weakWindow = links.some((link) => ['UNKNOWN', 'INFERRED_FROM_EVENT'].includes(link.requirement_window_state))
   const unknownSource = links.some((link) => link.planned_sourcing_model === 'UNKNOWN')
   if (weakWindow || unknownSource) {
-    return { title: 'No known conflict', detail: 'Some timing or sourcing truth is still being strengthened.', tone: 'normal' as const }
+    return { title: 'No known conflict', detail: 'Timing or sourcing is still provisional; strengthen it only when the next commitment or delivery decision requires it.', tone: 'normal' as const }
   }
   return { title: 'No known conflict', detail: 'Current represented timing and sourcing do not create a pressure signal.', tone: 'normal' as const }
-}
-
-function nextMoveStory(engagement: Engagement) {
-  if (engagement.attention_state === 'BLOCKED' && engagement.blocked_reason) return { title: `Blocked — ${engagement.blocked_reason}`, detail: 'Resolve the blocker before expecting normal movement.' }
-  if (engagement.attention_state === 'WAITING' && engagement.waiting_on) return { title: `Waiting on ${engagement.waiting_on}`, detail: engagement.next_action || 'The Engagement can remain quiet until the waiting condition changes or follow-up becomes due.' }
-  if (engagement.next_action) return { title: engagement.next_action, detail: engagement.next_action_at ? `Due ${new Date(engagement.next_action_at).toLocaleString()}` : 'This is the current represented next move.' }
-  if (engagement.commercial_state === 'PROPOSED') return { title: 'Move the proposal forward', detail: 'Set the next commercial follow-up only when it is known; do not invent activity for completeness.' }
-  if (engagement.commercial_state === 'WON' || ['SIGNED', 'DEPOSIT_PENDING', 'CONFIRMED'].includes(engagement.commitment_state)) return { title: 'Protect delivery', detail: 'The next useful action should come from actual operational readiness, not a generic review task.' }
-  return { title: 'Define the next meaningful move', detail: 'Only add an action when it moves the customer, commitment, capacity, or delivery reality.' }
 }
 
 function humanCommercialPosition(engagement: Engagement) {
