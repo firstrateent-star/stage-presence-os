@@ -93,3 +93,7 @@ Reason: the import already contains exact recurring visual configurations, but c
 ## 2026-09-09 — Lightweight closeout moves earlier because it creates future evidence
 Decision: prioritize a low-burden learning closeout before building a large warehouse/crew/operations module.
 Reason: actual resource use, timing, venue learning, labor, sourcing, scope changes and financial actuals are the inputs required to improve capacity, pricing, archetypes, training and recurrence. Every delivered Engagement should make future work easier. Canonical design: `docs/REPEATABILITY_ENGINE.md`.
+
+## 2026-09-09 — Chat-first operating desk is transitional
+Decision: use ChatGPT as a low-cost interpretation/operating-desk bridge during Operational Validation, but do not treat that workflow as the target architecture.
+Reason: real photos, text, conversations and updates can teach us what the native Stage Presence ingestion/interpreter layer must do before we spend more capital. As Stage Presence and Vlourish scale and hosting/storage/AI/integration economics justify it, this intake and interpretation should progressively move into Stage Presence OS itself. The backend must therefore remain compatible with eventual native secure capture, source retention, interpretation/matching and exception-only human review.
