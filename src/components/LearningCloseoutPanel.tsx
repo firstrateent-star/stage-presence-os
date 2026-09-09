@@ -1,15 +1,17 @@
 import { useState } from 'react'
-import { saveEngagementCloseout, type EngagementCloseout } from '../lib/learningCloseout'
+import { saveEngagementCloseout, type CloseoutKind, type EngagementCloseout } from '../lib/learningCloseout'
 
 export function LearningCloseoutPanel({
   engagementId,
   eventEndDate,
   closeout,
+  defaultCloseoutKind,
   onSaved,
 }: {
   engagementId: string
   eventEndDate: string | null
   closeout: EngagementCloseout | null
+  defaultCloseoutKind: CloseoutKind
   onSaved: () => Promise<void> | void
 }) {
   const [open, setOpen] = useState(false)
@@ -78,7 +80,7 @@ export function LearningCloseoutPanel({
             {error && <div className="mt-4 rounded-xl border border-red-900/60 bg-red-950/20 px-3 py-2 text-sm text-red-300">{error}</div>}
             <form action={(data) => void save(data)} className="mt-5 grid gap-4">
               <div className="grid gap-3 sm:grid-cols-2">
-                <label className="text-xs text-zinc-500">What are we closing out?<select name="closeout_kind" defaultValue={closeout?.closeout_kind ?? 'DELIVERY'} className="mt-1 w-full rounded-xl border border-zinc-800 bg-zinc-950 px-3 py-2.5 text-sm text-zinc-100"><option>DELIVERY</option><option>CANCELLED</option><option>LOST</option><option>OTHER</option></select></label>
+                <label className="text-xs text-zinc-500">What are we closing out?<select name="closeout_kind" defaultValue={closeout?.closeout_kind ?? defaultCloseoutKind} className="mt-1 w-full rounded-xl border border-zinc-800 bg-zinc-950 px-3 py-2.5 text-sm text-zinc-100"><option>DELIVERY</option><option>CANCELLED</option><option>LOST</option><option>OTHER</option></select></label>
                 <label className="text-xs text-zinc-500">Broad outcome<select name="actual_outcome" defaultValue={closeout?.actual_outcome ?? 'UNKNOWN'} className="mt-1 w-full rounded-xl border border-zinc-800 bg-zinc-950 px-3 py-2.5 text-sm text-zinc-100"><option>UNKNOWN</option><option>AS_EXPECTED</option><option>CHANGED</option><option>PARTIAL</option><option>ISSUE</option></select></label>
               </div>
 
