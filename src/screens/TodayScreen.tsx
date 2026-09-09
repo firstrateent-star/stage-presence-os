@@ -64,7 +64,7 @@ export function TodayScreen({
         <SignalStat label="Recurring relationships" value={signals.relationships.filter((item) => item.engagements.length > 1).length} />
       </div>
 
-      <Section title="Decision Flow" count={activeDecisions.length} description="Advisory only. What decision is next, what evidence can change it, and who should resolve the exception? This does not mutate state, create reservations, or message customers.">
+      <Section title="Decision Flow" count={activeDecisions.length} description="Advisory only. What decision is next, what evidence can change it, how should the gap be resolved with the least re-entry, and who should own the exception? This does not mutate state, create reservations, or message customers.">
         {decisionFlow.length ? decisionFlow.map((item) => <DecisionCard key={item.engagement.id} decision={item} onOpen={onOpen} />) : <Empty text="No active Engagement currently has a derived decision." />}
       </Section>
 
@@ -126,11 +126,15 @@ function SignalStat({ label, value }: { label: string; value: number }) {
 function DecisionCard({ decision, onOpen }: { decision: DecisionSignal; onOpen: (id: string) => void }) {
   const blocking = decision.gaps.filter((gap) => gap.severity === 'BLOCKING')
   const shownGaps = [...blocking, ...decision.gaps.filter((gap) => gap.severity !== 'BLOCKING')].slice(0, 3)
+  const evidenceClass = decision.evidence_state === 'BLOCKED' ? 'text-red-300' : decision.evidence_state === 'REVIEW' ? 'text-amber-400' : 'text-emerald-400'
   return (
     <button type="button" onClick={() => onOpen(decision.engagement.id)} className="rounded-2xl border border-emerald-950 bg-emerald-950/10 p-4 text-left hover:border-emerald-800/70">
       <div className="flex items-start justify-between gap-3">
         <div>
-          <div className="text-[10px] font-bold tracking-[0.12em] text-emerald-400">{decision.decision_label.toUpperCase()}</div>
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="text-[10px] font-bold tracking-[0.12em] text-emerald-400">{decision.decision_label.toUpperCase()}</div>
+            <div className={`text-[10px] font-bold tracking-[0.08em] ${evidenceClass}`}>{decision.evidence_state}</div>
+          </div>
           <div className="mt-1 font-semibold text-zinc-200">{decision.engagement.name}</div>
           <div className="mt-1 text-xs text-zinc-600">{decision.engagement.engagement_number} · {engagementDateLabel(decision.engagement)}</div>
         </div>
@@ -151,9 +155,13 @@ function DecisionCard({ decision, onOpen }: { decision: DecisionSignal; onOpen: 
 
       <div className="mt-4 space-y-2">
         {shownGaps.length ? shownGaps.map((gap) => (
-          <div key={gap.code} className="flex items-start justify-between gap-3 rounded-xl border border-zinc-900 px-3 py-2.5">
-            <div className="text-xs leading-5 text-zinc-400">{gap.label}</div>
-            <div className="shrink-0 text-right"><div className={gap.severity === 'BLOCKING' ? 'text-[9px] font-bold text-red-300' : gap.severity === 'MATERIAL' ? 'text-[9px] font-bold text-amber-400' : 'text-[9px] font-bold text-zinc-600'}>{gap.severity}</div><div className="mt-0.5 text-[9px] text-zinc-700">{gap.owner}</div></div>
+          <div key={gap.code} className="rounded-xl border border-zinc-900 px-3 py-2.5">
+            <div className="flex items-start justify-between gap-3">
+              <div className="text-xs leading-5 text-zinc-400">{gap.label}</div>
+              <div className="shrink-0 text-right"><div className={gap.severity === 'BLOCKING' ? 'text-[9px] font-bold text-red-300' : gap.severity === 'MATERIAL' ? 'text-[9px] font-bold text-amber-400' : 'text-[9px] font-bold text-zinc-600'}>{gap.severity}</div><div className="mt-0.5 text-[9px] text-zinc-700">{gap.owner}</div></div>
+            </div>
+            <div className="mt-2 text-[9px] font-semibold tracking-[0.08em] text-zinc-700">{gap.resolution_strategy.replaceAll('_', ' ')}</div>
+            <p className="mt-1 text-[10px] leading-4 text-zinc-700">{gap.resolution_hint}</p>
           </div>
         )) : <div className="rounded-xl border border-emerald-950/80 px-3 py-2.5 text-xs text-emerald-500">No material exception is currently derived for this decision.</div>}
       </div>
