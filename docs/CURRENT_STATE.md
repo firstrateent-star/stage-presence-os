@@ -2,31 +2,114 @@
 
 ## Canonical system
 - Private repo: `firstrateent-star/stage-presence-os`
-- Supabase project: `stage-presence-os` (`yaojcuvgtlncytujfxef`), `us-east-1`
+- Default branch: `main`
+- Supabase: `stage-presence-os` (`yaojcuvgtlncytujfxef`), `us-east-1`, `ACTIVE_HEALTHY`
 - Hosting: Cloudflare Workers Static Assets
-- First proven deployed URL: `https://stage-presence-os.falling-butterfly-aad6.workers.dev`
-- First proven Cloudflare version: `ae5b510c-1175-480d-a2db-38bed797864a`
-- Newest frontend commits are pushed to `main`; current tool environment still cannot independently observe the latest Cloudflare auto-build result.
+- Production URL: `https://stage-presence-os.falling-butterfly-aad6.workers.dev`
+- User previously confirmed a clean Cloudflare build and browser login/live Decision Flow. Newer frontend increments described below each passed the GitHub TypeScript/Vite build gate before merge; their newest Cloudflare auto-deploy has not been independently re-verified in-browser from the current tool environment.
 
-## Governing rule
-> Legacy systems are evidence sources. They do not define the future operating model.
+## Current product center
 
-Stage Presence OS translates Goodshuffle, spreadsheets, QuickBooks, lead sheets and future inputs into its own Engagement / Party / Fact / Resource / Event model while preserving provenance and uncertainty.
+> **History informs. Active inherited work gets enough truth to move. New work is born correctly.**
 
-## Shared Reality / Capture
-Proven or live:
-- private Supabase Auth + explicit `app_members` allowlist
-- RLS member/non-member boundary
-- one canonical Engagement through opportunity/job lifecycle
-- separate commercial / commitment / operational / attention state
-- Parties, facts, unknowns/conflicts, resources, next move and event ledger
-- typed/paste Quick Capture
-- private source-artifact Storage
-- photo/camera capture code in current `main`
-- printable Quick Lead Sheet + Capture Contract
-- rollback-only First Breath, Capture and Learning smoke-test patterns
+Goodshuffle seeded the starting reality. It does not define the future workflow, ontology, or user experience.
 
-No paid AI interpreter is enabled. Real browser photo upload still awaits organic use rather than synthetic human QA.
+The current transition is:
+
+**Goodshuffle-seeded history → Active Continuity → Forward-Born Truth → native Stage Presence flow**
+
+The backend remains deliberately richer than Greg's visible experience. Decision-Grade Flow, Exception-Driven Flow, Capacity Truth, provenance, uncertainty, and learning are system machinery. Greg should see the business.
+
+## Product spine in current `main`
+
+### Today
+Answers: **What actually matters now?**
+
+Greg-facing sections include:
+- Needs You
+- Next Up
+- Sales
+- Team Handling
+- Capacity
+- Relationships
+- trustworthy known committed value only
+
+The detailed Decision Resolver / Exception Engine remains underneath rather than leading the experience.
+
+### Work
+Visible navigation label is **Work** while one canonical Engagement remains the backend object.
+
+Work is grouped into:
+- Opportunities — current work still being won
+- Upcoming Jobs — committed future work
+- Past / Needs Resolution — stale, lost, cancelled, closed, or past-dated history
+
+This is presentation only; the data model is not split into Lead / Job objects.
+
+### Engagement
+The business-facing top answers: **What is happening with this piece of business?**
+
+It summarizes:
+- customer
+- date/location
+- commercial position and supported value
+- capacity signal
+- what the customer needs, when represented
+- current configured solution
+- what happens next
+
+The prior deep editor remains under expandable **Working Details** for evidence, parties, resources, next-move controls, activity, capacity defaults, and learning.
+
+## Active Continuity
+Implemented and build-proven before merge.
+
+The 26 current/future Goodshuffle-derived Engagements consist of:
+- 13 open opportunities
+- 13 committed jobs
+
+Raw legacy gaps currently include:
+- 1 missing customer
+- 2 missing venue
+- 3 without configured solution
+- 13 proposals without typed `QUOTE_TOTAL`
+- 6 committed records without standalone typed `CONTRACT_TOTAL`
+- 23 with weak/inferred capacity timing
+- 23 with unknown Engagement-specific sourcing
+- 13 committed records with no deposit evidence in Stage Presence OS
+- 26 with no direct-cost evidence
+- 26 without preserved literal customer-need text
+
+These are **not** treated as a cleanup task list.
+
+Important import artifact discovered:
+- 13 imported opportunities carried `Review quote status and set follow-up`
+- 13 imported committed jobs carried `Review operational readiness`
+
+Those are import continuity placeholders, not organically captured next moves. Greg-facing surfaces now recognize them and show honest business-state language instead of pretending they are meaningful actions.
+
+WATCH-level legacy incompleteness is also kept out of Greg's Team Handling count unless it becomes decision-relevant.
+
+## Forward-Born Truth
+Canonical: `docs/FORWARD_BORN_TRUTH.md`.
+
+Implemented and build-proven before merge.
+
+Current private Quick Capture now preserves the distinction:
+
+**source evidence ≠ structured business truth**
+
+Specifically:
+- freeform `What happened?` text is preserved as raw source evidence;
+- the whole freeform note is no longer copied into `customer_request`;
+- `customer_request` is populated only when the explicit customer-request field is supplied;
+- known event/project date can be stored as first-class `event_start_date` without inventing a time;
+- date-only submitted truth is preserved in source-artifact metadata;
+- photo-only and note-only capture remain valid;
+- no AI currently interprets the source;
+- no customer Party is created automatically at capture because matching/deduplication has not yet been earned there.
+
+Goal:
+**capture once → preserve source → interpret candidates → match existing reality → promote supported truth → ask only material questions → move the Engagement**
 
 ## Goodshuffle evidence translation
 Live imported state:
@@ -42,170 +125,159 @@ Live imported state:
 - 19 project-level configuration facts for custom/untracked lines
 - 2 explicit `CONFLICTING` facts
 - 6 explicit `UNKNOWN` per-game economic allocations
-- 32 immutable Goodshuffle import source artifacts
+- 32 Goodshuffle provenance artifact records
 
-Translation rules:
-- `Contract Signed` -> `WON / SIGNED`, not `CONFIRMED`
-- no deposit evidence -> no reservation inference
+Translation rules remain:
+- `Contract Signed` → `WON / SIGNED`, not `CONFIRMED`
+- no deposit evidence → no reservation inference
 - `$0` unresolved program components are not treated as free work
-- `CONFIGURED` does not mean requested, recommended, owned, available, held or reserved
+- `CONFIGURED` does not mean requested, recommended, owned, available, held, or reserved
 - Goodshuffle quantity fields remain evidence, not physical-inventory truth
 
-## Current business evidence
-### Strategic center
-Configured sample:
-- 20 Engagements include VIDEO
-- 5 AUDIO
-- 2 LIGHTING
-- 4 STAGING
-- 3 POWER
-- 18 appear video-led without another major technical category represented in structured configuration
+### Source-recovery limitation learned
+The Goodshuffle import preserved fingerprints/metadata for source spreadsheets but not recoverable spreadsheet bytes in private Storage. The current File Library and connected Gmail do not expose the original Goodshuffle master export. Therefore the 13 missing proposal values cannot currently be recovered automatically from the preserved provenance artifacts.
 
-Most frequent visual assets:
-- 17x10 LED Trailer — 13 Engagements
-- 12x7 LED Trailer — 12
-- MB-5 Mobile Video Trailer — 8
+Do not ask Nancy/Greg to re-enter those values merely for completeness. Recover the original master export later if convenient, or build a source integration only when useful.
 
-### Relationship / concentration
-- 3 Party nodes currently have more than one Engagement
-- largest recurring node has 7 Engagements
-- $102,000 of $127,804.01 currently known value sits on that relationship node
-- this is both compounding relationship value and concentration risk; sample is incomplete
+Future imports should preserve actual private source files when the document-import seam is deliberately activated.
 
-### Repeatability
-- UNC exact visual configuration appears 7 times
-- 12x7 + load-in/load-out exact configuration appears 2 times
-- 17x10 + delivery/pickup exact configuration appears 2 times
-- 16 configured Engagements sit in the broad VIDEO + logistics/OTHER family
-- Polk Place appears 7 times; 1750 Signal Point, Riverfront Park and The Refinery recur
-
-These support internal solution archetypes and venue memory, not forced customer-facing packages.
-
-## Business Command Layer
-Current `main` Today order:
-1. Protect Delivery
-2. Convert Demand
-3. Capacity Pressure
-4. Verify Capacity Truth
-5. Relationships
-6. Unresolved Truth
-7. Learn / Resolve
-8. Recently Changed
-
-Decision-relevant current signals:
-- 3 delivery commitments inside 21 days
-- **13 current/future/undated open-demand Engagements**
-- 2 additional past-dated open records are intentionally excluded from Convert Demand and routed to Learn / Resolve
-- 3 physical capacity-pressure `WATCH` pairs
-- 0 `HIGH` pairs
-- 3 recurring customer relationships
-- 2 conflicting facts
-- 6 explicit unknown facts
-- 4 past-dated review signals: 1 delivery learning, 1 stale commercial, 1 program review, 1 conflict review
-
-Important distinction:
-raw status count != decision queue. A past-dated open proposal should not simultaneously appear as current demand and stale-history resolution.
-
-## Capacity Truth — LIVE BACKEND
-Canonical spec: `docs/CAPACITY_TRUTH.md`.
+## Capacity Truth
+Canonical: `docs/CAPACITY_TRUTH.md`.
 
 Live:
-- `required_from_date` / `required_through_date` on configured resource links
-- window certainty: `UNKNOWN / INFERRED_FROM_EVENT / ESTIMATED / KNOWN / VERIFIED`
+- resource requirement windows
+- certainty: `UNKNOWN / INFERRED_FROM_EVENT / ESTIMATED / KNOWN / VERIFIED`
 - Engagement-specific planned sourcing: `OWNED / SUBCONTRACTED / PARTNER / VENUE / UNKNOWN`
-- 130 Goodshuffle configured links backfilled with event-date windows marked `INFERRED_FROM_EVENT`
-- RLS-safe `capacity_pressure_signals`
-- current derived state: 3 `WATCH`, 0 `HIGH`
+- Engagement-level default resource window/sourcing with resource-specific override semantics
+- 27 Engagements carry repeated imported event-derived timing once at Engagement scope
+- 130 configured links inherit the default rather than duplicating it
+- RLS-safe capacity pressure derivation
+- current pressure: **3 WATCH / 0 HIGH**
 
 Constitution:
-**configuration != requirement window != pressure != hold != reservation.**
+**configuration ≠ requirement window ≠ pressure ≠ hold ≠ reservation**
 
 No holds or reservations exist yet.
 
-## Commitment Ladder — OPERATING DESIGN
-Canonical: `docs/COMMITMENT_LADDER.md`.
+## Decision / exception machinery
+These remain backend operating principles, not Greg's primary vocabulary.
 
-Do not store one generic readiness status. Derive readiness for the decision:
+### Decision-Grade Flow
+> What decision is next, what truth could materially change it, and who can resolve the exception?
+
+### Commitment Ladder
 1. Quote Ready
 2. Commit Ready
 3. Reserve Ready
 4. Execute Ready
 
-Import evidence shows why:
-- 14 proposed Engagements: 13 customer-known, all date-known, 11 configured solutions, no typed OS `QUOTE_TOTAL`
-- 15 won/signed: all customer/date/solution-known, 9 known contract totals, but no deposit-received evidence, KNOWN/VERIFIED resource windows or Engagement-specific sourcing confirmation
+No one generic persisted `ready` status.
 
-These are evidence gaps, not claims of historical operational failure.
+### Exception-Driven Flow
+Derived gaps can be classified/routed as:
+- system-resolvable
+- source-recoverable
+- group-resolvable
+- delegated
+- founder exception
 
-## Repeatability / Learning Closeout — LIVE BACKEND + UI IN MAIN
+Resolution strategies include:
+- reuse evidence
+- source recovery
+- owner confirmation
+- policy decision
+- human judgment
+
+Resolution Compression rule:
+> Resolve truth once at the broadest valid scope, inherit it downward, and override only genuine exceptions.
+
+## Learning / repeatability
 Canonical: `docs/REPEATABILITY_ENGINE.md`.
 
 Live backend:
-- `engagement_closeouts` — one learning closeout per Engagement
-- kind: `DELIVERY / CANCELLED / LOST / OTHER`
-- outcome: `AS_EXPECTED / CHANGED / PARTIAL / ISSUE / UNKNOWN`
-- optional setup, strike and Greg-dependent minutes
-- optional solution-change, what-worked, what-changed, venue-learning, next-time and recurrence evidence
-- RLS member SELECT/INSERT/UPDATE; no browser delete policy
-- ledger events: `CLOSEOUT_RECORDED / CLOSEOUT_UPDATED`
-- `learning_review_signals` separates delivery learning, stale commercial history, program-parent review and conflict review
+- one `engagement_closeouts` learning record per Engagement
+- delivery/cancelled/lost/other closeout kinds
+- broad outcome
+- optional setup, strike, Greg-dependent minutes
+- optional solution change, venue learning, next-time improvement, recurrence
+- RLS + event ledger
+- `learning_review_signals`
+- rollback smoke proof; zero fake closeout data persisted
 
-Proof:
-- authenticated rollback test created a temporary Red Palm closeout
-- closeout was visible under member RLS
-- ledger event fired
-- Red Palm disappeared from the learning queue
-- rollback restored the original signal
-- 0 fake closeouts / 0 fake closeout events persisted
+Current evidence supports future internal archetypes/venue memory but not forced public packages:
+- UNC exact visual configuration appears 7x
+- 12x7 + load-in/load-out appears 2x
+- 17x10 + delivery/pickup appears 2x
+- Polk Place appears 7x; several other venues recur
 
-Current `main`:
-- Today Learn / Resolve queue
-- modular Learning panel beneath past Engagement detail
-- context-aware default closeout kind: committed/won -> DELIVERY; lost -> LOST; cancelled -> CANCELLED; unresolved stale opportunity -> OTHER
-- only closeout kind and broad outcome are required; all actuals/learning fields are optional
-- DEMO mode remains isolated from backend-only learning calls
+## Business evidence
+Observed strategic center remains strongly visual/LED-led:
+- 20 imported Engagements include VIDEO
+- 5 AUDIO
+- 2 LIGHTING
+- 4 STAGING
+- 3 POWER
+- 17x10 LED Trailer appears in 13 Engagements
+- 12x7 LED Trailer appears in 12
+- MB-5 appears in 8
 
-Do not auto-close because a date passed. Do not reconstruct facts merely to clear the queue.
+Relationship concentration remains material:
+- 3 recurring Party nodes
+- largest node has 7 Engagements
+- $102,000 of the currently known $127,804.01 contract value is associated with that recurring node in this incomplete sample
+
+## Capture / source storage
+Private Supabase bucket: `source-artifacts`.
+
+Current bucket behavior:
+- private
+- 15 MB limit
+- image MIME types only: JPEG, PNG, WebP, HEIC, HEIF
+- active authenticated app members may read
+- active members may upload only into their own user-id folder
+
+Do not widen the bucket to arbitrary PDFs/spreadsheets until a real private document/import intake seam exists. The Goodshuffle recovery lesson is recorded, but unused storage capability should not be added merely because it may be useful later.
 
 ## Security / platform
 - Supabase remains `ACTIVE_HEALTHY`
-- security advisor after new DDL reports only known `auth_leaked_password_protection` warning
-- this remains an accepted Free-plan limitation; reference: https://supabase.com/docs/guides/auth/password-security#password-strength-and-leaked-password-protection
-- two pre-existing uncovered `created_by` FKs on financial facts / Engagement relationships were indexed on 2026-09-09
-- performance advisor now reports only unused-index INFO expected in a young app
-- browser uses publishable key only; no service-role/DB secret exposed
+- app uses publishable browser key only
+- explicit `app_members` allowlist + RLS
+- only known security-advisor warning remains leaked-password protection, accepted as a Free-plan limitation
+- no service-role/DB secret exposed in browser or repo
+- do not create Greg/Nancy accounts without explicit Sean approval
+- never touch `nfl-dfs-monster`
 
-## Reproducible database changes added on 2026-09-09
-Including:
-- `database/20260909_engagement_external_key_and_date_only_fields.sql`
-- `database/20260909_goodshuffle_provenance_and_configured_resources.sql`
-- `database/20260909_resource_requirement_windows.sql`
-- `database/20260909_capacity_pressure_signals.sql`
-- `database/20260909_learning_closeout_kernel.sql`
-- `database/20260909_add_missing_created_by_indexes.sql`
-- `database/tests/learning_closeout_smoke.sql`
+## Engineering delivery discipline
+After intermediate Cloudflare build failures exposed half-finished dependent commits, the project now uses:
 
-## Current strategic sequence
-Parallel evidence-driven loops, not a feature waterfall:
-1. Business Command Layer — allocate scarce human attention
-2. Capture — minimize clerical entry
-3. Capacity Truth — improve timing/sourcing evidence before holds/reservations
-4. Learning Closeout — make real outcomes teach the system
-5. Relationship Intelligence — grow the relationship graph without invented account structures
-6. Economics / Pricing — acquire direct-cost/contribution truth before quote optimization
-7. Commitment / proposal / deposit + operational handoff when actual friction earns them
-8. Crew / warehouse / maintenance / deeper integrations later
+**Flower branch → GitHub Build Check (`tsc` + Vite) → clean PR → merge coherent boundary to `main` → Cloudflare**
 
-## Still intentionally not claimed
-- audited revenue or margin model
-- complete customer lifetime value
-- confirmed resource availability calendar
-- deposit/payment truth
-- any actual hold/reservation
-- full proposal/signature/payment engine
+Recent product increments all passed this gate before merge:
+- Greg-facing Today
+- Engagement business story
+- intuitive Work view
+- Active Continuity
+- Forward-Born Truth
+
+## Current true boundaries
+Not currently claimed:
 - automatic Goodshuffle sync
+- recoverable Goodshuffle master spreadsheet contents
 - QuickBooks integration
-- paid AI interpreter
-- crew/warehouse/maintenance/profitability engine
-- Goodshuffle quantity = physical ownership
-- newest frontend Cloudflare build success until independently observed
+- deposit/payment truth
+- audited margin/contribution
+- reservation/hold truth
+- complete physical inventory quantities
+- crew/warehouse/maintenance system
+- customer/Party auto-matching at capture
+- AI interpretation of photo/text sources
+- newest Cloudflare auto-deploy after the latest merges until independently observed
+
+## Current direction
+The current operating transition is intentionally asymmetric:
+
+1. preserve historical intelligence without reconstructing it;
+2. strengthen inherited active work only when a live decision needs truth;
+3. make new work enter correctly from source evidence;
+4. progressively let native Stage Presence evidence replace Goodshuffle-shaped history;
+5. activate AI/source integrations only where they reduce real reconstruction or decision friction and after the relevant privacy/cost/authority boundary is approved.
