@@ -1,4 +1,5 @@
 import type { Engagement, EngagementFact } from '../types/domain'
+import type { EngagementRelationship } from './engagementRelationships'
 import type { ConfiguredResourceLink, CustomerLink } from './repository'
 
 export interface CapacityPressure {
@@ -18,6 +19,9 @@ export interface RelationshipSignal {
   won_count: number
   open_count: number
   known_value: number
+  independent_engagement_count: number
+  program_count: number
+  program_component_count: number
 }
 
 export interface BusinessSignals {
@@ -74,18 +78,29 @@ function rangesOverlap(first: Engagement, second: Engagement) {
   return firstStart <= secondEnd && secondStart <= firstEnd
 }
 
+function trustedProgramParents(relationships: EngagementRelationship[]) {
+  return new Set(
+    relationships
+      .filter((relationship) => relationship.relationship_type === 'PROGRAM_COMPONENT' && ['VERIFIED', 'KNOWN'].includes(relationship.certainty_state))
+      .map((relationship) => relationship.from_engagement_id),
+  )
+}
+
 export function buildBusinessSignals(
   engagements: Engagement[],
   customerLinks: CustomerLink[],
   configuredLinks: ConfiguredResourceLink[],
   attentionFacts: EngagementFact[],
+  engagementRelationships: EngagementRelationship[],
   now = new Date(),
 ): BusinessSignals {
   const engagementById = new Map(engagements.map((engagement) => [engagement.id, engagement]))
+  const trustedProgramParentIds = trustedProgramParents(engagementRelationships)
 
   const protectDelivery = engagements
     .filter((engagement) => {
       if (!isDeliveryCommitment(engagement) || engagement.operational_state === 'CLOSED') return false
+      if (trustedProgramParentIds.has(engagement.id)) return false
       const days = daysUntil(engagement, now)
       return days >= -1 && days <= 21
     })
@@ -104,7 +119,7 @@ export function buildBusinessSignals(
   for (const link of configuredLinks) {
     if (!link.resource || !physicalCategories.has(link.resource.category)) continue
     const engagement = engagementById.get(link.engagement_id)
-    if (!engagement || !activeForCapacity(engagement)) continue
+    if (!engagement || !activeForCapacity(engagement) || trustedProgramParentIds.has(engagement.id)) continue
     const bucket = byResource.get(link.resource_id) ?? []
     bucket.push(link)
     byResource.set(link.resource_id, bucket)
@@ -152,6 +167,9 @@ export function buildBusinessSignals(
       won_count: 0,
       open_count: 0,
       known_value: 0,
+      independent_engagement_count: 0,
+      program_count: 0,
+      program_component_count: 0,
     }
     if (!current.engagements.some((item) => item.id === engagement.id)) current.engagements.push(engagement)
     if (engagement.commercial_state === 'WON') current.won_count += 1
@@ -160,10 +178,27 @@ export function buildBusinessSignals(
     relationshipMap.set(party.id, current)
   }
 
+  const programRelations = engagementRelationships.filter(
+    (relationship) => relationship.relationship_type === 'PROGRAM_COMPONENT' && relationship.certainty_state !== 'CONFLICTING',
+  )
+
+  for (const relationship of relationshipMap.values()) {
+    const engagementIds = new Set(relationship.engagements.map((engagement) => engagement.id))
+    const matchedProgramRelations = programRelations.filter(
+      (programRelation) => engagementIds.has(programRelation.from_engagement_id) && engagementIds.has(programRelation.to_engagement_id),
+    )
+    const componentIds = new Set(matchedProgramRelations.map((programRelation) => programRelation.to_engagement_id))
+    const parentIds = new Set(matchedProgramRelations.map((programRelation) => programRelation.from_engagement_id))
+    relationship.program_component_count = componentIds.size
+    relationship.program_count = parentIds.size
+    relationship.independent_engagement_count = Math.max(0, relationship.engagements.length - componentIds.size)
+  }
+
   const relationships = [...relationshipMap.values()]
     .sort((a, b) => {
-      if (a.engagements.length !== b.engagements.length) return b.engagements.length - a.engagements.length
+      if (a.independent_engagement_count !== b.independent_engagement_count) return b.independent_engagement_count - a.independent_engagement_count
       if (a.known_value !== b.known_value) return b.known_value - a.known_value
+      if (a.engagements.length !== b.engagements.length) return b.engagements.length - a.engagements.length
       return a.name.localeCompare(b.name)
     })
 
