@@ -40,6 +40,30 @@ export interface DecisionSignal {
   score: number
 }
 
+export interface ResolutionQueueItem {
+  engagement: Engagement
+  decision: DecisionKind
+  decision_label: string
+  gap: DecisionGap
+  score: number
+}
+
+export interface ResolutionQueueSummary {
+  code: string
+  label: string
+  resolution_strategy: ResolutionStrategy
+  count: number
+}
+
+export interface ResolutionQueue {
+  owner: ResolutionOwner
+  blocking: number
+  material: number
+  watch: number
+  items: ResolutionQueueItem[]
+  top_gaps: ResolutionQueueSummary[]
+}
+
 function dateKey(engagement: Engagement) {
   return engagement.event_start_date ?? engagement.event_start?.slice(0, 10) ?? null
 }
@@ -146,6 +170,10 @@ function ownerRank(owner: ResolutionOwner) {
   return { SYSTEM: 0, NANCY: 1, SEAN: 2, OPERATIONS: 3, GREG: 4 }[owner]
 }
 
+function severityRank(severity: GapSeverity) {
+  return { BLOCKING: 3, MATERIAL: 2, WATCH: 1 }[severity]
+}
+
 function derivePrimaryOwner(gaps: DecisionGap[], decision: DecisionKind): ResolutionOwner {
   const blocking = gaps.filter((gap) => gap.severity === 'BLOCKING')
   const material = gaps.filter((gap) => gap.severity === 'MATERIAL')
@@ -222,7 +250,7 @@ export function buildDecisionSignals(
           ? 'Literal customer intent was not preserved in the import; proposed configuration exists as evidence.'
           : 'Customer request / desired outcome is not represented clearly enough yet.',
         owner: 'SEAN',
-        severity: configuredLegacyProposal ? 'WATCH' : decision === 'COMMIT_READY' ? 'MATERIAL' : 'MATERIAL',
+        severity: configuredLegacyProposal ? 'WATCH' : 'MATERIAL',
         resolution_strategy: configuredLegacyProposal ? 'SOURCE_RECOVERY' : 'OWNER_CONFIRMATION',
         resolution_hint: configuredLegacyProposal
           ? 'Do not reconstruct intent merely to fill a field. Recover it from source/customer context only if it can change the commitment decision.'
@@ -258,7 +286,6 @@ export function buildDecisionSignals(
     })
 
     if (decision === 'QUOTE_READY') {
-      // A quote total is the output of Quote Ready, not a prerequisite.
       if (hasFinancialFact(financialFacts, engagement.id, 'QUOTE_TOTAL')) strongEvidence.push('Existing quote value represented')
     }
 
@@ -377,4 +404,40 @@ export function buildDecisionSignals(
   }
 
   return signals.sort((a, b) => b.score - a.score || a.engagement.name.localeCompare(b.engagement.name))
+}
+
+export function buildResolutionQueues(signals: DecisionSignal[]): ResolutionQueue[] {
+  const byOwner = new Map<ResolutionOwner, ResolutionQueueItem[]>()
+
+  for (const signal of signals) {
+    if (signal.decision === 'LEARN_RESOLVE') continue
+    for (const gap of signal.gaps) {
+      const bucket = byOwner.get(gap.owner) ?? []
+      bucket.push({ engagement: signal.engagement, decision: signal.decision, decision_label: signal.decision_label, gap, score: signal.score })
+      byOwner.set(gap.owner, bucket)
+    }
+  }
+
+  const queues: ResolutionQueue[] = []
+  for (const [owner, items] of byOwner) {
+    const sortedItems = [...items].sort((a, b) => severityRank(b.gap.severity) - severityRank(a.gap.severity) || b.score - a.score || a.engagement.name.localeCompare(b.engagement.name))
+    const summaryMap = new Map<string, ResolutionQueueSummary>()
+    for (const item of items) {
+      const key = `${item.gap.code}:${item.gap.resolution_strategy}`
+      const current = summaryMap.get(key)
+      if (current) current.count += 1
+      else summaryMap.set(key, { code: item.gap.code, label: item.gap.label, resolution_strategy: item.gap.resolution_strategy, count: 1 })
+    }
+
+    queues.push({
+      owner,
+      blocking: items.filter((item) => item.gap.severity === 'BLOCKING').length,
+      material: items.filter((item) => item.gap.severity === 'MATERIAL').length,
+      watch: items.filter((item) => item.gap.severity === 'WATCH').length,
+      items: sortedItems,
+      top_gaps: [...summaryMap.values()].sort((a, b) => b.count - a.count || a.label.localeCompare(b.label)).slice(0, 4),
+    })
+  }
+
+  return queues.sort((a, b) => b.blocking - a.blocking || b.material - a.material || b.watch - a.watch || ownerRank(a.owner) - ownerRank(b.owner))
 }
