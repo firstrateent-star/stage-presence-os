@@ -3,6 +3,7 @@ import { EngagementCard } from '../components/EngagementCard'
 import { buildBusinessSignals, engagementDateLabel, type CapacityPressure, type CapacityTruthPriority, type RelationshipSignal } from '../lib/businessSignals'
 import type { EngagementRelationship } from '../lib/engagementRelationships'
 import type { EngagementFinancialFact } from '../lib/financialFacts'
+import type { LearningReviewSignal } from '../lib/learningCloseout'
 import type { ConfiguredResourceLink, CustomerLink } from '../lib/repository'
 import type { Engagement, EngagementFact, LedgerEvent } from '../types/domain'
 
@@ -14,6 +15,7 @@ export function TodayScreen({
   attentionFacts,
   engagementRelationships,
   financialFacts,
+  learningReviewSignals,
   onOpen,
 }: {
   engagements: Engagement[]
@@ -23,6 +25,7 @@ export function TodayScreen({
   attentionFacts: EngagementFact[]
   engagementRelationships: EngagementRelationship[]
   financialFacts: EngagementFinancialFact[]
+  learningReviewSignals: LearningReviewSignal[]
   onOpen: (id: string) => void
 }) {
   const signals = useMemo(
@@ -36,13 +39,14 @@ export function TodayScreen({
   const capacityTruth = signals.capacity_truth_priorities.slice(0, 6)
   const recurringRelationships = signals.relationships.filter((item) => item.engagements.length > 1).slice(0, 4)
   const unresolved = signals.unresolved_facts.slice(0, 6)
+  const learning = learningReviewSignals.slice(0, 6)
 
   return (
     <div className="sm:ml-48">
       <div className="mb-7">
         <p className="text-sm text-zinc-500">Where should Stage Presence attention go?</p>
         <h1 className="mt-1 text-3xl font-semibold tracking-tight">Today</h1>
-        <p className="mt-3 max-w-3xl text-sm leading-6 text-zinc-500">Protect delivery first, convert legitimate demand, protect scarce capacity, resolve material uncertainty, and deepen valuable relationships.</p>
+        <p className="mt-3 max-w-3xl text-sm leading-6 text-zinc-500">Protect delivery first, convert legitimate demand, protect scarce capacity, resolve material uncertainty, deepen valuable relationships, and retain what the business learns.</p>
       </div>
 
       <div className="mb-10 grid grid-cols-2 gap-3 lg:grid-cols-4">
@@ -82,6 +86,10 @@ export function TodayScreen({
             {fact.value_text && <p className="mt-3 text-sm leading-6 text-zinc-400">{fact.value_text}</p>}
           </button>
         )) : <Empty text="No material unknown or conflicting facts are currently surfaced." />}
+      </Section>
+
+      <Section title="Learn / Resolve" count={learningReviewSignals.length} description="Past-dated work is not automatically complete. Surface only the reason Stage Presence should learn or resolve history instead of silently guessing what happened.">
+        {learning.length ? learning.map((item) => <LearningCard key={item.engagement_id} signal={item} onOpen={onOpen} />) : <Empty text="No past Engagement currently needs a learning or stale-history review." />}
       </Section>
 
       <section className="mt-10">
@@ -157,6 +165,26 @@ function RelationshipCard({ relationship, onOpen }: { relationship: Relationship
       {relationship.program_component_count > 0 && <p className="mt-3 text-xs leading-5 text-zinc-600">Program grouping may be inferred. It reduces false diversification but does not change verified commercial, financial or capacity facts.</p>}
       {latest && <button type="button" onClick={() => onOpen(latest.id)} className="mt-4 text-xs font-semibold text-amber-500 hover:text-amber-300">Open latest Engagement →</button>}
     </div>
+  )
+}
+
+function LearningCard({ signal, onOpen }: { signal: LearningReviewSignal; onOpen: (id: string) => void }) {
+  const copy: Record<LearningReviewSignal['review_reason'], { label: string; text: string }> = {
+    DELIVERY_LEARNING: { label: 'LEARN FROM DELIVERY', text: 'This appears commercially committed and past-dated. Capture actuals only if someone knows what really happened.' },
+    STALE_COMMERCIAL: { label: 'RESOLVE STALE DEMAND', text: 'The date has passed but the opportunity remains commercially open. Resolve the commercial outcome instead of silently marking it lost.' },
+    PROGRAM_REVIEW: { label: 'REVIEW PROGRAM PARENT', text: 'This record appears to contain program components. Confirm what the parent represents before treating its date as a delivered event.' },
+    RESOLVE_CONFLICT: { label: 'RESOLVE CONFLICT', text: 'Conflicting source truth exists. Resolve the evidence before learning from this record.' },
+    REVIEW: { label: 'REVIEW HISTORY', text: 'The date has passed, but the current evidence does not support a stronger conclusion.' },
+  }
+  const detail = copy[signal.review_reason]
+  return (
+    <button type="button" onClick={() => onOpen(signal.engagement_id)} className="rounded-2xl border border-zinc-900 bg-zinc-950/70 p-4 text-left hover:border-zinc-700">
+      <div className="flex items-start justify-between gap-3">
+        <div><div className="font-semibold text-zinc-200">{signal.name}</div><div className="mt-1 text-xs text-zinc-600">{signal.engagement_number} · ended {signal.event_end_date}</div></div>
+        <span className={signal.review_reason === 'RESOLVE_CONFLICT' ? 'text-[10px] font-bold tracking-wide text-red-300' : 'text-[10px] font-bold tracking-wide text-amber-400'}>{detail.label}</span>
+      </div>
+      <p className="mt-3 text-xs leading-5 text-zinc-500">{detail.text}</p>
+    </button>
   )
 }
 
