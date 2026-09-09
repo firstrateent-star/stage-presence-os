@@ -17,7 +17,7 @@ export function AppShell({
 }) {
   const nav = [
     ['today', 'Today'],
-    ['engagements', 'Engagements'],
+    ['engagements', 'Work'],
     ['resources', 'Resources'],
   ] as const
 
