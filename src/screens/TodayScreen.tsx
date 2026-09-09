@@ -1,6 +1,7 @@
 import { useMemo, type ReactNode } from 'react'
 import { EngagementCard } from '../components/EngagementCard'
 import { buildBusinessSignals, engagementDateLabel, type CapacityPressure, type CapacityTruthPriority, type RelationshipSignal } from '../lib/businessSignals'
+import { buildDecisionSignals, type DecisionSignal } from '../lib/decisionResolver'
 import type { EngagementRelationship } from '../lib/engagementRelationships'
 import type { EngagementFinancialFact } from '../lib/financialFacts'
 import type { LearningReviewSignal } from '../lib/learningCloseout'
@@ -33,6 +34,11 @@ export function TodayScreen({
     [engagements, customerLinks, configuredLinks, attentionFacts, engagementRelationships, financialFacts],
   )
 
+  const decisions = useMemo(
+    () => buildDecisionSignals(engagements, customerLinks, configuredLinks, attentionFacts, financialFacts, signals.capacity_pressure),
+    [engagements, customerLinks, configuredLinks, attentionFacts, financialFacts, signals.capacity_pressure],
+  )
+
   const delivery = signals.protect_delivery.slice(0, 6)
   const demand = signals.convert_demand.slice(0, 6)
   const pressure = signals.capacity_pressure.slice(0, 6)
@@ -40,6 +46,8 @@ export function TodayScreen({
   const recurringRelationships = signals.relationships.filter((item) => item.engagements.length > 1).slice(0, 4)
   const unresolved = signals.unresolved_facts.slice(0, 6)
   const learning = learningReviewSignals.slice(0, 6)
+  const activeDecisions = decisions.filter((item) => item.decision !== 'LEARN_RESOLVE')
+  const decisionFlow = activeDecisions.slice(0, 6)
 
   return (
     <div className="sm:ml-48">
@@ -55,6 +63,10 @@ export function TodayScreen({
         <SignalStat label="Capacity pressure" value={signals.capacity_pressure.length} />
         <SignalStat label="Recurring relationships" value={signals.relationships.filter((item) => item.engagements.length > 1).length} />
       </div>
+
+      <Section title="Decision Flow" count={activeDecisions.length} description="Advisory only. What decision is next, what evidence can change it, and who should resolve the exception? This does not mutate state, create reservations, or message customers.">
+        {decisionFlow.length ? decisionFlow.map((item) => <DecisionCard key={item.engagement.id} decision={item} onOpen={onOpen} />) : <Empty text="No active Engagement currently has a derived decision." />}
+      </Section>
 
       <Section title="Protect Delivery" count={delivery.length} description="Committed work approaching now. The goal is reliable execution, not more selling.">
         {delivery.length ? delivery.map((item) => <EngagementCard key={item.id} engagement={item} onOpen={onOpen} />) : <Empty text="No committed work falls inside the next 21 days." />}
@@ -109,6 +121,46 @@ export function TodayScreen({
 
 function SignalStat({ label, value }: { label: string; value: number }) {
   return <div className="rounded-2xl border border-zinc-900 bg-zinc-950/70 p-4"><div className="text-2xl font-semibold text-zinc-100">{value}</div><div className="mt-1 text-xs text-zinc-600">{label}</div></div>
+}
+
+function DecisionCard({ decision, onOpen }: { decision: DecisionSignal; onOpen: (id: string) => void }) {
+  const blocking = decision.gaps.filter((gap) => gap.severity === 'BLOCKING')
+  const shownGaps = [...blocking, ...decision.gaps.filter((gap) => gap.severity !== 'BLOCKING')].slice(0, 3)
+  return (
+    <button type="button" onClick={() => onOpen(decision.engagement.id)} className="rounded-2xl border border-emerald-950 bg-emerald-950/10 p-4 text-left hover:border-emerald-800/70">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <div className="text-[10px] font-bold tracking-[0.12em] text-emerald-400">{decision.decision_label.toUpperCase()}</div>
+          <div className="mt-1 font-semibold text-zinc-200">{decision.engagement.name}</div>
+          <div className="mt-1 text-xs text-zinc-600">{decision.engagement.engagement_number} · {engagementDateLabel(decision.engagement)}</div>
+        </div>
+        <div className="text-right">
+          <div className="text-[10px] font-semibold text-zinc-500">OWNER</div>
+          <div className="mt-1 text-xs font-bold text-zinc-300">{decision.primary_owner}</div>
+          <div className={decision.greg_required ? 'mt-1 text-[10px] font-semibold text-red-300' : 'mt-1 text-[10px] font-semibold text-zinc-700'}>{decision.greg_required ? 'GREG REQUIRED' : 'NO GREG EXCEPTION'}</div>
+        </div>
+      </div>
+
+      <p className="mt-3 text-xs leading-5 text-zinc-500">{decision.why_now}</p>
+
+      {decision.strong_evidence.length > 0 && (
+        <div className="mt-3 flex flex-wrap gap-1.5">
+          {decision.strong_evidence.slice(0, 4).map((item) => <span key={item} className="rounded-full border border-zinc-900 px-2 py-1 text-[10px] text-zinc-600">{item}</span>)}
+        </div>
+      )}
+
+      <div className="mt-4 space-y-2">
+        {shownGaps.length ? shownGaps.map((gap) => (
+          <div key={gap.code} className="flex items-start justify-between gap-3 rounded-xl border border-zinc-900 px-3 py-2.5">
+            <div className="text-xs leading-5 text-zinc-400">{gap.label}</div>
+            <div className="shrink-0 text-right"><div className={gap.severity === 'BLOCKING' ? 'text-[9px] font-bold text-red-300' : gap.severity === 'MATERIAL' ? 'text-[9px] font-bold text-amber-400' : 'text-[9px] font-bold text-zinc-600'}>{gap.severity}</div><div className="mt-0.5 text-[9px] text-zinc-700">{gap.owner}</div></div>
+          </div>
+        )) : <div className="rounded-xl border border-emerald-950/80 px-3 py-2.5 text-xs text-emerald-500">No material exception is currently derived for this decision.</div>}
+      </div>
+
+      <div className="mt-3 text-[10px] font-semibold tracking-wide text-zinc-700">DUE · {decision.due_label}</div>
+    </button>
+  )
 }
 
 function CapacityCard({ pressure, onOpen }: { pressure: CapacityPressure; onOpen: (id: string) => void }) {
