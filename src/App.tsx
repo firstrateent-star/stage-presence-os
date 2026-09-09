@@ -165,7 +165,14 @@ export default function App() {
       {data.loading ? (
         <div className="sm:ml-48 py-20 text-zinc-600">Loading shared reality…</div>
       ) : screen === 'today' ? (
-        <TodayScreen engagements={data.engagements} events={data.events} onOpen={openEngagement} />
+        <TodayScreen
+          engagements={data.engagements}
+          events={data.events}
+          customerLinks={data.customerLinks}
+          configuredLinks={data.configuredLinks}
+          attentionFacts={data.attentionFacts}
+          onOpen={openEngagement}
+        />
       ) : screen === 'engagements' ? (
         <EngagementsScreen engagements={data.engagements} onOpen={openEngagement} />
       ) : screen === 'resources' ? (
