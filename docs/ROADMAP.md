@@ -35,14 +35,16 @@ Today order:
 1. Protect Delivery
 2. Convert Demand
 3. Capacity Pressure
-4. Relationships
-5. Unresolved Truth
-6. Recently Changed
+4. Verify Capacity Truth
+5. Relationships
+6. Unresolved Truth
+7. Recently Changed
 
 Current live-data signal set:
 - 3 delivery commitments inside 21 days
 - 15 open commercial opportunities
-- 3 physical capacity-pressure watch pairs
+- 3 physical capacity-pressure WATCH pairs
+- 0 physical capacity-pressure HIGH pairs
 - 3 recurring customer relationships
 - 2 conflicting facts
 - 6 explicit unknown facts
@@ -54,6 +56,7 @@ Observe whether the command surface actually helps Greg/Sean answer:
 - what must be protected today?
 - what demand is becoming time-sensitive?
 - where could another commitment create capacity pressure?
+- which capacity truth is worth verifying now?
 - which relationships deserve account-level attention?
 - what uncertainty could invalidate a decision?
 
@@ -80,35 +83,58 @@ Likely next Capture activation:
 
 Before AI activation, make a separate decision about provider privacy, cost, confidence thresholds and projection authority.
 
-## Next likely petal — Capacity Truth
-Why it moved forward:
-The current Goodshuffle sample already contains overlapping configured physical resources between committed work and open opportunities.
+## Current earned petal — Capacity Truth
+Why it activated:
+The Goodshuffle sample contains overlapping configured physical resources between committed work and open opportunities, and event dates alone are not enough to represent actual resource occupancy.
 
-Progression:
-1. pressure signal — CURRENT
-2. capability sourcing alternatives
-3. possession/setup/return windows
-4. provisional holds
-5. signed/deposit evidence
-6. reservation truth
-7. release/expiry rules
-8. conflict resolution and substitution
+Canonical specification: `docs/CAPACITY_TRUTH.md`.
+
+Completed / live backend:
+1. `CONFIGURED` remains a neutral solution relationship
+2. resource requirement windows (`required_from_date` / `required_through_date`)
+3. requirement-window certainty (`UNKNOWN / INFERRED_FROM_EVENT / ESTIMATED / KNOWN / VERIFIED`)
+4. Engagement-specific planned sourcing (`OWNED / SUBCONTRACTED / PARTNER / VENUE / UNKNOWN`)
+5. 130 imported Goodshuffle configured-resource links backfilled with event-date windows explicitly marked `INFERRED_FROM_EVENT`
+6. RLS-safe `capacity_pressure_signals` derived view
+7. Today command logic upgraded to use requirement windows when available and display their epistemic state
+8. decision-leverage ordering for which uncertain resources deserve verification first
+
+Current pressure state:
+- WATCH: 3
+- HIGH: 0
+
+Next progression only as evidence earns it:
+9. actual possession / load-in / return windows
+10. Engagement-specific sourcing confirmation
+11. provisional holds
+12. signed/deposit evidence propagation
+13. reservation truth
+14. release/expiry rules
+15. conflict resolution and substitution
+16. crew / transport / subcontract capacity
 
 Constitution remains:
+**configuration != requirement window != pressure != hold != reservation.**
+
+And:
 **no signature/deposit/capacity evidence = do not assert reservation.**
 
-The system should distinguish configured demand, hold, reservation and actual physical availability.
-
-## Next likely petal — Relationship Intelligence
+## Parallel likely petal — Relationship Intelligence
 Why it moved forward:
 Imported evidence already shows repeated customer nodes and high known-value concentration.
+
+Current evidence discipline:
+- recurring Party signals are live in Today;
+- 6 UNC game-to-season PROGRAM_COMPONENT relationships are currently only `ASSUMED`;
+- assumptions may help avoid false diversification but do not rewrite verified operations, finance or capacity truth;
+- no person is automatically attached to an organization/account merely because project names suggest one.
 
 Progression:
 1. recurring-customer signal — CURRENT
 2. separate person / organization / account identity where evidence supports it
-3. cross-Engagement history
-4. venue / planner / referrer network
-5. recurring annual-event recognition
+3. explicit person-to-organization / planner / venue / referrer relationships
+4. cross-Engagement history
+5. recurring annual-event / program recognition
 6. next-relationship opportunity
 7. payment/delivery history
 8. lifetime contribution once economics exist
