@@ -25,6 +25,33 @@ The sample materially strengthened four observations:
 
 Canonical evidence review: `docs/BUSINESS_MODEL_EVIDENCE_2026-09-09.md`.
 
+## Current Flower center — Decision-Grade Flow
+Canonical recenter: `docs/FLOWER_RECENTER_2026-09-09.md`.
+
+> **What decision is next, what must be true to make it responsibly, and who can resolve the exception?**
+
+Why this is now the center:
+- Shared Reality is sufficiently established;
+- current Engagements already contain meaningful customer/date/configuration evidence;
+- Business Command, Capacity Truth, Commitment Ladder and Learning Closeout now exist;
+- the current largest mismatch is that records still often terminate in generic human tasks such as `Review operational readiness` or `Review quote status and set follow-up`;
+- near-term work currently has no KNOWN/VERIFIED resource requirement windows, no confirmed Engagement-specific sourcing, no deposit-received facts and no direct-cost estimates represented in the OS.
+
+The goal is not database completeness. The goal is to derive:
+1. the next consequential decision;
+2. the few truths that can materially change that decision;
+3. the exception / missing evidence;
+4. the least-expensive capable resolution owner;
+5. the resulting state / commitment propagation.
+
+First experiments:
+- derive next decision across active Engagements;
+- replace generic review actions with decision-specific exceptions;
+- route exception ownership logically across SYSTEM / NANCY / SEAN / OPERATIONS-TECHNICAL / GREG;
+- use near-term signed work to discover Execute Ready requirements;
+- use current proposals to discover minimum Quote Ready / Commit Ready requirements;
+- introduce only decision-grade economic evidence rather than premature accounting completeness.
+
 ## Current earned petal — Business Command Layer
 Status: implemented in current `main`; newest Cloudflare deployment not independently proven from the current tool environment.
 
@@ -41,9 +68,10 @@ Today order:
 7. Learn / Resolve
 8. Recently Changed
 
-Current live-data signal set:
+Current decision-relevant signal set:
 - 3 delivery commitments inside 21 days
-- 15 open commercial opportunities
+- 13 current/future/undated open-demand Engagements
+- 2 additional past-dated open records routed away from Convert Demand into Learn / Resolve
 - 3 physical capacity-pressure WATCH pairs
 - 0 physical capacity-pressure HIGH pairs
 - 3 recurring customer relationships
@@ -62,6 +90,7 @@ Observe whether the command surface actually helps Greg/Sean answer:
 - which relationships deserve account-level attention?
 - what uncertainty could invalidate a decision?
 - what completed/stale history is worth learning from rather than merely clearing?
+- what is the **next decision**, and why does a human need to touch it?
 
 Do not add KPI/dashboard complexity unless these questions require it.
 
@@ -83,6 +112,8 @@ Use the first real or low-stakes lead sheet organically. Measure capture time, r
 
 Likely next Capture activation:
 - Engagement Interpreter: photo/text -> candidate people, company, date, venue, literal request, resource mentions, unknowns and next move.
+
+Under Decision-Grade Flow, the Interpreter should optimize for **decision utility**, not maximum field extraction: identify the Engagement, the next decision, existing decision-critical evidence and only the material missing information.
 
 Before AI activation, make a separate decision about provider privacy, cost, confidence thresholds and projection authority.
 
@@ -106,7 +137,7 @@ Current pressure state:
 - WATCH: 3
 - HIGH: 0
 
-Next progression only as evidence earns it:
+Next progression only as decision evidence earns it:
 9. actual possession / load-in / return windows
 10. Engagement-specific sourcing confirmation
 11. provisional holds
@@ -125,7 +156,7 @@ And:
 ## Current operating design — Commitment Ladder
 Canonical design: `docs/COMMITMENT_LADDER.md`.
 
-Do not create one persisted readiness status. Derive readiness for the decision actually being made:
+The Commitment Ladder becomes the first living decision family under Decision-Grade Flow. Do not create one persisted readiness status. Derive readiness for the decision actually being made:
 1. Quote Ready
 2. Commit Ready
 3. Reserve Ready
@@ -198,27 +229,19 @@ Operating rule:
 - record actuals only when someone actually knows them;
 - routine closeout should eventually take roughly two minutes and become increasingly prefilled by system events.
 
-What closeout should eventually teach:
-- actual resources used;
-- actual possession/setup/strike/return timing;
-- labor/crew evidence where practical;
-- sourcing/subcontract actuals;
-- scope-change evidence;
-- venue learning;
-- financial actuals;
-- Greg-dependence reason;
-- recurrence / next opportunity.
+Under Decision-Grade Flow, closeout has a second purpose: actuals should reduce uncertainty and exceptions in the next similar decision.
 
-## Economics / Pricing before quote optimization
+## Economics / Pricing — activate for decision utility, not reporting completeness
 Fast quoting remains important, but a sophisticated quote engine should not outrun economic truth.
 
-Acquire:
-- direct labor cost
+Acquire first where it changes a decision:
+- quote/contract value
+- major direct labor estimate
 - subcontract cost
-- delivery/travel cost
-- asset/capacity consumption
-- discounts / negotiated price
+- delivery/travel cost when material
+- capital/procurement exposure when material
 - actual collected revenue
+- direct-cost actuals
 - change-order leakage
 - founder-dependent effort where practical
 
@@ -231,14 +254,14 @@ Then distinguish:
 6. final negotiated price
 7. actual contribution after delivery
 
-Only then should Quick Quote automation optimize speed and commercial quality together.
+The first economics objective is **decision-grade contribution evidence**, not recreating accounting. QuickBooks remains accounting authority unless another boundary is earned.
 
 ## Later operational petals
-Activate according to real friction/evidence:
+Activate according to decision friction/evidence:
 - proposal / signature / deposit propagation
 - operational handoff / schedule / crew
 - warehouse pulls / returns / maintenance
-- deeper closeout / economics / contribution / cash
+- deeper economics / contribution / cash
 - installation/service specialization
 - training / capability development
 - Goodshuffle/QuickBooks integrations or replacement seams
@@ -248,4 +271,4 @@ Activate according to real friction/evidence:
 ## Governing sequencing rule
 > Evidence earns expansion.
 
-The roadmap is not a feature backlog. The next petal must reduce a real constraint, protect a real value engine, or improve the quality of a real business decision.
+The roadmap is not a feature backlog. The next petal must reduce a real constraint, protect a real value engine, improve the quality/speed of a real business decision, or reduce unnecessary founder dependence.
