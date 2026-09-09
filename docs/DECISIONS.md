@@ -45,3 +45,27 @@ Reason: continuity must not depend on one ChatGPT/Lovable conversation. The repo
 ## 2026-09-08 — Preserve business model beside system model
 Decision: maintain `docs/BUSINESS_MODEL_CURRENT.md` as a first-class reference separate from software architecture.
 Reason: Stage Presence OS exists to model and improve a business organism. Future builders must understand the company, its economic engines, strategic center, current systems, constraints, and hypotheses rather than reducing the project to CRUD requirements.
+
+## 2026-09-09 — Legacy systems are evidence sources, not architecture
+Decision: Goodshuffle, QuickBooks, spreadsheets and other legacy systems may supply evidence, identifiers and historical context, but they do not define the Stage Presence OS object model, workflow, statuses or truth semantics.
+Reason: importing legacy structure wholesale would reproduce the constraints the new system is intended to remove. Stage Presence OS translates source evidence into its own Engagement / Party / Fact / Resource / Event model while preserving provenance and uncertainty.
+
+## 2026-09-09 — Date-only truth is first-class
+Decision: support project/event dates separately from exact timestamps.
+Reason: real Stage Presence evidence frequently knows the event date while the exact event time remains TBD. The OS must not invent midnight timestamps merely to satisfy a software field.
+
+## 2026-09-09 — CONFIGURED is a neutral resource relationship
+Decision: add `CONFIGURED` to Engagement-resource relationships for imported or otherwise evidenced project configurations.
+Reason: a line item appearing on a project does not necessarily mean customer-requested, recommended, reserved, available or owned. `CONFIGURED` preserves what the source says without overstating commitment/capacity truth.
+
+## 2026-09-09 — Business command surface over raw attention queue
+Decision: evolve Today from a raw `NEEDS_ATTENTION` list into a business-model command surface centered on Protect Delivery → Convert Demand → Capacity Pressure → Relationships → Unresolved Truth.
+Reason: once real operating data is loaded, a generic exception queue recreates Greg's cognitive bottleneck. The home surface should allocate scarce human attention according to Stage Presence's value-creation and risk model.
+
+## 2026-09-09 — Relationship value is first-class
+Decision: recurring customer/relationship nodes must be surfaced independently of individual Engagement status.
+Reason: imported evidence already shows substantial concentration and recurrence; job-by-job views hide both lifetime opportunity and concentration risk.
+
+## 2026-09-09 — Capacity pressure precedes reservation automation
+Decision: surface overlapping configured physical resources before implementing full holds/reservations.
+Reason: current evidence already reveals overlapping signed/proposed demand on scarce visual assets. Early warning is valuable now, while the system must still avoid claiming availability or reservation truth without signature/deposit/capacity evidence.
