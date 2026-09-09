@@ -75,6 +75,12 @@ function isCommerciallyOpen(engagement: Engagement) {
     && !['SIGNED', 'CONFIRMED', 'CANCELLED'].includes(engagement.commitment_state)
 }
 
+function isCurrentDemand(engagement: Engagement, now: Date) {
+  if (!isCommerciallyOpen(engagement)) return false
+  if (!dateKey(engagement)) return true
+  return daysUntil(engagement, now) >= 0
+}
+
 function isDeliveryCommitment(engagement: Engagement) {
   return engagement.commercial_state === 'WON'
     || ['SIGNED', 'DEPOSIT_PENDING', 'CONFIRMED'].includes(engagement.commitment_state)
@@ -157,7 +163,7 @@ export function buildBusinessSignals(
     .sort((a, b) => dateNumber(dateKey(a)) - dateNumber(dateKey(b)))
 
   const convertDemand = engagements
-    .filter(isCommerciallyOpen)
+    .filter((engagement) => isCurrentDemand(engagement, now))
     .sort((a, b) => {
       const dateDifference = dateNumber(dateKey(a)) - dateNumber(dateKey(b))
       if (dateDifference !== 0) return dateDifference
