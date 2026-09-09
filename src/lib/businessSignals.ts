@@ -5,12 +5,26 @@ import type { ConfiguredResourceLink, CustomerLink } from './repository'
 
 export interface CapacityPressure {
   id: string
+  resource_id: string
   resource_name: string
   resource_quantity: number | null
   quantity_state: string
   severity: 'HIGH' | 'WATCH'
   first: Engagement
   second: Engagement
+}
+
+export interface CapacityTruthPriority {
+  resource_id: string
+  resource_name: string
+  category: string
+  quantity: number | null
+  quantity_state: string
+  engagement_count: number
+  committed_count: number
+  open_count: number
+  pressure_count: number
+  priority_score: number
 }
 
 export interface RelationshipSignal {
@@ -29,6 +43,7 @@ export interface BusinessSignals {
   protect_delivery: Engagement[]
   convert_demand: Engagement[]
   capacity_pressure: CapacityPressure[]
+  capacity_truth_priorities: CapacityTruthPriority[]
   relationships: RelationshipSignal[]
   unresolved_facts: Array<{ fact: EngagementFact; engagement: Engagement }>
 }
@@ -161,6 +176,7 @@ export function buildBusinessSignals(
 
         capacityPressure.push({
           id: `${resourceId}:${[first.id, second.id].sort().join(':')}`,
+          resource_id: resourceId,
           resource_name: resource.name,
           resource_quantity: resource.quantity,
           quantity_state: resource.quantity_state,
@@ -175,6 +191,35 @@ export function buildBusinessSignals(
     if (a.severity !== b.severity) return a.severity === 'HIGH' ? -1 : 1
     return Math.min(dateNumber(dateKey(a.first)), dateNumber(dateKey(a.second))) - Math.min(dateNumber(dateKey(b.first)), dateNumber(dateKey(b.second)))
   })
+
+  const pressureCountByResource = new Map<string, number>()
+  for (const pressure of capacityPressure) pressureCountByResource.set(pressure.resource_id, (pressureCountByResource.get(pressure.resource_id) ?? 0) + 1)
+
+  const capacityTruthPriorities: CapacityTruthPriority[] = []
+  for (const [resourceId, links] of byResource) {
+    const resource = links[0]?.resource
+    if (!resource || resource.quantity_state === 'VERIFIED') continue
+    const engagementIds = [...new Set(links.map((link) => link.engagement_id))]
+    const linkedEngagements = engagementIds.map((id) => engagementById.get(id)).filter((item): item is Engagement => Boolean(item))
+    const committedCount = linkedEngagements.filter(isDeliveryCommitment).length
+    const openCount = linkedEngagements.filter(isCommerciallyOpen).length
+    const pressureCount = pressureCountByResource.get(resourceId) ?? 0
+    if (committedCount === 0 && pressureCount === 0) continue
+
+    capacityTruthPriorities.push({
+      resource_id: resourceId,
+      resource_name: resource.name,
+      category: resource.category,
+      quantity: resource.quantity,
+      quantity_state: resource.quantity_state,
+      engagement_count: linkedEngagements.length,
+      committed_count: committedCount,
+      open_count: openCount,
+      pressure_count: pressureCount,
+      priority_score: pressureCount * 1000 + committedCount * 100 + openCount * 20 + linkedEngagements.length,
+    })
+  }
+  capacityTruthPriorities.sort((a, b) => b.priority_score - a.priority_score || a.resource_name.localeCompare(b.resource_name))
 
   const relationshipMap = new Map<string, RelationshipSignal>()
   for (const link of customerLinks) {
@@ -238,6 +283,7 @@ export function buildBusinessSignals(
     protect_delivery: protectDelivery,
     convert_demand: convertDemand,
     capacity_pressure: capacityPressure,
+    capacity_truth_priorities: capacityTruthPriorities,
     relationships,
     unresolved_facts: unresolvedFacts,
   }
