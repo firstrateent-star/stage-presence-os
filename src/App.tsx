@@ -3,7 +3,7 @@ import type { Session } from '@supabase/supabase-js'
 import { AppShell, type ScreenName } from './components/AppShell'
 import { CapacityDefaultsPanel } from './components/CapacityDefaultsPanel'
 import { LearningCloseoutSlot } from './components/LearningCloseoutSlot'
-import { TodayScreen } from './screens/TodayScreen'
+import { GregTodayScreen } from './screens/GregTodayScreen'
 import { EngagementsScreen } from './screens/EngagementsScreen'
 import { ResourcesScreen } from './screens/ResourcesScreen'
 import { EngagementDetailScreen } from './screens/EngagementDetailScreen'
@@ -168,7 +168,7 @@ export default function App() {
       {data.loading ? (
         <div className="sm:ml-48 py-20 text-zinc-600">Loading shared reality…</div>
       ) : screen === 'today' ? (
-        <TodayScreen
+        <GregTodayScreen
           engagements={data.engagements}
           events={data.events}
           customerLinks={data.customerLinks}
