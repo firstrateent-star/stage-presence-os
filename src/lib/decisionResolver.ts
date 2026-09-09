@@ -15,12 +15,15 @@ export type DecisionKind =
 export type ResolutionOwner = 'SYSTEM' | 'NANCY' | 'SEAN' | 'OPERATIONS' | 'GREG'
 export type GapSeverity = 'BLOCKING' | 'MATERIAL' | 'WATCH'
 export type DecisionEvidenceState = 'CLEAR' | 'REVIEW' | 'BLOCKED'
+export type ResolutionStrategy = 'REUSE_EVIDENCE' | 'SOURCE_RECOVERY' | 'OWNER_CONFIRMATION' | 'POLICY_DECISION' | 'HUMAN_JUDGMENT'
 
 export interface DecisionGap {
   code: string
   label: string
   owner: ResolutionOwner
   severity: GapSeverity
+  resolution_strategy: ResolutionStrategy
+  resolution_hint: string
 }
 
 export interface DecisionSignal {
@@ -94,6 +97,10 @@ function pressureFor(pressures: CapacityPressure[], engagementId: string) {
 
 function needRepresented(engagement: Engagement) {
   return Boolean(engagement.customer_request?.trim() || engagement.desired_outcome?.trim())
+}
+
+function isLegacyImported(engagement: Engagement) {
+  return Boolean(engagement.source_key?.startsWith('goodshuffle:'))
 }
 
 function chooseDecision(engagement: Engagement, now: Date): DecisionKind {
@@ -182,23 +189,73 @@ export function buildDecisionSignals(
     const links = configuredFor(configuredLinks, engagement.id)
     const unresolved = unresolvedFor(attentionFacts, engagement.id)
     const pressures = pressureFor(capacityPressures, engagement.id)
+    const legacyImported = isLegacyImported(engagement)
     const gaps: DecisionGap[] = []
     const strongEvidence: string[] = []
 
     if (customerKnown(customerLinks, engagement.id)) strongEvidence.push('Customer linked')
-    else if (decision !== 'LEARN_RESOLVE') gaps.push({ code: 'CUSTOMER_UNKNOWN', label: 'Customer/contact is not identified.', owner: 'SEAN', severity: 'BLOCKING' })
+    else if (decision !== 'LEARN_RESOLVE') gaps.push({
+      code: 'CUSTOMER_UNKNOWN',
+      label: 'Customer/contact is not identified.',
+      owner: 'SEAN',
+      severity: 'BLOCKING',
+      resolution_strategy: legacyImported ? 'SOURCE_RECOVERY' : 'OWNER_CONFIRMATION',
+      resolution_hint: legacyImported ? 'Recover the customer identity from existing source evidence before asking for re-entry.' : 'Clarify the customer/contact once; preserve it on the Engagement.',
+    })
 
     if (dateKey(engagement)) strongEvidence.push('Date known')
-    else if (['QUOTE_READY', 'COMMIT_READY', 'RESERVE_READY', 'EXECUTE_READY'].includes(decision)) gaps.push({ code: 'DATE_UNKNOWN', label: 'Event/project timing is not known.', owner: 'SEAN', severity: decision === 'QUOTE_READY' ? 'MATERIAL' : 'BLOCKING' })
+    else if (['QUOTE_READY', 'COMMIT_READY', 'RESERVE_READY', 'EXECUTE_READY'].includes(decision)) gaps.push({
+      code: 'DATE_UNKNOWN',
+      label: 'Event/project timing is not known.',
+      owner: 'SEAN',
+      severity: decision === 'QUOTE_READY' ? 'MATERIAL' : 'BLOCKING',
+      resolution_strategy: legacyImported ? 'SOURCE_RECOVERY' : 'OWNER_CONFIRMATION',
+      resolution_hint: legacyImported ? 'Search existing project/source evidence first.' : 'Ask only for the timing precision needed by the current decision.',
+    })
 
     if (needRepresented(engagement)) strongEvidence.push('Customer need/outcome represented')
-    else if (['QUALIFY_CLARIFY', 'QUOTE_READY', 'COMMIT_READY'].includes(decision)) gaps.push({ code: 'NEED_UNCLEAR', label: 'Customer request / desired outcome is not represented clearly enough yet.', owner: 'SEAN', severity: decision === 'COMMIT_READY' ? 'BLOCKING' : 'MATERIAL' })
+    else if (['QUALIFY_CLARIFY', 'QUOTE_READY', 'COMMIT_READY'].includes(decision)) {
+      const configuredLegacyProposal = legacyImported && links.length > 0 && decision === 'COMMIT_READY'
+      gaps.push({
+        code: 'NEED_UNCLEAR',
+        label: configuredLegacyProposal
+          ? 'Literal customer intent was not preserved in the import; proposed configuration exists as evidence.'
+          : 'Customer request / desired outcome is not represented clearly enough yet.',
+        owner: 'SEAN',
+        severity: configuredLegacyProposal ? 'WATCH' : decision === 'COMMIT_READY' ? 'MATERIAL' : 'MATERIAL',
+        resolution_strategy: configuredLegacyProposal ? 'SOURCE_RECOVERY' : 'OWNER_CONFIRMATION',
+        resolution_hint: configuredLegacyProposal
+          ? 'Do not reconstruct intent merely to fill a field. Recover it from source/customer context only if it can change the commitment decision.'
+          : 'Capture the customer need once at the level of detail necessary to design/quote responsibly.',
+      })
+    }
 
     if (links.length) strongEvidence.push(`${links.length} configured resource${links.length === 1 ? '' : 's'}`)
-    else if (['QUOTE_READY', 'COMMIT_READY', 'RESERVE_READY', 'EXECUTE_READY'].includes(decision) && engagement.engagement_type !== 'SERVICE') gaps.push({ code: 'SOLUTION_UNCONFIGURED', label: 'No configured solution is represented yet.', owner: 'SEAN', severity: decision === 'QUOTE_READY' ? 'MATERIAL' : 'BLOCKING' })
+    else if (['QUOTE_READY', 'COMMIT_READY', 'RESERVE_READY', 'EXECUTE_READY'].includes(decision) && engagement.engagement_type !== 'SERVICE') gaps.push({
+      code: 'SOLUTION_UNCONFIGURED',
+      label: 'No configured solution is represented yet.',
+      owner: 'SEAN',
+      severity: decision === 'QUOTE_READY' ? 'MATERIAL' : 'BLOCKING',
+      resolution_strategy: legacyImported ? 'SOURCE_RECOVERY' : 'OWNER_CONFIRMATION',
+      resolution_hint: legacyImported ? 'Recover the evidenced proposal/project configuration before redesigning it.' : 'Design or represent the smallest plausible solution needed for the decision.',
+    })
 
-    if (unresolved.some((fact) => fact.certainty_state === 'CONFLICTING')) gaps.push({ code: 'CONFLICTING_TRUTH', label: 'Conflicting source truth could change this decision.', owner: 'SEAN', severity: 'BLOCKING' })
-    else if (unresolved.length) gaps.push({ code: 'UNRESOLVED_TRUTH', label: `${unresolved.length} unresolved fact${unresolved.length === 1 ? '' : 's'} remain; review only those material to this decision.`, owner: 'SEAN', severity: 'WATCH' })
+    if (unresolved.some((fact) => fact.certainty_state === 'CONFLICTING')) gaps.push({
+      code: 'CONFLICTING_TRUTH',
+      label: 'Conflicting source truth could change this decision.',
+      owner: 'SEAN',
+      severity: 'BLOCKING',
+      resolution_strategy: 'HUMAN_JUDGMENT',
+      resolution_hint: 'Compare source evidence and explicitly resolve the conflict; do not silently choose a value.',
+    })
+    else if (unresolved.length) gaps.push({
+      code: 'UNRESOLVED_TRUTH',
+      label: `${unresolved.length} unresolved fact${unresolved.length === 1 ? '' : 's'} remain; review only those material to this decision.`,
+      owner: 'SEAN',
+      severity: 'WATCH',
+      resolution_strategy: 'REUSE_EVIDENCE',
+      resolution_hint: 'Check whether any unresolved fact can actually change the current decision before asking anyone for more information.',
+    })
 
     if (decision === 'QUOTE_READY') {
       // A quote total is the output of Quote Ready, not a prerequisite.
@@ -207,40 +264,93 @@ export function buildDecisionSignals(
 
     if (decision === 'COMMIT_READY') {
       if (hasFinancialFact(financialFacts, engagement.id, 'QUOTE_TOTAL') || hasFinancialFact(financialFacts, engagement.id, 'CONTRACT_TOTAL')) strongEvidence.push('Commercial value represented')
-      else gaps.push({ code: 'PROPOSAL_VALUE_MISSING', label: 'The proposal/commercial value being accepted is not represented as typed financial evidence.', owner: 'NANCY', severity: 'BLOCKING' })
+      else gaps.push({
+        code: 'PROPOSAL_VALUE_MISSING',
+        label: 'The proposal/commercial value being accepted is not represented as typed financial evidence.',
+        owner: 'NANCY',
+        severity: 'BLOCKING',
+        resolution_strategy: 'SOURCE_RECOVERY',
+        resolution_hint: 'Recover the authoritative quote/proposal value from Goodshuffle or the originating commercial document before asking someone to type it again.',
+      })
 
-      if (!hasFinancialFact(financialFacts, engagement.id, 'DIRECT_COST_ESTIMATE')) {
-        gaps.push({ code: 'DIRECT_COST_NOT_ESTIMATED', label: 'No direct-cost estimate is represented; resolve only when cost/risk is material to this commitment.', owner: 'SEAN', severity: 'WATCH' })
-      }
+      if (!hasFinancialFact(financialFacts, engagement.id, 'DIRECT_COST_ESTIMATE')) gaps.push({
+        code: 'DIRECT_COST_NOT_ESTIMATED',
+        label: 'No direct-cost estimate is represented; resolve only when cost/risk is material to this commitment.',
+        owner: 'SEAN',
+        severity: 'WATCH',
+        resolution_strategy: 'OWNER_CONFIRMATION',
+        resolution_hint: 'Estimate only the major directly caused costs that could change the pricing/commitment decision.',
+      })
     }
 
     if (decision === 'RESERVE_READY') {
       if (hasPositiveFinancialFact(financialFacts, engagement.id, 'DEPOSIT_RECEIVED')) strongEvidence.push('Deposit evidence present')
-      else gaps.push({ code: 'DEPOSIT_EVIDENCE_MISSING', label: 'Deposit/payment evidence is not represented. Confirm policy or an explicit exception before treating capacity as reserved.', owner: 'NANCY', severity: 'MATERIAL' })
+      else gaps.push({
+        code: 'DEPOSIT_EVIDENCE_MISSING',
+        label: 'Deposit/payment evidence is not represented. Confirm policy or an explicit exception before treating capacity as reserved.',
+        owner: 'NANCY',
+        severity: 'MATERIAL',
+        resolution_strategy: 'SOURCE_RECOVERY',
+        resolution_hint: 'Recover payment/deposit evidence from the commercial/accounting source. Do not interpret absence in Stage Presence OS as nonpayment.',
+      })
     }
 
     if (['RESERVE_READY', 'EXECUTE_READY'].includes(decision)) {
       const weakWindows = links.filter((link) => !['KNOWN', 'VERIFIED'].includes(link.requirement_window_state))
       if (links.length && weakWindows.length === 0) strongEvidence.push('Resource windows known/verified')
-      else if (links.length) gaps.push({ code: 'WINDOWS_WEAK', label: `${weakWindows.length} configured resource window${weakWindows.length === 1 ? '' : 's'} are inferred/estimated/unknown.`, owner: 'OPERATIONS', severity: decision === 'EXECUTE_READY' ? 'BLOCKING' : 'MATERIAL' })
+      else if (links.length) gaps.push({
+        code: 'WINDOWS_WEAK',
+        label: `${weakWindows.length} configured resource window${weakWindows.length === 1 ? '' : 's'} are inferred/estimated/unknown.`,
+        owner: 'OPERATIONS',
+        severity: decision === 'EXECUTE_READY' ? 'BLOCKING' : 'MATERIAL',
+        resolution_strategy: 'OWNER_CONFIRMATION',
+        resolution_hint: 'Confirm only the possession/load-in/return timing needed to protect or execute scarce capacity. Reuse learned defaults when evidence earns them.',
+      })
 
       const unknownSourcing = links.filter((link) => link.planned_sourcing_model === 'UNKNOWN')
       if (links.length && unknownSourcing.length === 0) strongEvidence.push('Engagement-specific sourcing represented')
-      else if (links.length) gaps.push({ code: 'SOURCING_UNKNOWN', label: `${unknownSourcing.length} configured resource${unknownSourcing.length === 1 ? '' : 's'} have unknown sourcing.`, owner: 'OPERATIONS', severity: 'BLOCKING' })
+      else if (links.length) gaps.push({
+        code: 'SOURCING_UNKNOWN',
+        label: `${unknownSourcing.length} configured resource${unknownSourcing.length === 1 ? '' : 's'} have unknown sourcing.`,
+        owner: 'OPERATIONS',
+        severity: 'BLOCKING',
+        resolution_strategy: 'OWNER_CONFIRMATION',
+        resolution_hint: 'Confirm whether the job will use owned, subcontracted, partner, or venue capacity; do not infer from the resource library alone.',
+      })
     }
 
     if (decision === 'EXECUTE_READY') {
       if (engagement.engagement_type !== 'EVENT' || engagement.venue_name?.trim()) strongEvidence.push(engagement.engagement_type === 'EVENT' ? 'Venue represented' : 'Venue not required by type')
-      else gaps.push({ code: 'VENUE_UNKNOWN', label: 'Event venue/location is not represented for execution.', owner: 'OPERATIONS', severity: 'BLOCKING' })
+      else gaps.push({
+        code: 'VENUE_UNKNOWN',
+        label: 'Event venue/location is not represented for execution.',
+        owner: 'OPERATIONS',
+        severity: 'BLOCKING',
+        resolution_strategy: legacyImported ? 'SOURCE_RECOVERY' : 'OWNER_CONFIRMATION',
+        resolution_hint: legacyImported ? 'Recover the venue from project evidence before asking for it again.' : 'Capture the operational location once.',
+      })
 
-      // Payment evidence can matter before execution, but Stage Presence has not yet encoded a universal policy.
       if (hasPositiveFinancialFact(financialFacts, engagement.id, 'DEPOSIT_RECEIVED')) strongEvidence.push('Deposit evidence present')
-      else gaps.push({ code: 'PAYMENT_POLICY_REVIEW', label: 'Payment/deposit state is not represented; review only if commercial policy makes it material before execution.', owner: 'NANCY', severity: 'WATCH' })
+      else gaps.push({
+        code: 'PAYMENT_POLICY_REVIEW',
+        label: 'Payment/deposit state is not represented; review only if commercial policy makes it material before execution.',
+        owner: 'NANCY',
+        severity: 'WATCH',
+        resolution_strategy: 'POLICY_DECISION',
+        resolution_hint: 'First determine the Stage Presence policy/exception rule. Then recover payment evidence only when that rule makes it decision-critical.',
+      })
     }
 
     if (pressures.length) {
       const high = pressures.some((pressure) => pressure.severity === 'HIGH')
-      gaps.push({ code: 'CAPACITY_PRESSURE', label: `${pressures.length} capacity pressure signal${pressures.length === 1 ? '' : 's'} require review before stronger commitment.`, owner: high ? 'GREG' : 'OPERATIONS', severity: high ? 'BLOCKING' : 'MATERIAL' })
+      gaps.push({
+        code: 'CAPACITY_PRESSURE',
+        label: `${pressures.length} capacity pressure signal${pressures.length === 1 ? '' : 's'} require review before stronger commitment.`,
+        owner: high ? 'GREG' : 'OPERATIONS',
+        severity: high ? 'BLOCKING' : 'MATERIAL',
+        resolution_strategy: 'HUMAN_JUDGMENT',
+        resolution_hint: high ? 'Resolve the scarce-capacity tradeoff at the appropriate authority level.' : 'Operations should confirm timing/sourcing/substitution first; escalate only if the tradeoff remains material.',
+      })
     }
 
     const primaryOwner = derivePrimaryOwner(gaps, decision)
