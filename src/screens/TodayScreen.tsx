@@ -1,7 +1,7 @@
 import { useMemo, type ReactNode } from 'react'
 import { EngagementCard } from '../components/EngagementCard'
 import { buildBusinessSignals, engagementDateLabel, type CapacityPressure, type CapacityTruthPriority, type RelationshipSignal } from '../lib/businessSignals'
-import { buildDecisionSignals, type DecisionSignal } from '../lib/decisionResolver'
+import { buildDecisionSignals, buildResolutionQueues, type DecisionSignal, type ResolutionQueue } from '../lib/decisionResolver'
 import type { EngagementRelationship } from '../lib/engagementRelationships'
 import type { EngagementFinancialFact } from '../lib/financialFacts'
 import type { LearningReviewSignal } from '../lib/learningCloseout'
@@ -39,6 +39,7 @@ export function TodayScreen({
     [engagements, customerLinks, configuredLinks, attentionFacts, financialFacts, signals.capacity_pressure],
   )
 
+  const resolutionQueues = useMemo(() => buildResolutionQueues(decisions), [decisions])
   const delivery = signals.protect_delivery.slice(0, 6)
   const demand = signals.convert_demand.slice(0, 6)
   const pressure = signals.capacity_pressure.slice(0, 6)
@@ -48,6 +49,7 @@ export function TodayScreen({
   const learning = learningReviewSignals.slice(0, 6)
   const activeDecisions = decisions.filter((item) => item.decision !== 'LEARN_RESOLVE')
   const decisionFlow = activeDecisions.slice(0, 6)
+  const ownerQueues = resolutionQueues.filter((queue) => queue.owner !== 'SYSTEM').slice(0, 5)
 
   return (
     <div className="sm:ml-48">
@@ -66,6 +68,10 @@ export function TodayScreen({
 
       <Section title="Decision Flow" count={activeDecisions.length} description="Advisory only. What decision is next, what evidence can change it, how should the gap be resolved with the least re-entry, and who should own the exception? This does not mutate state, create reservations, or message customers.">
         {decisionFlow.length ? decisionFlow.map((item) => <DecisionCard key={item.engagement.id} decision={item} onOpen={onOpen} />) : <Empty text="No active Engagement currently has a derived decision." />}
+      </Section>
+
+      <Section title="Resolution Queues" count={ownerQueues.length} description="Group repeated decision gaps by the role that can actually clear them. The goal is not more task lists; it is fewer duplicated questions and fewer unnecessary Greg handoffs.">
+        {ownerQueues.length ? ownerQueues.map((queue) => <ResolutionQueueCard key={queue.owner} queue={queue} onOpen={onOpen} />) : <Empty text="No role-specific resolution work is currently derived." />}
       </Section>
 
       <Section title="Protect Delivery" count={delivery.length} description="Committed work approaching now. The goal is reliable execution, not more selling.">
@@ -168,6 +174,41 @@ function DecisionCard({ decision, onOpen }: { decision: DecisionSignal; onOpen: 
 
       <div className="mt-3 text-[10px] font-semibold tracking-wide text-zinc-700">DUE · {decision.due_label}</div>
     </button>
+  )
+}
+
+function ResolutionQueueCard({ queue, onOpen }: { queue: ResolutionQueue; onOpen: (id: string) => void }) {
+  const first = queue.items[0]
+  return (
+    <div className="rounded-2xl border border-zinc-900 bg-zinc-950/70 p-4">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <div className="text-[10px] font-bold tracking-[0.12em] text-zinc-500">RESOLUTION OWNER</div>
+          <div className="mt-1 text-lg font-semibold text-zinc-200">{queue.owner}</div>
+        </div>
+        <div className="flex gap-2 text-[10px] font-bold">
+          {queue.blocking > 0 && <span className="rounded-full border border-red-950 px-2 py-1 text-red-300">{queue.blocking} blocking</span>}
+          {queue.material > 0 && <span className="rounded-full border border-amber-950 px-2 py-1 text-amber-400">{queue.material} material</span>}
+          {queue.watch > 0 && <span className="rounded-full border border-zinc-900 px-2 py-1 text-zinc-600">{queue.watch} watch</span>}
+        </div>
+      </div>
+
+      <div className="mt-4 space-y-2">
+        {queue.top_gaps.slice(0, 3).map((gap) => (
+          <div key={`${gap.code}:${gap.resolution_strategy}`} className="rounded-xl border border-zinc-900 px-3 py-2.5">
+            <div className="flex items-start justify-between gap-3"><div className="text-xs leading-5 text-zinc-400">{gap.label}</div><div className="shrink-0 text-xs font-semibold text-zinc-500">×{gap.count}</div></div>
+            <div className="mt-1 text-[9px] font-semibold tracking-[0.08em] text-zinc-700">{gap.resolution_strategy.replaceAll('_', ' ')}</div>
+          </div>
+        ))}
+      </div>
+
+      {first && (
+        <button type="button" onClick={() => onOpen(first.engagement.id)} className="mt-4 text-xs font-semibold text-emerald-500 hover:text-emerald-300">
+          Open highest-priority {first.decision_label.toLowerCase()} →
+        </button>
+      )}
+      {queue.owner === 'GREG' && queue.blocking === 0 && <p className="mt-3 text-xs text-zinc-600">No founder-level blocking exception is currently derived.</p>}
+    </div>
   )
 }
 
