@@ -1,10 +1,10 @@
-import { useMemo } from 'react'
+import { useMemo, type ReactNode } from 'react'
 import { buildBusinessSignals, engagementDateLabel } from '../lib/businessSignals'
 import { buildDecisionSignals, buildResolutionQueues } from '../lib/decisionResolver'
 import { buildAttentionSummary, buildExceptionItems } from '../lib/exceptionEngine'
 import type { EngagementRelationship } from '../lib/engagementRelationships'
 import type { EngagementFinancialFact } from '../lib/financialFacts'
-import type { LearningReviewSignal } from '../lib/learningCloseout'
+import type { LearningReviewReason, LearningReviewSignal } from '../lib/learningCloseout'
 import type { ConfiguredResourceLink, CustomerLink } from '../lib/repository'
 import type { Engagement, EngagementFact, LedgerEvent } from '../types/domain'
 
@@ -103,25 +103,13 @@ export function GregTodayScreen({
 
       <BusinessSection title="Next Up" count={signals.protect_delivery.length} description="Committed work approaching in the next 21 days.">
         {delivery.length ? delivery.map((engagement) => (
-          <BusinessRow
-            key={engagement.id}
-            title={engagement.name}
-            meta={`${engagementDateLabel(engagement)} · ${humanCommitment(engagement)}`}
-            status={humanOperational(engagement)}
-            onClick={() => onOpen(engagement.id)}
-          />
+          <BusinessRow key={engagement.id} title={engagement.name} meta={`${engagementDateLabel(engagement)} · ${humanCommitment(engagement)}`} status={humanOperational(engagement)} onClick={() => onOpen(engagement.id)} />
         )) : <Empty text="No committed work is approaching in the next 21 days." />}
       </BusinessSection>
 
       <BusinessSection title="Sales" count={signals.convert_demand.length} description="Current opportunities that can still move commercially. Past-dated stale records are kept out of this list.">
         {demand.length ? demand.map((engagement) => (
-          <BusinessRow
-            key={engagement.id}
-            title={engagement.name}
-            meta={`${engagementDateLabel(engagement)} · ${humanCommercial(engagement)}`}
-            status={engagement.waiting_on ? `Waiting on ${engagement.waiting_on}` : engagement.next_action || 'Needs next move'}
-            onClick={() => onOpen(engagement.id)}
-          />
+          <BusinessRow key={engagement.id} title={engagement.name} meta={`${engagementDateLabel(engagement)} · ${humanCommercial(engagement)}`} status={engagement.waiting_on ? `Waiting on ${engagement.waiting_on}` : engagement.next_action || 'Needs next move'} onClick={() => onOpen(engagement.id)} />
         )) : <Empty text="No active opportunity currently needs commercial movement." />}
       </BusinessSection>
 
@@ -145,17 +133,13 @@ export function GregTodayScreen({
 
       <BusinessSection title="Capacity" count={signals.capacity_pressure.length} description="Only pressure that can affect real commitments. A watch is not a reservation conflict.">
         {highPressure.length > 0 ? (
-          <div className="rounded-2xl border border-red-950 bg-red-950/10 p-4">
-            <div className="text-sm font-semibold text-red-300">{highPressure.length} committed capacity conflict signal{highPressure.length === 1 ? '' : 's'} need review</div>
-          </div>
+          <div className="rounded-2xl border border-red-950 bg-red-950/10 p-4"><div className="text-sm font-semibold text-red-300">{highPressure.length} committed capacity conflict signal{highPressure.length === 1 ? '' : 's'} need review</div></div>
         ) : watchPressure.length > 0 ? (
           <div className="rounded-2xl border border-amber-950 bg-amber-950/10 p-4">
             <div className="text-sm font-semibold text-amber-400">No confirmed conflict. {watchPressure.length} future watch point{watchPressure.length === 1 ? '' : 's'} before additional commitments.</div>
             <div className="mt-3 space-y-2">
               {watchPressure.slice(0, 3).map((item) => (
-                <button key={item.id} type="button" onClick={() => onOpen(item.second.id)} className="block w-full rounded-xl border border-zinc-900 px-3 py-2 text-left text-xs text-zinc-500 hover:border-zinc-700">
-                  {item.resource_name}: {item.first.name} ↔ {item.second.name}
-                </button>
+                <button key={item.id} type="button" onClick={() => onOpen(item.second.id)} className="block w-full rounded-xl border border-zinc-900 px-3 py-2 text-left text-xs text-zinc-500 hover:border-zinc-700">{item.resource_name}: {item.first.name} ↔ {item.second.name}</button>
               ))}
             </div>
           </div>
@@ -166,10 +150,7 @@ export function GregTodayScreen({
         {recurring.length ? recurring.map((relationship) => (
           <button key={relationship.party_id} type="button" onClick={() => relationship.engagements[0] && onOpen(relationship.engagements[0].id)} className="rounded-2xl border border-zinc-900 bg-zinc-950/70 p-4 text-left hover:border-zinc-700">
             <div className="flex items-start justify-between gap-4">
-              <div>
-                <div className="font-semibold text-zinc-200">{relationship.name}</div>
-                <div className="mt-1 text-xs text-zinc-600">{relationship.engagements.length} Engagements · {relationship.open_count} open</div>
-              </div>
+              <div><div className="font-semibold text-zinc-200">{relationship.name}</div><div className="mt-1 text-xs text-zinc-600">{relationship.engagements.length} Engagements · {relationship.open_count} open</div></div>
               {relationship.known_value > 0 && <div className="text-sm font-semibold text-zinc-400">{money(relationship.known_value)}</div>}
             </div>
           </button>
@@ -179,17 +160,14 @@ export function GregTodayScreen({
       {learningReviewSignals.length > 0 && (
         <BusinessSection title="History to Resolve" count={learningReviewSignals.length} description="Past records that deserve learning or cleanup without cluttering current sales and delivery.">
           {learningReviewSignals.slice(0, 3).map((item) => (
-            <BusinessRow key={item.engagement_id} title={item.engagement_name} meta={item.signal_label} status={item.reason} onClick={() => onOpen(item.engagement_id)} />
+            <BusinessRow key={item.engagement_id} title={item.name} meta={learningReviewLabel(item.review_reason)} status={`Past record · ${humanOperationalState(item.operational_state)}`} onClick={() => onOpen(item.engagement_id)} />
           ))}
         </BusinessSection>
       )}
 
       <section className="mt-10 border-t border-zinc-900 pt-6">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <div className="text-xs font-bold tracking-[0.12em] text-zinc-700">SYSTEM STATUS</div>
-            <p className="mt-2 text-xs leading-5 text-zinc-600">{attention.total_raw_gaps} underlying decision gaps compressed into {attention.compressed_groups} grouped signals. These mechanics stay underneath the business view.</p>
-          </div>
+          <div><div className="text-xs font-bold tracking-[0.12em] text-zinc-700">SYSTEM STATUS</div><p className="mt-2 text-xs leading-5 text-zinc-600">{attention.total_raw_gaps} underlying decision gaps compressed into {attention.compressed_groups} grouped signals. These mechanics stay underneath the business view.</p></div>
           <div className="text-xs text-zinc-700">{events.length ? `Last change ${new Date(events[0].created_at).toLocaleString()}` : 'No recent activity'}</div>
         </div>
       </section>
@@ -198,11 +176,7 @@ export function GregTodayScreen({
 }
 
 function knownCommittedContractValue(engagements: Engagement[], financialFacts: EngagementFinancialFact[]) {
-  const committedIds = new Set(
-    engagements
-      .filter((engagement) => engagement.commercial_state === 'WON' || ['SIGNED', 'DEPOSIT_PENDING', 'CONFIRMED'].includes(engagement.commitment_state))
-      .map((engagement) => engagement.id),
-  )
+  const committedIds = new Set(engagements.filter((engagement) => engagement.commercial_state === 'WON' || ['SIGNED', 'DEPOSIT_PENDING', 'CONFIRMED'].includes(engagement.commitment_state)).map((engagement) => engagement.id))
   const values = new Map<string, EngagementFinancialFact>()
   const rank: Record<string, number> = { VERIFIED: 5, KNOWN: 4, ESTIMATED: 3, ASSUMED: 2, CONFLICTING: 1 }
   for (const fact of financialFacts) {
@@ -214,36 +188,15 @@ function knownCommittedContractValue(engagements: Engagement[], financialFacts: 
 }
 
 function BusinessStat({ label, value, emphasis = 'normal' }: { label: string; value: string | number; emphasis?: 'normal' | 'alert' }) {
-  return (
-    <div className={emphasis === 'alert' ? 'rounded-2xl border border-red-950 bg-red-950/10 p-4' : 'rounded-2xl border border-zinc-900 bg-zinc-950/70 p-4'}>
-      <div className={emphasis === 'alert' ? 'text-2xl font-semibold text-red-300' : 'text-2xl font-semibold text-zinc-100'}>{value}</div>
-      <div className="mt-1 text-xs text-zinc-600">{label}</div>
-    </div>
-  )
+  return <div className={emphasis === 'alert' ? 'rounded-2xl border border-red-950 bg-red-950/10 p-4' : 'rounded-2xl border border-zinc-900 bg-zinc-950/70 p-4'}><div className={emphasis === 'alert' ? 'text-2xl font-semibold text-red-300' : 'text-2xl font-semibold text-zinc-100'}>{value}</div><div className="mt-1 text-xs text-zinc-600">{label}</div></div>
 }
 
-function BusinessSection({ title, count, description, children }: { title: string; count: number; description: string; children: React.ReactNode }) {
-  return (
-    <section className="mb-9">
-      <div className="mb-3 flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <div className="flex items-center gap-2"><h2 className="text-lg font-semibold text-zinc-200">{title}</h2><span className="rounded-full border border-zinc-900 px-2 py-0.5 text-[10px] text-zinc-600">{count}</span></div>
-          <p className="mt-1 max-w-2xl text-xs leading-5 text-zinc-600">{description}</p>
-        </div>
-      </div>
-      <div className="grid gap-3 lg:grid-cols-2">{children}</div>
-    </section>
-  )
+function BusinessSection({ title, count, description, children }: { title: string; count: number; description: string; children: ReactNode }) {
+  return <section className="mb-9"><div className="mb-3 flex flex-wrap items-end justify-between gap-3"><div><div className="flex items-center gap-2"><h2 className="text-lg font-semibold text-zinc-200">{title}</h2><span className="rounded-full border border-zinc-900 px-2 py-0.5 text-[10px] text-zinc-600">{count}</span></div><p className="mt-1 max-w-2xl text-xs leading-5 text-zinc-600">{description}</p></div></div><div className="grid gap-3 lg:grid-cols-2">{children}</div></section>
 }
 
 function BusinessRow({ title, meta, status, onClick }: { title: string; meta: string; status: string; onClick: () => void }) {
-  return (
-    <button type="button" onClick={onClick} className="rounded-2xl border border-zinc-900 bg-zinc-950/70 p-4 text-left hover:border-zinc-700">
-      <div className="font-semibold text-zinc-200">{title}</div>
-      <div className="mt-1 text-xs text-zinc-600">{meta}</div>
-      <div className="mt-3 text-sm text-zinc-400">{status}</div>
-    </button>
-  )
+  return <button type="button" onClick={onClick} className="rounded-2xl border border-zinc-900 bg-zinc-950/70 p-4 text-left hover:border-zinc-700"><div className="font-semibold text-zinc-200">{title}</div><div className="mt-1 text-xs text-zinc-600">{meta}</div><div className="mt-3 text-sm text-zinc-400">{status}</div></button>
 }
 
 function Empty({ text }: { text: string }) {
@@ -251,40 +204,27 @@ function Empty({ text }: { text: string }) {
 }
 
 function humanCommercial(engagement: Engagement) {
-  const labels: Record<string, string> = {
-    NEW: 'New opportunity',
-    DISCOVERY: 'Discovery',
-    DESIGNING: 'Designing solution',
-    PROPOSED: 'Quote sent',
-    NEGOTIATING: 'Negotiating',
-    WON: 'Won',
-    LOST: 'Lost',
-  }
+  const labels: Record<string, string> = { NEW: 'New opportunity', DISCOVERY: 'Discovery', DESIGNING: 'Designing solution', PROPOSED: 'Quote sent', NEGOTIATING: 'Negotiating', WON: 'Won', LOST: 'Lost' }
   return labels[engagement.commercial_state] ?? engagement.commercial_state
 }
 
 function humanCommitment(engagement: Engagement) {
-  const labels: Record<string, string> = {
-    UNCOMMITTED: 'Not committed',
-    VERBAL_YES: 'Verbal yes',
-    SIGNED: 'Signed',
-    DEPOSIT_PENDING: 'Deposit pending',
-    CONFIRMED: 'Confirmed',
-    CANCELLED: 'Cancelled',
-  }
+  const labels: Record<string, string> = { UNCOMMITTED: 'Not committed', VERBAL_YES: 'Verbal yes', SIGNED: 'Signed', DEPOSIT_PENDING: 'Deposit pending', CONFIRMED: 'Confirmed', CANCELLED: 'Cancelled' }
   return labels[engagement.commitment_state] ?? engagement.commitment_state
 }
 
 function humanOperational(engagement: Engagement) {
-  const labels: Record<string, string> = {
-    NOT_STARTED: 'Planning not started',
-    PLANNING: 'Planning',
-    READY: 'Ready',
-    ACTIVE: 'Active',
-    COMPLETE: 'Complete',
-    CLOSED: 'Closed',
-  }
-  return labels[engagement.operational_state] ?? engagement.operational_state
+  return humanOperationalState(engagement.operational_state)
+}
+
+function humanOperationalState(state: string) {
+  const labels: Record<string, string> = { NOT_STARTED: 'Planning not started', PLANNING: 'Planning', READY: 'Ready', ACTIVE: 'Active', COMPLETE: 'Complete', CLOSED: 'Closed' }
+  return labels[state] ?? state
+}
+
+function learningReviewLabel(reason: LearningReviewReason) {
+  const labels: Record<LearningReviewReason, string> = { DELIVERY_LEARNING: 'Delivery learning', STALE_COMMERCIAL: 'Stale commercial record', PROGRAM_REVIEW: 'Program review', RESOLVE_CONFLICT: 'Resolve conflicting history', REVIEW: 'Historical review' }
+  return labels[reason]
 }
 
 function money(value: number) {
