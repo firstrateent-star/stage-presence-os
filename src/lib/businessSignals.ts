@@ -12,6 +12,8 @@ export interface CapacityPressure {
   severity: 'HIGH' | 'WATCH'
   first: Engagement
   second: Engagement
+  first_window_state: ConfiguredResourceLink['requirement_window_state']
+  second_window_state: ConfiguredResourceLink['requirement_window_state']
 }
 
 export interface CapacityTruthPriority {
@@ -84,13 +86,25 @@ function activeForCapacity(engagement: Engagement) {
     && engagement.commercial_state !== 'LOST'
 }
 
-function rangesOverlap(first: Engagement, second: Engagement) {
-  const firstStart = dateNumber(dateKey(first))
-  const secondStart = dateNumber(dateKey(second))
+function resourceWindow(link: ConfiguredResourceLink, engagement: Engagement) {
+  const fallbackStart = dateKey(engagement)
+  const fallbackEnd = engagement.event_end_date ?? engagement.event_end?.slice(0, 10) ?? fallbackStart
+  return {
+    start: link.required_from_date ?? fallbackStart,
+    end: link.required_through_date ?? fallbackEnd,
+    state: link.requirement_window_state ?? 'UNKNOWN',
+  }
+}
+
+function resourceWindowsOverlap(firstLink: ConfiguredResourceLink, first: Engagement, secondLink: ConfiguredResourceLink, second: Engagement) {
+  const firstWindow = resourceWindow(firstLink, first)
+  const secondWindow = resourceWindow(secondLink, second)
+  const firstStart = dateNumber(firstWindow.start)
+  const secondStart = dateNumber(secondWindow.start)
   if (!Number.isFinite(firstStart) || !Number.isFinite(secondStart)) return false
 
-  const firstEnd = dateNumber(first.event_end_date ?? first.event_end?.slice(0, 10) ?? dateKey(first))
-  const secondEnd = dateNumber(second.event_end_date ?? second.event_end?.slice(0, 10) ?? dateKey(second))
+  const firstEnd = dateNumber(firstWindow.end ?? firstWindow.start)
+  const secondEnd = dateNumber(secondWindow.end ?? secondWindow.start)
   return firstStart <= secondEnd && secondStart <= firstEnd
 }
 
@@ -168,7 +182,7 @@ export function buildBusinessSignals(
         const first = engagementById.get(links[i].engagement_id)
         const second = engagementById.get(links[j].engagement_id)
         const resource = links[i].resource ?? links[j].resource
-        if (!first || !second || !resource || !rangesOverlap(first, second)) continue
+        if (!first || !second || !resource || !resourceWindowsOverlap(links[i], first, links[j], second)) continue
 
         const firstCommitted = isDeliveryCommitment(first)
         const secondCommitted = isDeliveryCommitment(second)
@@ -183,6 +197,8 @@ export function buildBusinessSignals(
           severity: firstCommitted && secondCommitted ? 'HIGH' : 'WATCH',
           first,
           second,
+          first_window_state: links[i].requirement_window_state,
+          second_window_state: links[j].requirement_window_state,
         })
       }
     }
