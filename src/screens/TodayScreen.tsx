@@ -1,6 +1,7 @@
 import { useMemo, type ReactNode } from 'react'
 import { EngagementCard } from '../components/EngagementCard'
 import { buildBusinessSignals, engagementDateLabel, type CapacityPressure, type RelationshipSignal } from '../lib/businessSignals'
+import type { EngagementRelationship } from '../lib/engagementRelationships'
 import type { ConfiguredResourceLink, CustomerLink } from '../lib/repository'
 import type { Engagement, EngagementFact, LedgerEvent } from '../types/domain'
 
@@ -10,6 +11,7 @@ export function TodayScreen({
   customerLinks,
   configuredLinks,
   attentionFacts,
+  engagementRelationships,
   onOpen,
 }: {
   engagements: Engagement[]
@@ -17,11 +19,12 @@ export function TodayScreen({
   customerLinks: CustomerLink[]
   configuredLinks: ConfiguredResourceLink[]
   attentionFacts: EngagementFact[]
+  engagementRelationships: EngagementRelationship[]
   onOpen: (id: string) => void
 }) {
   const signals = useMemo(
-    () => buildBusinessSignals(engagements, customerLinks, configuredLinks, attentionFacts),
-    [engagements, customerLinks, configuredLinks, attentionFacts],
+    () => buildBusinessSignals(engagements, customerLinks, configuredLinks, attentionFacts, engagementRelationships),
+    [engagements, customerLinks, configuredLinks, attentionFacts, engagementRelationships],
   )
 
   const delivery = signals.protect_delivery.slice(0, 6)
@@ -57,7 +60,7 @@ export function TodayScreen({
         {pressure.length ? pressure.map((item) => <CapacityCard key={item.id} pressure={item} onOpen={onOpen} />) : <Empty text="No configured physical-resource overlap currently requires review." />}
       </Section>
 
-      <Section title="Relationships" count={recurringRelationships.length} description="Repeated customer nodes deserve relationship-level attention, not job-by-job amnesia.">
+      <Section title="Relationships" count={recurringRelationships.length} description="Repeated customer nodes deserve relationship-level attention. Program components are separated from independent commercial breadth so execution count is not mistaken for diversification.">
         {recurringRelationships.length ? recurringRelationships.map((item) => <RelationshipCard key={item.party_id} relationship={item} onOpen={onOpen} />) : <Empty text="No recurring customer relationship is visible in the current evidence yet." />}
       </Section>
 
@@ -118,9 +121,15 @@ function RelationshipCard({ relationship, onOpen }: { relationship: Relationship
     <div className="rounded-2xl border border-zinc-900 bg-zinc-950/70 p-4">
       <div className="font-semibold text-zinc-200">{relationship.name}</div>
       <div className="mt-2 flex flex-wrap gap-2 text-xs text-zinc-600">
-        <span>{relationship.engagements.length} Engagements</span><span>•</span><span>{relationship.won_count} won</span>{relationship.open_count > 0 && <><span>•</span><span>{relationship.open_count} open</span></>}
+        <span>{relationship.engagements.length} Engagements</span>
+        {relationship.program_count > 0 && <><span>•</span><span>{relationship.program_count} program{relationship.program_count === 1 ? '' : 's'}</span></>}
+        {relationship.program_component_count > 0 && <><span>•</span><span>{relationship.program_component_count} components</span></>}
+        <span>•</span><span>{relationship.independent_engagement_count} independent scope{relationship.independent_engagement_count === 1 ? '' : 's'}</span>
+        <span>•</span><span>{relationship.won_count} won</span>
+        {relationship.open_count > 0 && <><span>•</span><span>{relationship.open_count} open</span></>}
       </div>
       {relationship.known_value > 0 && <div className="mt-3 text-sm text-zinc-400">Known value <span className="font-semibold text-zinc-200">{formatMoney(relationship.known_value)}</span> <span className="text-xs text-zinc-700">(partial evidence)</span></div>}
+      {relationship.program_component_count > 0 && <p className="mt-3 text-xs leading-5 text-zinc-600">Program grouping may be inferred. It reduces false diversification but does not change verified commercial or capacity facts.</p>}
       {latest && <button type="button" onClick={() => onOpen(latest.id)} className="mt-4 text-xs font-semibold text-amber-500 hover:text-amber-300">Open latest Engagement →</button>}
     </div>
   )
