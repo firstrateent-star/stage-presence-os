@@ -37,6 +37,7 @@ export type MemberRole = 'ADMIN' | 'COMMERCIAL' | 'OPERATIONS' | 'VIEWER'
 export interface Engagement {
   id: string
   engagement_number: string
+  source_key: string | null
   name: string
   engagement_type: EngagementType
   customer_request: string | null
@@ -44,6 +45,8 @@ export interface Engagement {
   internal_summary: string | null
   event_start: string | null
   event_end: string | null
+  event_start_date: string | null
+  event_end_date: string | null
   venue_name: string | null
   venue_address: string | null
   estimated_value: number | null
