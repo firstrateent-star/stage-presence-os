@@ -191,6 +191,8 @@ export default function App() {
             <LearningCloseoutSlot
               engagementId={selectedEngagement.id}
               eventEndDate={selectedEngagement.event_end_date}
+              commercialState={selectedEngagement.commercial_state}
+              commitmentState={selectedEngagement.commitment_state}
               onSaved={data.refresh}
             />
           )}
