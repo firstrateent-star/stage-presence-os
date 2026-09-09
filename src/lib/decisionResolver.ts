@@ -101,10 +101,10 @@ function chooseDecision(engagement: Engagement, now: Date): DecisionKind {
 function decisionLabel(decision: DecisionKind) {
   const labels: Record<DecisionKind, string> = {
     QUALIFY_CLARIFY: 'Qualify / Clarify',
-    QUOTE_READY: 'Quote Ready',
-    COMMIT_READY: 'Commit Ready',
-    RESERVE_READY: 'Reserve Ready',
-    EXECUTE_READY: 'Execute Ready',
+    QUOTE_READY: 'Quote Readiness',
+    COMMIT_READY: 'Commit Readiness',
+    RESERVE_READY: 'Reserve Readiness',
+    EXECUTE_READY: 'Execute Readiness',
     LEARN_RESOLVE: 'Learn / Resolve',
     RELATIONSHIP_FOLLOWUP: 'Relationship Follow-up',
   }
