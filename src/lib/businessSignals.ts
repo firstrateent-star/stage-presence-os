@@ -1,5 +1,6 @@
 import type { Engagement, EngagementFact } from '../types/domain'
 import type { EngagementRelationship } from './engagementRelationships'
+import type { EngagementFinancialFact } from './financialFacts'
 import type { ConfiguredResourceLink, CustomerLink } from './repository'
 
 export interface CapacityPressure {
@@ -86,16 +87,36 @@ function trustedProgramParents(relationships: EngagementRelationship[]) {
   )
 }
 
+function currentContractValues(financialFacts: EngagementFinancialFact[]) {
+  const certaintyRank: Record<string, number> = { VERIFIED: 4, KNOWN: 3, ESTIMATED: 2, ASSUMED: 1, CONFLICTING: 0 }
+  const current = new Map<string, EngagementFinancialFact>()
+
+  for (const fact of financialFacts) {
+    if (fact.fact_type !== 'CONTRACT_TOTAL' || fact.certainty_state === 'CONFLICTING') continue
+    const previous = current.get(fact.engagement_id)
+    if (!previous) {
+      current.set(fact.engagement_id, fact)
+      continue
+    }
+    const rankDifference = certaintyRank[fact.certainty_state] - certaintyRank[previous.certainty_state]
+    if (rankDifference > 0 || (rankDifference === 0 && fact.updated_at > previous.updated_at)) current.set(fact.engagement_id, fact)
+  }
+
+  return new Map([...current.entries()].map(([engagementId, fact]) => [engagementId, Number(fact.amount)]))
+}
+
 export function buildBusinessSignals(
   engagements: Engagement[],
   customerLinks: CustomerLink[],
   configuredLinks: ConfiguredResourceLink[],
   attentionFacts: EngagementFact[],
   engagementRelationships: EngagementRelationship[],
+  financialFacts: EngagementFinancialFact[],
   now = new Date(),
 ): BusinessSignals {
   const engagementById = new Map(engagements.map((engagement) => [engagement.id, engagement]))
   const trustedProgramParentIds = trustedProgramParents(engagementRelationships)
+  const contractValueByEngagement = currentContractValues(financialFacts)
 
   const protectDelivery = engagements
     .filter((engagement) => {
@@ -171,10 +192,13 @@ export function buildBusinessSignals(
       program_count: 0,
       program_component_count: 0,
     }
-    if (!current.engagements.some((item) => item.id === engagement.id)) current.engagements.push(engagement)
-    if (engagement.commercial_state === 'WON') current.won_count += 1
-    if (isCommerciallyOpen(engagement)) current.open_count += 1
-    current.known_value += engagement.estimated_value ?? 0
+    const isNewEngagement = !current.engagements.some((item) => item.id === engagement.id)
+    if (isNewEngagement) {
+      current.engagements.push(engagement)
+      if (engagement.commercial_state === 'WON') current.won_count += 1
+      if (isCommerciallyOpen(engagement)) current.open_count += 1
+      current.known_value += contractValueByEngagement.get(engagement.id) ?? 0
+    }
     relationshipMap.set(party.id, current)
   }
 
