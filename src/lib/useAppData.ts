@@ -3,6 +3,7 @@ import { isBackendConfigured } from './config'
 import { demoEngagements, demoEvents, demoResources } from './demo'
 import { listEngagementRelationships, type EngagementRelationship } from './engagementRelationships'
 import { listEngagementFinancialFacts, type EngagementFinancialFact } from './financialFacts'
+import { listLearningReviewSignals, type LearningReviewSignal } from './learningCloseout'
 import { listAttentionFacts, listConfiguredResourceLinks, listCustomerLinks, listEngagements, listRecentEvents, listResources, type ConfiguredResourceLink, type CustomerLink } from './repository'
 import type { Engagement, EngagementFact, LedgerEvent, Resource } from '../types/domain'
 
@@ -15,6 +16,7 @@ export function useAppData(enabled = true) {
   const [attentionFacts, setAttentionFacts] = useState<EngagementFact[]>([])
   const [engagementRelationships, setEngagementRelationships] = useState<EngagementRelationship[]>([])
   const [financialFacts, setFinancialFacts] = useState<EngagementFinancialFact[]>([])
+  const [learningReviewSignals, setLearningReviewSignals] = useState<LearningReviewSignal[]>([])
   const [loading, setLoading] = useState(isBackendConfigured && enabled)
   const [error, setError] = useState<string | null>(null)
 
@@ -23,7 +25,7 @@ export function useAppData(enabled = true) {
     setLoading(true)
     setError(null)
     try {
-      const [nextEngagements, nextResources, nextEvents, nextCustomers, nextConfigured, nextAttentionFacts, nextRelationships, nextFinancialFacts] = await Promise.all([
+      const [nextEngagements, nextResources, nextEvents, nextCustomers, nextConfigured, nextAttentionFacts, nextRelationships, nextFinancialFacts, nextLearningReviewSignals] = await Promise.all([
         listEngagements(),
         listResources(),
         listRecentEvents(),
@@ -32,6 +34,7 @@ export function useAppData(enabled = true) {
         listAttentionFacts(),
         listEngagementRelationships(),
         listEngagementFinancialFacts(),
+        listLearningReviewSignals(),
       ])
       setEngagements(nextEngagements)
       setResources(nextResources)
@@ -41,6 +44,7 @@ export function useAppData(enabled = true) {
       setAttentionFacts(nextAttentionFacts)
       setEngagementRelationships(nextRelationships)
       setFinancialFacts(nextFinancialFacts)
+      setLearningReviewSignals(nextLearningReviewSignals)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unable to load Stage Presence data.')
     } finally {
@@ -66,6 +70,7 @@ export function useAppData(enabled = true) {
     attentionFacts,
     engagementRelationships,
     financialFacts,
+    learningReviewSignals,
     loading,
     error,
     refresh,
