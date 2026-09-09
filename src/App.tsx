@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import type { Session } from '@supabase/supabase-js'
 import { AppShell, type ScreenName } from './components/AppShell'
+import { CapacityDefaultsPanel } from './components/CapacityDefaultsPanel'
 import { LearningCloseoutSlot } from './components/LearningCloseoutSlot'
 import { TodayScreen } from './screens/TodayScreen'
 import { EngagementsScreen } from './screens/EngagementsScreen'
@@ -187,6 +188,11 @@ export default function App() {
       ) : (
         <>
           <EngagementDetailScreen engagement={selectedEngagement} onBack={() => navigate('engagements')} onChanged={data.refresh} />
+          {selectedEngagement && isBackendConfigured && (
+            <div className="sm:ml-48">
+              <CapacityDefaultsPanel engagement={selectedEngagement} onSaved={data.refresh} />
+            </div>
+          )}
           {selectedEngagement && (
             <LearningCloseoutSlot
               engagementId={selectedEngagement.id}
