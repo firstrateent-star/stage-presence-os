@@ -119,6 +119,28 @@ Constitution remains:
 And:
 **no signature/deposit/capacity evidence = do not assert reservation.**
 
+## Current operating design — Commitment Ladder
+Canonical design: `docs/COMMITMENT_LADDER.md`.
+
+Do not create one persisted readiness status. Derive readiness for the decision actually being made:
+1. Quote Ready
+2. Commit Ready
+3. Reserve Ready
+4. Execute Ready
+
+Current evidence gap exposed by the import:
+- 14 proposed Engagements; 13 have a customer, all have dates, 11 have configured solutions, but none currently has a typed `QUOTE_TOTAL` in the OS;
+- 15 won/signed Engagements; all have customer/date/solution, 9 have known contract totals, but none currently has deposit-received evidence, KNOWN/VERIFIED resource windows, or Engagement-specific sourcing confirmation.
+
+Do not interpret these gaps as historical operational failure. They are evidence that the legacy export does not support the new OS asserting reservation/readiness truth.
+
+Future automation should support exception-driven lanes:
+- Fast Lane for routine, well-evidenced work;
+- Review Lane for material but manageable exceptions;
+- Founder/High-Risk Lane where Greg's judgment materially changes value or risk.
+
+The system should route the **reason for human attention**, not merely the record.
+
 ## Parallel likely petal — Relationship Intelligence
 Why it moved forward:
 Imported evidence already shows repeated customer nodes and high known-value concentration.
@@ -140,6 +162,34 @@ Progression:
 8. lifetime contribution once economics exist
 
 Do not collapse a buyer, planner, venue, payer and end client into one fake `customer` merely for CRM convenience.
+
+## Emerging earned design — Repeatability Engine / lightweight closeout
+Canonical design: `docs/REPEATABILITY_ENGINE.md`.
+
+Why it moved forward:
+The current import contains repeated exact configurations and repeated venues. Without actual-delivery learning, capacity windows, pricing, setup estimates, venue knowledge and archetypes remain guesses.
+
+Current repeatability evidence:
+- UNC exact visual configuration appears 7 times;
+- simple 12x7 + load-in/load-out configuration appears 2 times;
+- simple 17x10 + delivery/pickup configuration appears 2 times;
+- 16 configured Engagements fall into the broad VIDEO + logistics/OTHER family;
+- Polk Place appears in 7 Engagements; 1750 Signal Point, Riverfront Park and The Refinery each recur.
+
+Do not force customer-facing packages from this sample. Build internal solution archetypes from earned evidence.
+
+Promote a low-burden closeout before a giant operations module so every delivered Engagement can contribute:
+- actual resources used;
+- actual possession/setup/strike/return timing;
+- labor/crew evidence where practical;
+- sourcing/subcontract actuals;
+- scope-change evidence;
+- venue learning;
+- financial actuals;
+- Greg-dependence reason;
+- recurrence / next opportunity.
+
+Target: routine closeout should eventually take roughly two minutes and be mostly prefilled by system events.
 
 ## Economics / Pricing before quote optimization
 Fast quoting remains important, but a sophisticated quote engine should not outrun economic truth.
@@ -170,7 +220,7 @@ Activate according to real friction/evidence:
 - proposal / signature / deposit propagation
 - operational handoff / schedule / crew
 - warehouse pulls / returns / maintenance
-- economics / contribution / cash
+- deeper closeout / economics / contribution / cash
 - installation/service specialization
 - training / capability development
 - Goodshuffle/QuickBooks integrations or replacement seams
