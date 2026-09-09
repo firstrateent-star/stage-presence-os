@@ -1,14 +1,18 @@
 import { useCallback, useEffect, useState } from 'react'
-import { getEngagementCloseout, type EngagementCloseout } from '../lib/learningCloseout'
+import { getEngagementCloseout, type CloseoutKind, type EngagementCloseout } from '../lib/learningCloseout'
 import { LearningCloseoutPanel } from './LearningCloseoutPanel'
 
 export function LearningCloseoutSlot({
   engagementId,
   eventEndDate,
+  commercialState,
+  commitmentState,
   onSaved,
 }: {
   engagementId: string
   eventEndDate: string | null
+  commercialState: string
+  commitmentState: string
   onSaved: () => Promise<void> | void
 }) {
   const [closeout, setCloseout] = useState<EngagementCloseout | null>(null)
@@ -25,12 +29,21 @@ export function LearningCloseoutSlot({
   useEffect(() => { void refresh() }, [refresh])
   if (!ready) return null
 
+  const defaultCloseoutKind: CloseoutKind = commitmentState === 'CANCELLED'
+    ? 'CANCELLED'
+    : commercialState === 'LOST'
+      ? 'LOST'
+      : commercialState === 'WON' || ['SIGNED', 'DEPOSIT_PENDING', 'CONFIRMED'].includes(commitmentState)
+        ? 'DELIVERY'
+        : 'OTHER'
+
   return (
     <div className="sm:ml-48">
       <LearningCloseoutPanel
         engagementId={engagementId}
         eventEndDate={eventEndDate}
         closeout={closeout}
+        defaultCloseoutKind={defaultCloseoutKind}
         onSaved={async () => {
           await refresh()
           await Promise.resolve(onSaved())
