@@ -14,6 +14,7 @@ export type DecisionKind =
 
 export type ResolutionOwner = 'SYSTEM' | 'NANCY' | 'SEAN' | 'OPERATIONS' | 'GREG'
 export type GapSeverity = 'BLOCKING' | 'MATERIAL' | 'WATCH'
+export type DecisionEvidenceState = 'CLEAR' | 'REVIEW' | 'BLOCKED'
 
 export interface DecisionGap {
   code: string
@@ -26,6 +27,7 @@ export interface DecisionSignal {
   engagement: Engagement
   decision: DecisionKind
   decision_label: string
+  evidence_state: DecisionEvidenceState
   why_now: string
   strong_evidence: string[]
   gaps: DecisionGap[]
@@ -62,8 +64,16 @@ function active(engagement: Engagement) {
     && engagement.commercial_state !== 'LOST'
 }
 
+function financialFactsFor(facts: EngagementFinancialFact[], engagementId: string, type: EngagementFinancialFact['fact_type']) {
+  return facts.filter((fact) => fact.engagement_id === engagementId && fact.fact_type === type && fact.certainty_state !== 'CONFLICTING')
+}
+
 function hasFinancialFact(facts: EngagementFinancialFact[], engagementId: string, type: EngagementFinancialFact['fact_type']) {
-  return facts.some((fact) => fact.engagement_id === engagementId && fact.fact_type === type && fact.certainty_state !== 'CONFLICTING')
+  return financialFactsFor(facts, engagementId, type).length > 0
+}
+
+function hasPositiveFinancialFact(facts: EngagementFinancialFact[], engagementId: string, type: EngagementFinancialFact['fact_type']) {
+  return financialFactsFor(facts, engagementId, type).some((fact) => Number(fact.amount) > 0)
 }
 
 function customerKnown(customerLinks: CustomerLink[], engagementId: string) {
@@ -80,6 +90,10 @@ function unresolvedFor(facts: EngagementFact[], engagementId: string) {
 
 function pressureFor(pressures: CapacityPressure[], engagementId: string) {
   return pressures.filter((pressure) => pressure.first.id === engagementId || pressure.second.id === engagementId)
+}
+
+function needRepresented(engagement: Engagement) {
+  return Boolean(engagement.customer_request?.trim() || engagement.desired_outcome?.trim())
 }
 
 function chooseDecision(engagement: Engagement, now: Date): DecisionKind {
@@ -127,7 +141,8 @@ function ownerRank(owner: ResolutionOwner) {
 
 function derivePrimaryOwner(gaps: DecisionGap[], decision: DecisionKind): ResolutionOwner {
   const blocking = gaps.filter((gap) => gap.severity === 'BLOCKING')
-  const pool = blocking.length ? blocking : gaps
+  const material = gaps.filter((gap) => gap.severity === 'MATERIAL')
+  const pool = blocking.length ? blocking : material.length ? material : gaps
   if (pool.length) return [...pool].sort((a, b) => ownerRank(b.owner) - ownerRank(a.owner))[0].owner
   if (decision === 'EXECUTE_READY' || decision === 'RESERVE_READY') return 'OPERATIONS'
   if (decision === 'COMMIT_READY' || decision === 'QUOTE_READY' || decision === 'QUALIFY_CLARIFY') return 'SEAN'
@@ -141,6 +156,12 @@ function dueLabel(engagement: Engagement, now: Date) {
   if (days <= 7) return 'Within 24h'
   if (days <= 21) return 'This week'
   return 'Before next commercial movement'
+}
+
+function evidenceState(gaps: DecisionGap[]): DecisionEvidenceState {
+  if (gaps.some((gap) => gap.severity === 'BLOCKING')) return 'BLOCKED'
+  if (gaps.length) return 'REVIEW'
+  return 'CLEAR'
 }
 
 export function buildDecisionSignals(
@@ -170,24 +191,35 @@ export function buildDecisionSignals(
     if (dateKey(engagement)) strongEvidence.push('Date known')
     else if (['QUOTE_READY', 'COMMIT_READY', 'RESERVE_READY', 'EXECUTE_READY'].includes(decision)) gaps.push({ code: 'DATE_UNKNOWN', label: 'Event/project timing is not known.', owner: 'SEAN', severity: decision === 'QUOTE_READY' ? 'MATERIAL' : 'BLOCKING' })
 
+    if (needRepresented(engagement)) strongEvidence.push('Customer need/outcome represented')
+    else if (['QUALIFY_CLARIFY', 'QUOTE_READY', 'COMMIT_READY'].includes(decision)) gaps.push({ code: 'NEED_UNCLEAR', label: 'Customer request / desired outcome is not represented clearly enough yet.', owner: 'SEAN', severity: decision === 'COMMIT_READY' ? 'BLOCKING' : 'MATERIAL' })
+
     if (links.length) strongEvidence.push(`${links.length} configured resource${links.length === 1 ? '' : 's'}`)
     else if (['QUOTE_READY', 'COMMIT_READY', 'RESERVE_READY', 'EXECUTE_READY'].includes(decision) && engagement.engagement_type !== 'SERVICE') gaps.push({ code: 'SOLUTION_UNCONFIGURED', label: 'No configured solution is represented yet.', owner: 'SEAN', severity: decision === 'QUOTE_READY' ? 'MATERIAL' : 'BLOCKING' })
 
     if (unresolved.some((fact) => fact.certainty_state === 'CONFLICTING')) gaps.push({ code: 'CONFLICTING_TRUTH', label: 'Conflicting source truth could change this decision.', owner: 'SEAN', severity: 'BLOCKING' })
     else if (unresolved.length) gaps.push({ code: 'UNRESOLVED_TRUTH', label: `${unresolved.length} unresolved fact${unresolved.length === 1 ? '' : 's'} remain; review only those material to this decision.`, owner: 'SEAN', severity: 'WATCH' })
 
-    if (['QUOTE_READY', 'COMMIT_READY'].includes(decision)) {
-      if (hasFinancialFact(financialFacts, engagement.id, 'QUOTE_TOTAL')) strongEvidence.push('Quote value represented')
-      else gaps.push({ code: 'QUOTE_VALUE_MISSING', label: 'Quote value is not represented as typed financial evidence.', owner: 'SEAN', severity: decision === 'COMMIT_READY' ? 'BLOCKING' : 'MATERIAL' })
+    if (decision === 'QUOTE_READY') {
+      // A quote total is the output of Quote Ready, not a prerequisite.
+      if (hasFinancialFact(financialFacts, engagement.id, 'QUOTE_TOTAL')) strongEvidence.push('Existing quote value represented')
+    }
+
+    if (decision === 'COMMIT_READY') {
+      if (hasFinancialFact(financialFacts, engagement.id, 'QUOTE_TOTAL') || hasFinancialFact(financialFacts, engagement.id, 'CONTRACT_TOTAL')) strongEvidence.push('Commercial value represented')
+      else gaps.push({ code: 'PROPOSAL_VALUE_MISSING', label: 'The proposal/commercial value being accepted is not represented as typed financial evidence.', owner: 'NANCY', severity: 'BLOCKING' })
+
+      if (!hasFinancialFact(financialFacts, engagement.id, 'DIRECT_COST_ESTIMATE')) {
+        gaps.push({ code: 'DIRECT_COST_NOT_ESTIMATED', label: 'No direct-cost estimate is represented; resolve only when cost/risk is material to this commitment.', owner: 'SEAN', severity: 'WATCH' })
+      }
+    }
+
+    if (decision === 'RESERVE_READY') {
+      if (hasPositiveFinancialFact(financialFacts, engagement.id, 'DEPOSIT_RECEIVED')) strongEvidence.push('Deposit evidence present')
+      else gaps.push({ code: 'DEPOSIT_EVIDENCE_MISSING', label: 'Deposit/payment evidence is not represented. Confirm policy or an explicit exception before treating capacity as reserved.', owner: 'NANCY', severity: 'MATERIAL' })
     }
 
     if (['RESERVE_READY', 'EXECUTE_READY'].includes(decision)) {
-      if (hasFinancialFact(financialFacts, engagement.id, 'CONTRACT_TOTAL')) strongEvidence.push('Contract value represented')
-      else gaps.push({ code: 'CONTRACT_VALUE_MISSING', label: 'Committed commercial value is not represented in the OS.', owner: 'NANCY', severity: 'MATERIAL' })
-
-      if (hasFinancialFact(financialFacts, engagement.id, 'DEPOSIT_RECEIVED')) strongEvidence.push('Deposit evidence present')
-      else gaps.push({ code: 'DEPOSIT_EVIDENCE_MISSING', label: 'Deposit/payment evidence is not represented.', owner: 'NANCY', severity: decision === 'RESERVE_READY' ? 'BLOCKING' : 'MATERIAL' })
-
       const weakWindows = links.filter((link) => !['KNOWN', 'VERIFIED'].includes(link.requirement_window_state))
       if (links.length && weakWindows.length === 0) strongEvidence.push('Resource windows known/verified')
       else if (links.length) gaps.push({ code: 'WINDOWS_WEAK', label: `${weakWindows.length} configured resource window${weakWindows.length === 1 ? '' : 's'} are inferred/estimated/unknown.`, owner: 'OPERATIONS', severity: decision === 'EXECUTE_READY' ? 'BLOCKING' : 'MATERIAL' })
@@ -197,13 +229,18 @@ export function buildDecisionSignals(
       else if (links.length) gaps.push({ code: 'SOURCING_UNKNOWN', label: `${unknownSourcing.length} configured resource${unknownSourcing.length === 1 ? '' : 's'} have unknown sourcing.`, owner: 'OPERATIONS', severity: 'BLOCKING' })
     }
 
+    if (decision === 'EXECUTE_READY') {
+      if (engagement.engagement_type !== 'EVENT' || engagement.venue_name?.trim()) strongEvidence.push(engagement.engagement_type === 'EVENT' ? 'Venue represented' : 'Venue not required by type')
+      else gaps.push({ code: 'VENUE_UNKNOWN', label: 'Event venue/location is not represented for execution.', owner: 'OPERATIONS', severity: 'BLOCKING' })
+
+      // Payment evidence can matter before execution, but Stage Presence has not yet encoded a universal policy.
+      if (hasPositiveFinancialFact(financialFacts, engagement.id, 'DEPOSIT_RECEIVED')) strongEvidence.push('Deposit evidence present')
+      else gaps.push({ code: 'PAYMENT_POLICY_REVIEW', label: 'Payment/deposit state is not represented; review only if commercial policy makes it material before execution.', owner: 'NANCY', severity: 'WATCH' })
+    }
+
     if (pressures.length) {
       const high = pressures.some((pressure) => pressure.severity === 'HIGH')
       gaps.push({ code: 'CAPACITY_PRESSURE', label: `${pressures.length} capacity pressure signal${pressures.length === 1 ? '' : 's'} require review before stronger commitment.`, owner: high ? 'GREG' : 'OPERATIONS', severity: high ? 'BLOCKING' : 'MATERIAL' })
-    }
-
-    if (decision === 'COMMIT_READY' && !hasFinancialFact(financialFacts, engagement.id, 'DIRECT_COST_ESTIMATE')) {
-      gaps.push({ code: 'DIRECT_COST_NOT_ESTIMATED', label: 'No direct-cost estimate is represented; required when cost/risk is material.', owner: 'SEAN', severity: 'WATCH' })
     }
 
     const primaryOwner = derivePrimaryOwner(gaps, decision)
@@ -218,6 +255,7 @@ export function buildDecisionSignals(
       engagement,
       decision,
       decision_label: decisionLabel(decision),
+      evidence_state: evidenceState(gaps),
       why_now: whyNow(engagement, decision, now),
       strong_evidence: strongEvidence,
       gaps,
