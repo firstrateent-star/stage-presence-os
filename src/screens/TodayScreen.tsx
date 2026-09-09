@@ -2,6 +2,7 @@ import { useMemo, type ReactNode } from 'react'
 import { EngagementCard } from '../components/EngagementCard'
 import { buildBusinessSignals, engagementDateLabel, type CapacityPressure, type RelationshipSignal } from '../lib/businessSignals'
 import type { EngagementRelationship } from '../lib/engagementRelationships'
+import type { EngagementFinancialFact } from '../lib/financialFacts'
 import type { ConfiguredResourceLink, CustomerLink } from '../lib/repository'
 import type { Engagement, EngagementFact, LedgerEvent } from '../types/domain'
 
@@ -12,6 +13,7 @@ export function TodayScreen({
   configuredLinks,
   attentionFacts,
   engagementRelationships,
+  financialFacts,
   onOpen,
 }: {
   engagements: Engagement[]
@@ -20,11 +22,12 @@ export function TodayScreen({
   configuredLinks: ConfiguredResourceLink[]
   attentionFacts: EngagementFact[]
   engagementRelationships: EngagementRelationship[]
+  financialFacts: EngagementFinancialFact[]
   onOpen: (id: string) => void
 }) {
   const signals = useMemo(
-    () => buildBusinessSignals(engagements, customerLinks, configuredLinks, attentionFacts, engagementRelationships),
-    [engagements, customerLinks, configuredLinks, attentionFacts, engagementRelationships],
+    () => buildBusinessSignals(engagements, customerLinks, configuredLinks, attentionFacts, engagementRelationships, financialFacts),
+    [engagements, customerLinks, configuredLinks, attentionFacts, engagementRelationships, financialFacts],
   )
 
   const delivery = signals.protect_delivery.slice(0, 6)
@@ -128,8 +131,8 @@ function RelationshipCard({ relationship, onOpen }: { relationship: Relationship
         <span>•</span><span>{relationship.won_count} won</span>
         {relationship.open_count > 0 && <><span>•</span><span>{relationship.open_count} open</span></>}
       </div>
-      {relationship.known_value > 0 && <div className="mt-3 text-sm text-zinc-400">Known value <span className="font-semibold text-zinc-200">{formatMoney(relationship.known_value)}</span> <span className="text-xs text-zinc-700">(partial evidence)</span></div>}
-      {relationship.program_component_count > 0 && <p className="mt-3 text-xs leading-5 text-zinc-600">Program grouping may be inferred. It reduces false diversification but does not change verified commercial or capacity facts.</p>}
+      {relationship.known_value > 0 && <div className="mt-3 text-sm text-zinc-400">Known contract value <span className="font-semibold text-zinc-200">{formatMoney(relationship.known_value)}</span> <span className="text-xs text-zinc-700">(typed financial evidence)</span></div>}
+      {relationship.program_component_count > 0 && <p className="mt-3 text-xs leading-5 text-zinc-600">Program grouping may be inferred. It reduces false diversification but does not change verified commercial, financial or capacity facts.</p>}
       {latest && <button type="button" onClick={() => onOpen(latest.id)} className="mt-4 text-xs font-semibold text-amber-500 hover:text-amber-300">Open latest Engagement →</button>}
     </div>
   )
