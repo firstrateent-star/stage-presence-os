@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
+import { getEngagementCloseout, type EngagementCloseout } from './learningCloseout'
 import { listEngagementEvents, listEngagementResources, listFacts, listPartiesForEngagement, listResources, type PartyLink, type ResourceLink } from './repository'
 import { listEngagementSourceArtifacts, type SourceArtifact } from './sourceArtifacts'
 import type { EngagementFact, LedgerEvent, Resource } from '../types/domain'
@@ -10,6 +11,7 @@ export function useEngagementDetail(engagementId: string | undefined) {
   const [resourceLibrary, setResourceLibrary] = useState<Resource[]>([])
   const [events, setEvents] = useState<LedgerEvent[]>([])
   const [sourceArtifacts, setSourceArtifacts] = useState<SourceArtifact[]>([])
+  const [closeout, setCloseout] = useState<EngagementCloseout | null>(null)
   const [loading, setLoading] = useState(Boolean(engagementId))
   const [error, setError] = useState<string | null>(null)
 
@@ -18,13 +20,14 @@ export function useEngagementDetail(engagementId: string | undefined) {
     setLoading(true)
     setError(null)
     try {
-      const [nextFacts, nextParties, nextResourceLinks, nextResources, nextEvents, nextSourceArtifacts] = await Promise.all([
+      const [nextFacts, nextParties, nextResourceLinks, nextResources, nextEvents, nextSourceArtifacts, nextCloseout] = await Promise.all([
         listFacts(engagementId),
         listPartiesForEngagement(engagementId),
         listEngagementResources(engagementId),
         listResources(),
         listEngagementEvents(engagementId),
         listEngagementSourceArtifacts(engagementId),
+        getEngagementCloseout(engagementId),
       ])
       setFacts(nextFacts)
       setParties(nextParties)
@@ -32,6 +35,7 @@ export function useEngagementDetail(engagementId: string | undefined) {
       setResourceLibrary(nextResources)
       setEvents(nextEvents)
       setSourceArtifacts(nextSourceArtifacts)
+      setCloseout(nextCloseout)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unable to load engagement detail.')
     } finally {
@@ -40,5 +44,5 @@ export function useEngagementDetail(engagementId: string | undefined) {
   }, [engagementId])
 
   useEffect(() => { void refresh() }, [refresh])
-  return { facts, parties, resourceLinks, resourceLibrary, events, sourceArtifacts, loading, error, refresh }
+  return { facts, parties, resourceLinks, resourceLibrary, events, sourceArtifacts, closeout, loading, error, refresh }
 }
