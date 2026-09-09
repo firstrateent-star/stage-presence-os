@@ -1,25 +1,23 @@
-import type { CapacityPressure } from '../lib/businessSignals'
+import { engagementDateLabel, type CapacityPressure } from '../lib/businessSignals'
 import type { EngagementFinancialFact } from '../lib/financialFacts'
-import type { PartyLink, ResourceLink } from '../lib/repository'
+import type { ConfiguredResourceLink, CustomerLink } from '../lib/repository'
 import type { Engagement } from '../types/domain'
-import { engagementDateLabel } from '../lib/businessSignals'
 
 export function EngagementBusinessStory({
   engagement,
-  parties,
-  resourceLinks,
+  customerLinks,
+  configuredLinks,
   financialFacts,
   capacityPressures,
 }: {
   engagement: Engagement
-  parties: PartyLink[]
-  resourceLinks: ResourceLink[]
+  customerLinks: CustomerLink[]
+  configuredLinks: ConfiguredResourceLink[]
   financialFacts: EngagementFinancialFact[]
   capacityPressures: CapacityPressure[]
 }) {
-  const customer = parties.find((link) => link.role === 'CUSTOMER') ?? parties.find((link) => link.is_primary) ?? parties[0]
-  const contact = parties.find((link) => link.role === 'PRIMARY_CONTACT' && link.id !== customer?.id)
-  const configured = resourceLinks.filter((link) => link.relationship === 'CONFIGURED')
+  const customer = customerLinks.find((link) => link.engagement_id === engagement.id)?.party ?? null
+  const configured = configuredLinks.filter((link) => link.engagement_id === engagement.id)
   const commercialValue = bestCommercialValue(engagement, financialFacts)
   const need = engagement.desired_outcome || engagement.customer_request
   const request = engagement.desired_outcome && engagement.customer_request && engagement.desired_outcome !== engagement.customer_request
@@ -31,7 +29,7 @@ export function EngagementBusinessStory({
   return (
     <section className="mt-6 space-y-4">
       <div className="grid gap-3 lg:grid-cols-4">
-        <StoryCard label="Customer" value={customer?.party?.name ?? 'Customer not identified'} subvalue={customer?.party ? contactLine(customer.party) : 'Keep unknown until evidence identifies them.'} />
+        <StoryCard label="Customer" value={customer?.name ?? 'Customer not identified'} subvalue={customer ? contactLine(customer) : 'Keep unknown until evidence identifies them.'} />
         <StoryCard label="When" value={engagementDateLabel(engagement)} subvalue={engagement.venue_name || engagement.venue_address || 'Location not represented yet'} />
         <StoryCard label="Commercial" value={humanCommercialPosition(engagement)} subvalue={commercialValue ? `${money(commercialValue.amount)} · ${commercialValue.label}` : 'Value not represented in current evidence'} />
         <StoryCard label="Capacity" value={capacity.title} subvalue={capacity.detail} tone={capacity.tone} />
@@ -52,17 +50,17 @@ export function EngagementBusinessStory({
         <section className="rounded-2xl border border-zinc-900 bg-zinc-950/70 p-5">
           <div className="flex items-center justify-between gap-3">
             <div className="text-xs font-semibold tracking-[0.14em] text-zinc-600">CURRENT SOLUTION</div>
-            <div className="text-xs text-zinc-700">{configured.length || resourceLinks.length} item{(configured.length || resourceLinks.length) === 1 ? '' : 's'}</div>
+            <div className="text-xs text-zinc-700">{configured.length} item{configured.length === 1 ? '' : 's'}</div>
           </div>
-          {(configured.length ? configured : resourceLinks).length ? (
+          {configured.length ? (
             <div className="mt-3 flex flex-wrap gap-2">
-              {(configured.length ? configured : resourceLinks).slice(0, 8).map((link) => (
+              {configured.slice(0, 8).map((link) => (
                 <span key={link.id} className="rounded-full border border-zinc-800 px-3 py-1.5 text-xs text-zinc-400">
                   {link.resource?.name ?? 'Unknown resource'}
                 </span>
               ))}
-              {(configured.length ? configured : resourceLinks).length > 8 && (
-                <span className="rounded-full border border-zinc-900 px-3 py-1.5 text-xs text-zinc-600">+{(configured.length ? configured : resourceLinks).length - 8} more</span>
+              {configured.length > 8 && (
+                <span className="rounded-full border border-zinc-900 px-3 py-1.5 text-xs text-zinc-600">+{configured.length - 8} more</span>
               )}
             </div>
           ) : (
@@ -106,7 +104,7 @@ function bestCommercialValue(engagement: Engagement, facts: EngagementFinancialF
   return null
 }
 
-function capacityStory(engagement: Engagement, links: ResourceLink[], pressures: CapacityPressure[]) {
+function capacityStory(engagement: Engagement, links: ConfiguredResourceLink[], pressures: CapacityPressure[]) {
   const related = pressures.filter((pressure) => pressure.first.id === engagement.id || pressure.second.id === engagement.id)
   if (related.some((pressure) => pressure.severity === 'HIGH')) {
     return { title: 'Needs capacity decision', detail: 'Committed work overlaps the same configured physical capacity.', tone: 'alert' as const }
@@ -147,7 +145,7 @@ function humanCommercialPosition(engagement: Engagement) {
   return 'New opportunity'
 }
 
-function contactLine(party: NonNullable<PartyLink['party']>) {
+function contactLine(party: NonNullable<CustomerLink['party']>) {
   const details = [party.organization_name, party.email, party.phone].filter(Boolean)
   return details.length ? details.join(' · ') : party.party_type === 'ORGANIZATION' ? 'Organization' : 'Contact details not represented'
 }
