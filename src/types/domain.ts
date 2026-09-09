@@ -52,10 +52,10 @@ export interface Engagement {
   venue_name: string | null
   venue_address: string | null
   estimated_value: number | null
-  default_resource_from_date: string | null
-  default_resource_through_date: string | null
-  default_resource_window_state: RequirementWindowState
-  default_planned_sourcing_model: PlannedSourcingModel
+  default_resource_from_date?: string | null
+  default_resource_through_date?: string | null
+  default_resource_window_state?: RequirementWindowState
+  default_planned_sourcing_model?: PlannedSourcingModel
   commercial_state: CommercialState
   commitment_state: CommitmentState
   operational_state: OperationalState
