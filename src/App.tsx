@@ -1,7 +1,8 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import type { Session } from '@supabase/supabase-js'
 import { AppShell, type ScreenName } from './components/AppShell'
 import { CapacityDefaultsPanel } from './components/CapacityDefaultsPanel'
+import { EngagementBusinessStory } from './components/EngagementBusinessStory'
 import { LearningCloseoutSlot } from './components/LearningCloseoutSlot'
 import { GregTodayScreen } from './screens/GregTodayScreen'
 import { EngagementsScreen } from './screens/EngagementsScreen'
@@ -9,6 +10,7 @@ import { ResourcesScreen } from './screens/ResourcesScreen'
 import { EngagementDetailScreen } from './screens/EngagementDetailScreen'
 import { NewEngagementScreen } from './screens/NewEngagementScreen'
 import { LoginScreen } from './screens/LoginScreen'
+import { buildBusinessSignals } from './lib/businessSignals'
 import { supabase } from './lib/supabase'
 import { isBackendConfigured } from './lib/config'
 import { useAppData } from './lib/useAppData'
@@ -55,6 +57,13 @@ export default function App() {
   const [selectedId, setSelectedId] = useState<string | null>(initialRoute.selectedId)
   const data = useAppData(!isBackendConfigured || accessState === 'authorized')
   const selectedEngagement = data.engagements.find((item) => item.id === selectedId)
+  const businessSignals = useMemo(
+    () => buildBusinessSignals(data.engagements, data.customerLinks, data.configuredLinks, data.attentionFacts, data.engagementRelationships, data.financialFacts),
+    [data.engagements, data.customerLinks, data.configuredLinks, data.attentionFacts, data.engagementRelationships, data.financialFacts],
+  )
+  const selectedCapacityPressures = selectedEngagement
+    ? businessSignals.capacity_pressure.filter((pressure) => pressure.first.id === selectedEngagement.id || pressure.second.id === selectedEngagement.id)
+    : []
 
   async function verifyMembership(current: Session | null) {
     if (!supabase || !current) {
@@ -185,24 +194,43 @@ export default function App() {
         <ResourcesScreen resources={data.resources} />
       ) : screen === 'new' ? (
         <NewEngagementScreen onCancel={() => navigate('today')} onCreated={() => { void data.refresh(); navigate('engagements') }} />
-      ) : (
-        <>
-          <EngagementDetailScreen engagement={selectedEngagement} onBack={() => navigate('engagements')} onChanged={data.refresh} />
-          {selectedEngagement && isBackendConfigured && (
-            <div className="sm:ml-48">
-              <CapacityDefaultsPanel engagement={selectedEngagement} onSaved={data.refresh} />
+      ) : selectedEngagement ? (
+        <div className="sm:ml-48">
+          <button type="button" onClick={() => navigate('engagements')} className="mb-5 text-sm text-zinc-500 hover:text-zinc-200">← Engagements</button>
+          <div className="border-b border-zinc-900 pb-6">
+            <div className="text-xs tracking-[0.14em] text-zinc-600">{selectedEngagement.engagement_number}</div>
+            <h1 className="mt-2 text-3xl font-semibold tracking-tight text-zinc-100">{selectedEngagement.name}</h1>
+            <p className="mt-2 text-sm text-zinc-600">What is happening with this piece of business?</p>
+          </div>
+
+          <EngagementBusinessStory
+            engagement={selectedEngagement}
+            customerLinks={data.customerLinks}
+            configuredLinks={data.configuredLinks}
+            financialFacts={data.financialFacts}
+            capacityPressures={selectedCapacityPressures}
+          />
+
+          <details className="mt-8 rounded-2xl border border-zinc-900 bg-zinc-950/40">
+            <summary className="cursor-pointer px-5 py-4 text-sm font-semibold text-zinc-400 hover:text-zinc-200">Working details · evidence, people, resources, next-move controls and activity</summary>
+            <div className="border-t border-zinc-900 px-5 py-5">
+              <div className="sm:-ml-48">
+                <EngagementDetailScreen engagement={selectedEngagement} onBack={() => navigate('engagements')} onChanged={data.refresh} />
+              </div>
+              {isBackendConfigured && <CapacityDefaultsPanel engagement={selectedEngagement} onSaved={data.refresh} />}
             </div>
-          )}
-          {selectedEngagement && (
-            <LearningCloseoutSlot
-              engagementId={selectedEngagement.id}
-              eventEndDate={selectedEngagement.event_end_date}
-              commercialState={selectedEngagement.commercial_state}
-              commitmentState={selectedEngagement.commitment_state}
-              onSaved={data.refresh}
-            />
-          )}
-        </>
+          </details>
+
+          <LearningCloseoutSlot
+            engagementId={selectedEngagement.id}
+            eventEndDate={selectedEngagement.event_end_date}
+            commercialState={selectedEngagement.commercial_state}
+            commitmentState={selectedEngagement.commitment_state}
+            onSaved={data.refresh}
+          />
+        </div>
+      ) : (
+        <div className="sm:ml-48 py-16 text-zinc-600">Engagement not found.</div>
       )}
     </AppShell>
   )
