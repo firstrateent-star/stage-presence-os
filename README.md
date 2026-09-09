@@ -5,32 +5,37 @@ Canonical reference for the Stage Presence operating-system build.
 ## Purpose
 Stage Presence OS is a private internal company-state and decision-support system for Stage Presence, an LED-first live visual production and integration company.
 
-The first product goal is **Shared Business Reality**: tell the system what is happening once; it remembers it, distinguishes known from unknown, preserves provenance, surfaces what needs attention, and keeps the next movement from disappearing.
+The operating goal is **Intuitive Business Reality**: tell the system what is happening once; it remembers it, distinguishes known from unknown, preserves provenance, surfaces what matters, and keeps the next movement from disappearing.
 
 This repository/document bundle is intentionally clean-slate. It does **not** inherit the old CRM assumption of separate Lead -> Quote -> Event universes.
 
 ## Read order
 1. `docs/BUSINESS_MODEL_CURRENT.md`
-2. `docs/CONSTITUTION.md`
-3. `docs/SYSTEM_MAP.md`
-4. `docs/DATA_MODEL.md`
-5. `docs/CURRENT_STATE.md`
-6. `docs/CAPABILITIES_CURRENT.md`
-7. `docs/ROADMAP.md`
-8. `docs/QUICK_LEAD_SHEET.md`
-9. `docs/CAPTURE_CONTRACT.md`
-10. `docs/DECISIONS.md`
-11. `docs/AI_CONTRACT.md`
-12. `docs/INVENTORY_IMPORT.md`
-13. `docs/VALUE_LEDGER.md`
-14. `docs/TEST_PLAN.md`
+2. `docs/CURRENT_STATE.md`
+3. `docs/CHAT_OPERATING_WORKFLOW.md`
+4. `docs/CONSTITUTION.md`
+5. `docs/SYSTEM_MAP.md`
+6. `docs/DATA_MODEL.md`
+7. `docs/CAPABILITIES_CURRENT.md`
+8. `docs/ROADMAP.md`
+9. `docs/QUICK_LEAD_SHEET.md`
+10. `docs/CAPTURE_CONTRACT.md`
+11. `docs/DECISIONS.md`
+12. `docs/AI_CONTRACT.md`
+13. `docs/INVENTORY_IMPORT.md`
+14. `docs/VALUE_LEDGER.md`
+15. `docs/TEST_PLAN.md`
 
-## Current status — 2026-09-08
-The clean-slate free-stack implementation is live enough for controlled internal use. A dedicated Supabase project is active and secured; the private GitHub repository is the canonical code/documentation home; Cloudflare serves the deployed internal app; the first internal account is authorized as ADMIN; RLS has been verified against member and non-member contexts; browser login/write behavior has been proven; and First Breath now has rollback-only automated smoke coverage.
+## Current operating mode — 2026-09-09
+The system is live enough for controlled internal use and is now in **Operational Validation** rather than continuous feature expansion.
 
-The next earned petal is **Capture**: reduce human clerical work by letting photographed Quick Lead Sheets, natural typed/pasted notes, future voice, web inquiries, email references, and later external imports converge into the same Engagement/Party/Fact/Resource/Event model.
+Goodshuffle has seeded historical/current operating evidence into the canonical Stage Presence model. New work should enter according to Forward-Born Truth, while inherited work is strengthened only where real business continuity requires it.
 
-Lovable remains frozen as historical prototype context. No paid AI call, public intake, QuickBooks/Goodshuffle write integration, payment automation, or autonomous commercial commitment has been enabled.
+For now, ChatGPT is the preferred flexible interpretation layer for photos, pasted text, conversations, call recaps, quote/payment/job updates, and similar Stage Presence reality. See `docs/CHAT_OPERATING_WORKFLOW.md` for the exact workflow and resume instructions if a chat reaches its context limit.
+
+The default is **operate and learn, not keep building**. Reopen development when real use exposes a recurring representational, decision, capacity, continuity, or re-entry problem that the current backend cannot handle well.
+
+Lovable remains frozen as historical prototype context. No paid AI API interpreter, public intake, autonomous reservation, payment automation, or customer-facing commitment automation has been enabled.
 
 ## Existing prototypes
 Historical Lovable prototypes exist and should be treated as reference only:
@@ -41,14 +46,13 @@ Historical Lovable prototypes exist and should be treated as reference only:
 They are not the canonical architecture for Stage Presence OS.
 
 ## Free-stack implementation
-The repository now includes a zero-cost-first implementation scaffold:
+The repository includes:
 - React 19 + TypeScript + Vite
 - Tailwind CSS
-- Supabase client boundary
-- Cloudflare Workers Static Assets configuration in `wrangler.jsonc`
-- applied v0.1 database/RLS migrations under `database/`
-
-The Cloudflare target is intentionally static-only in First Breath: no Worker script is required. `dist/` is served with single-page-app fallback, leaving server-side Workers as a future capability only if evidence earns it.
+- Supabase client/backend boundary
+- Cloudflare Workers Static Assets deployment
+- applied database/RLS migrations under `database/`
+- GitHub branch -> build check -> PR -> `main` deployment discipline
 
 The UI runs in explicit DEMO MODE when Supabase environment variables are absent. Demo records are synthetic and never presented as Stage Presence data.
 
