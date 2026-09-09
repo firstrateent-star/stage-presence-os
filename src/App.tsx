@@ -214,7 +214,7 @@ export default function App() {
           <details className="mt-8 rounded-2xl border border-zinc-900 bg-zinc-950/40">
             <summary className="cursor-pointer px-5 py-4 text-sm font-semibold text-zinc-400 hover:text-zinc-200">Working details · evidence, people, resources, next-move controls and activity</summary>
             <div className="border-t border-zinc-900 px-5 py-5">
-              <div className="-ml-48 sm:ml-0">
+              <div className="sm:-ml-48">
                 <EngagementDetailScreen engagement={selectedEngagement} onBack={() => navigate('engagements')} onChanged={data.refresh} />
               </div>
               {isBackendConfigured && <CapacityDefaultsPanel engagement={selectedEngagement} onSaved={data.refresh} />}
