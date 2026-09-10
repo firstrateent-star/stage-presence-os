@@ -145,3 +145,15 @@ Reason: knowing that a process step exists is different from possessing a safe, 
 ## 2026-09-10 — Today and Work begin consuming operating read contracts
 Decision: progressively move the live frontend from screen-specific business reconstruction onto `engagement_frontend_v`, `daily_work_queue_v`, and relationship/read-model contracts while retaining the existing detail editor during transition.
 Reason: the backend should own business interpretation and the frontend should primarily present it. Progressive migration reduces breakage and lets missing truth surface through real use rather than a large UI rewrite.
+
+## 2026-09-10 — Selective Movement is derived before it is automated
+Decision: add deterministic `engagement_movement_candidates_v` and `engagement_operating_focus_v` as read-only reasoning surfaces before allowing candidate signals to create work automatically.
+Reason: Stage Presence should know what may matter without manufacturing obligations. Separating derived recommendation from persisted work lets the company observe false positives/negatives, inspect evidence and governance, and earn automation gradually. Canonical design: `docs/SELECTIVE_MOVEMENT_ENGINE.md`.
+
+## 2026-09-10 — Business consequence outranks missing-data completeness
+Decision: candidate movement is activated by lifecycle state, time pressure, decision leverage, materiality, economics and delivery risk—not merely because a database field or native record is absent.
+Reason: inherited Goodshuffle work can carry valid commercial/fulfillment evidence while lacking native schedule or assignment records. Empty fields should become human work only when resolving them protects delivery, economics, conversion, coordination or learning. The operating focus orders `NOW → SOON → WATCH → LATER`, then ranks consequence within the horizon.
+
+## 2026-09-10 — Persisted work and System Sees remain visibly distinct
+Decision: Today presents persisted `daily_work_queue_v` action reality separately from derived selective-movement recommendations. Existing open work for the same Engagement + Playbook step marks a candidate `COVERED` rather than creating a duplicate.
+Reason: users must be able to tell what the business has actually committed to doing from what the model merely recommends. This distinction is a prerequisite for trustworthy low-touch automation.
