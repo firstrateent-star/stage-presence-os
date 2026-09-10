@@ -1,3 +1,4 @@
+import { EngagementSummaryCard } from '../components/EngagementSummaryCard'
 import type { EngagementFrontendRow } from '../lib/operatingRepository'
 import {
   byMostRecentEngagement,
@@ -46,37 +47,7 @@ export function OperatingWorkScreen({ rows, onOpen }: { rows: EngagementFrontend
 }
 
 function OperatingCard({ row, onOpen, mode }: { row: EngagementFrontendRow; onOpen: (id: string) => void; mode: Extract<EngagementCardMode, 'opportunity' | 'job' | 'history'> }) {
-  const card = presentEngagementCard(row, mode)
-
-  return (
-    <button type="button" onClick={() => onOpen(card.id)} className="rounded-2xl border border-zinc-900 bg-zinc-950/70 p-4 text-left transition hover:border-zinc-700 hover:bg-zinc-900/50">
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <div className="text-xs font-medium tracking-[0.08em] text-zinc-600">{card.eyebrow}</div>
-          <h3 className="mt-1 text-lg font-semibold text-zinc-100">{card.title}</h3>
-          <div className="mt-1 text-xs text-zinc-600">{card.context}</div>
-        </div>
-        <div className="flex shrink-0 flex-col items-end gap-2">
-          <span className="rounded-full border border-zinc-900 px-2.5 py-1 text-[10px] font-semibold text-zinc-500">{card.stateLabel}</span>
-          {card.capacityLabel && <span className="rounded-full border border-amber-900/60 px-2 py-1 text-[10px] font-semibold text-amber-500">{card.capacityLabel}</span>}
-        </div>
-      </div>
-
-      {card.narrative && <p className="mt-4 line-clamp-2 text-sm leading-6 text-zinc-400">{card.narrative}</p>}
-
-      <div className="mt-4 grid grid-cols-3 gap-2 border-t border-zinc-900 pt-3">
-        <TinyStat label={card.valueLabel || 'Value'} value={card.valueText || '—'} />
-        <TinyStat label="Open actions" value={card.openActionsText} />
-        <TinyStat label="Plan lines" value={card.planLinesText} />
-      </div>
-
-      <div className="mt-4 rounded-xl bg-zinc-900/45 px-3 py-3">
-        <div className="text-[10px] font-semibold tracking-[0.12em] text-zinc-600">{card.movementLabel}</div>
-        <div className="mt-1 text-sm font-medium text-zinc-300">{card.movementText}</div>
-        {card.movementDetail && <div className="mt-1 line-clamp-2 text-xs leading-5 text-zinc-600">{card.movementDetail}</div>}
-      </div>
-    </button>
-  )
+  return <EngagementSummaryCard card={presentEngagementCard(row, mode)} onOpen={onOpen} />
 }
 
 function WorkSection({ title, count, description, children }: { title: string; count: number; description: string; children: React.ReactNode }) {
@@ -95,10 +66,6 @@ function WorkSection({ title, count, description, children }: { title: string; c
 
 function WorkStat({ label, value }: { label: string; value: number }) {
   return <div className="rounded-2xl border border-zinc-900 bg-zinc-950/70 p-4"><div className="text-2xl font-semibold text-zinc-100">{value}</div><div className="mt-1 text-xs text-zinc-600">{label}</div></div>
-}
-
-function TinyStat({ label, value }: { label: string; value: string }) {
-  return <div><div className="truncate text-[9px] font-semibold uppercase tracking-[0.1em] text-zinc-700">{label}</div><div className="mt-1 truncate text-xs font-medium text-zinc-400">{value}</div></div>
 }
 
 function Empty({ text }: { text: string }) {
