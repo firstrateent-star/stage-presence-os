@@ -104,6 +104,68 @@ export interface DailyWorkRow extends Record<string, unknown> {
   priority: string
   visibility: 'INTERNAL' | 'SHARED' | 'CLIENT'
   origin: 'MANUAL' | 'SYSTEM' | 'AUTOMATION' | 'IMPORT' | 'CLIENT' | 'OTHER'
+  due_at: string | null
+  due_date: string | null
+  why_now: string | null
+  success_condition: string | null
+  owner_username: string | null
+  owner_display_name: string | null
+}
+
+export interface PlaybookStepRow {
+  playbook_id: string
+  playbook_code: string
+  playbook_name: string
+  version: number
+  status: string
+  step_id: string
+  phase_order: number
+  phase_code: string
+  phase_name: string
+  sort_order: number
+  step_code: string
+  title: string
+  purpose: string | null
+  requiredness: 'CORE' | 'CONDITIONAL' | 'OPTIONAL'
+  automation_mode: 'SYSTEM' | 'ASSISTED' | 'HUMAN'
+  default_role_code: string | null
+  default_capability_code: string | null
+  applies_to_engagement_types: string[]
+  condition_text: string | null
+  client_touchpoint: boolean
+  procedure_depth: 'MAP_ONLY' | 'CHECKLIST' | 'SOP' | 'VERIFIED_SOP'
+  instruction_summary: string | null
+  completion_definition: string | null
+  evidence_expectation: string | null
+  risk_if_missed: string | null
+  dependency_step_codes: string[]
+  inputs: unknown
+  outputs: unknown
+  tags: string[]
+}
+
+export interface EngagementJobMapRow extends PlaybookStepRow {
+  engagement_id: string
+  engagement_number: string
+  engagement_name: string
+  engagement_type: string
+  playbook_version: number
+  step_state_id: string | null
+  tracking_status: 'UNTRACKED' | 'NOT_STARTED' | 'READY' | 'ACTIVE' | 'WAITING' | 'BLOCKED' | 'DONE' | 'SKIPPED' | 'NOT_APPLICABLE'
+  requirement_state: 'REQUIRED' | 'CONDITIONAL' | 'OPTIONAL' | 'NOT_APPLICABLE' | 'UNKNOWN'
+  owner_member_id: string | null
+  owner_username: string | null
+  owner_display_name: string | null
+  responsible_party_id: string | null
+  responsible_party_name: string | null
+  due_at: string | null
+  due_date: string | null
+  started_at: string | null
+  completed_at: string | null
+  completion_notes: string | null
+  evidence_summary: string | null
+  certainty_state: string | null
+  step_assignments: Array<Record<string, unknown>>
 }
 
 export async function listEngagementFrontends(): Promise<EngagementFrontendRow[]> {
@@ -146,6 +208,29 @@ export async function listDailyOperatingWork(): Promise<DailyWorkRow[]> {
   return (data ?? []) as unknown as DailyWorkRow[]
 }
 
+export async function listPlaybookCatalog(): Promise<PlaybookStepRow[]> {
+  const client = requireClient()
+  const { data, error } = await client
+    .from('playbook_catalog_v')
+    .select('*')
+    .order('phase_order')
+    .order('sort_order')
+  if (error) throw error
+  return (data ?? []) as unknown as PlaybookStepRow[]
+}
+
+export async function listEngagementJobMap(engagementId: string): Promise<EngagementJobMapRow[]> {
+  const client = requireClient()
+  const { data, error } = await client
+    .from('engagement_job_map_v')
+    .select('*')
+    .eq('engagement_id', engagementId)
+    .order('phase_order')
+    .order('sort_order')
+  if (error) throw error
+  return (data ?? []) as unknown as EngagementJobMapRow[]
+}
+
 export async function listLocationMemory(): Promise<LocationMemoryRow[]> {
   const client = requireClient()
   const { data, error } = await client
@@ -171,6 +256,15 @@ export async function listRelationshipSummaries(): Promise<RelationshipSummaryRo
 export async function listContributorWork() {
   const client = requireClient()
   const { data, error } = await client.from('contributor_work_v').select('*').order('scheduled_start', { ascending: true, nullsFirst: false })
+  if (error) throw error
+  return data ?? []
+}
+
+export async function listAssignmentBriefs(engagementId?: string) {
+  const client = requireClient()
+  let query = client.from('assignment_brief_v').select('*').order('scheduled_start', { ascending: true, nullsFirst: false })
+  if (engagementId) query = query.eq('engagement_id', engagementId)
+  const { data, error } = await query
   if (error) throw error
   return data ?? []
 }
