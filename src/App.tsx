@@ -5,6 +5,7 @@ import { CapacityDefaultsPanel } from './components/CapacityDefaultsPanel'
 import { EngagementBusinessStory } from './components/EngagementBusinessStory'
 import { JobMapPanel } from './components/JobMapPanel'
 import { LearningCloseoutSlot } from './components/LearningCloseoutSlot'
+import { MovementFocusPanel } from './components/MovementFocusPanel'
 import { GregTodayScreen } from './screens/GregTodayScreen'
 import { EngagementsScreen } from './screens/EngagementsScreen'
 import { OperatingTodayScreen } from './screens/OperatingTodayScreen'
@@ -182,7 +183,7 @@ export default function App() {
         <div className="sm:ml-48 py-20 text-zinc-600">Loading shared reality…</div>
       ) : screen === 'today' ? (
         isBackendConfigured ? (
-          <OperatingTodayScreen engagements={data.operatingEngagements} work={data.dailyWork} relationships={data.relationshipSummaries} onOpen={openEngagement} />
+          <OperatingTodayScreen engagements={data.operatingEngagements} work={data.dailyWork} focus={data.operatingFocus} relationships={data.relationshipSummaries} onOpen={openEngagement} />
         ) : (
           <GregTodayScreen
             engagements={data.engagements}
@@ -210,7 +211,7 @@ export default function App() {
           <div className="border-b border-zinc-900 pb-6">
             <div className="text-xs tracking-[0.14em] text-zinc-600">{selectedEngagement.engagement_number}</div>
             <h1 className="mt-2 text-3xl font-semibold tracking-tight text-zinc-100">{selectedEngagement.name}</h1>
-            <p className="mt-2 text-sm text-zinc-600">What is happening, and what does this Engagement require from start to finish?</p>
+            <p className="mt-2 text-sm text-zinc-600">What is happening, what matters next, and what does this Engagement require from start to finish?</p>
           </div>
 
           <EngagementBusinessStory
@@ -221,6 +222,7 @@ export default function App() {
             capacityPressures={selectedCapacityPressures}
           />
 
+          {isBackendConfigured && <MovementFocusPanel engagementId={selectedEngagement.id} />}
           {isBackendConfigured && <JobMapPanel engagementId={selectedEngagement.id} />}
 
           <details className="mt-8 rounded-2xl border border-zinc-900 bg-zinc-950/40">
