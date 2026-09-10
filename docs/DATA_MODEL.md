@@ -1,4 +1,4 @@
-# Data Model — v0.4 Operating Backend
+# Data Model — v0.5 Operating Backend + Playbook
 
 ## Center
 
@@ -8,12 +8,15 @@ The model is organized around seven durable information domains while preserving
 
 **People → Engagement → Money → Capability → Time/Place → Evidence/Outputs → Learning**
 
-These are not separate applications. They are related truths about the same business organism.
+Reusable operating knowledge is a cross-cutting layer beneath these domains; it does not create a second job object.
 
 Core distinctions are constitutional:
 - customer request != technical requirement;
 - commercial document != fulfillment plan;
 - configured != required != held != reserved != used;
+- reusable process knowledge != actual job state;
+- role assignment != step responsibility;
+- work item != every possible process step;
 - revenue != cash != contribution;
 - generated document != canonical business truth;
 - historical observation != current authority;
@@ -53,7 +56,7 @@ Reusable Party-to-Party relationships such as `CONTACT_FOR`, `EMPLOYEE_OF`, `DEP
 ### `relationship_summary_v`
 Party-level recurring relationship memory with Engagement frequency and observed revenue/cash/contribution only where supported.
 
-## 3. Engagement
+## 3. Engagement + movement
 
 ### `engagements`
 Canonical business object.
@@ -72,7 +75,7 @@ Date-only truth remains supported separately from timestamps.
 ### `engagement_facts`
 Flexible structured truth with category, kind, certainty, provenance and time context.
 
-Categories now include:
+Categories include:
 `EVENT`, `VISUAL`, `AUDIO`, `LIGHTING`, `STAGING`, `POWER`, `NETWORK`, `VENUE`, `LOGISTICS`, `LABOR`, `CONTENT`, `CUSTOMER`, `COMMERCIAL`, `EXPERIENCE`, `SAFETY`, `ACCESS`, `OTHER`.
 
 Kinds include:
@@ -84,6 +87,8 @@ Links related Engagements such as parent programs and component events without m
 ### `work_items`
 Durable next movement / continuity records. Can hold internal owner, external responsible Party, due/trigger, reason, instructions, success condition, next-step hint, certainty, provenance, visibility (`INTERNAL`, `SHARED`, `CLIENT`) and origin (`MANUAL`, `SYSTEM`, `AUTOMATION`, `IMPORT`, `CLIENT`, `OTHER`).
 
+A work item can now reference `playbook_step_id` and/or `engagement_step_state_id`. This connection gives an action process context without turning every Playbook step into a task.
+
 ### `daily_work_queue_v`
 Open/waiting/blocked work read contract enriched with business-facing owner and responsible Party.
 
@@ -93,19 +98,10 @@ Open/waiting/blocked work read contract enriched with business-facing owner and 
 Evidence-aware aggregate financial facts such as quote total, contract total, amount collected and direct-cost aggregates.
 
 ### `commercial_documents`
-Quote/invoice/contract/order/credit/receipt truth linked to an Engagement. Supports rental, sale, service, installation and mixed transactions.
-
-Now includes revision/lifecycle support:
-- `version_no`;
-- `supersedes_document_id`;
-- `issued_at`;
-- `sent_at`;
-- `accepted_at`;
-- `valid_through`;
-- `client_visible`.
+Quote/invoice/contract/order/credit/receipt truth linked to an Engagement. Supports rental, sale, service, installation and mixed transactions, plus revision lineage/lifecycle timestamps.
 
 ### `commercial_document_lines`
-Atomic historical/commercial line reality, including resource reference where earned. Historical price remains separate from current Resource reference price.
+Atomic historical/commercial line reality, including Resource reference where earned. Historical price remains separate from current Resource reference price.
 
 ### `commercial_payment_schedule`
 Deposit/installment/final/balance expectations.
@@ -114,21 +110,10 @@ Deposit/installment/final/balance expectations.
 Observed payment evidence and application to commercial documents.
 
 ### `engagement_cost_items`
-Directly caused Engagement costs. Supports estimate/committed/actual/cancelled state across labor, subcontract, equipment rental, transport, travel, lodging, per diem, fuel, materials, purchases, fees and other costs.
-
-This is not a replacement for the general ledger. It exists so the OS can reason about the economics of an Engagement without pretending partial cost evidence is complete accounting.
+Directly caused Engagement costs with estimate/committed/actual/cancelled state across labor, subcontract, equipment rental, transport, travel, lodging, per diem, fuel, materials, purchases, fees and other costs.
 
 ### `engagement_economics_v`
-Evidence-aware read model for:
-- proposal value;
-- committed revenue;
-- collected cash;
-- remaining balance;
-- estimated/committed/actual direct cost;
-- projected/observed contribution when supportable;
-- explicit value/cost evidence basis.
-
-Program allocations explicitly known to be unknown remain unknown even when a child source document literally contains `$0`.
+Evidence-aware read model for proposal value, committed revenue, collected cash, remaining balance, direct costs and contribution only where supportable. Explicitly unresolved program allocations remain unknown even when a component document contains `$0`.
 
 ### `pricing_observations_v`
 Historical quoted line evidence vs current Resource reference pricing.
@@ -136,9 +121,7 @@ Historical quoted line evidence vs current Resource reference pricing.
 ## 5. Capability + fulfillment
 
 ### `resources`
-Capability/resource library covering physical equipment and services. Carries source identity, category/type, sourcing model, quantity/condition state, reference price and price authority/evidence.
-
-Existence never implies availability.
+Capability/resource library covering physical equipment and services. Carries source identity, category/type, sourcing model, quantity/condition state, reference price and price authority/evidence. Existence never implies availability.
 
 ### `engagement_resources`
 Relationship between an Engagement and a Resource. `CONFIGURED` remains neutral evidence and is not a reservation.
@@ -150,42 +133,36 @@ What is being prepared/delivered for the Engagement. Types include pull sheet, j
 Atomic fulfillment items with source grouping, quantity, descriptions/notes, resource links, timing text and provenance.
 
 ### `resource_commitments`
-Actual capacity commitment layer, distinct from configuration and fulfillment. Types: `HOLD`, `RESERVATION`, `ALLOCATION`. Includes state, quantity, window, sourcing and certainty.
+Actual capacity commitment layer, distinct from configuration and fulfillment. Types: `HOLD`, `RESERVATION`, `ALLOCATION`.
 
 ### `resource_commitment_current_v`
 Current tentative/confirmed commitments enriched with Engagement and Resource context. It does not infer physical availability.
 
 ### `resource_usage`
-What actually went to/was consumed by the Engagement. May reference a prior commitment and/or fulfillment line but remains separate truth.
+What actually went to/was consumed by the Engagement.
 
 Capacity truth sequence:
 
 **configuration → requirement window → pressure → hold → reservation/allocation → actual usage**
 
-Skipping a step must never be inferred merely for software convenience.
-
 ## 6. Time + place
 
 ### `engagement_schedule_items`
-Execution schedule for event, load-in/out, delivery, pickup, return, setup, show, strike, travel and prep. Supports exact timestamps, date-only truth and uncertainty.
-
-May now reference a canonical `location_id` while retaining source literal location text.
+Execution schedule for event, load-in/out, delivery, pickup, return, setup, show, strike, travel and prep. Supports exact timestamps, date-only truth and uncertainty. A schedule item may reference a `location_id` and now may also reference a `playbook_step_id`.
 
 ### `locations`
-Reusable venue/site memory. Supports venue, warehouse, office, install site, customer site and other locations with address plus accumulated access/load-in/parking/power/connectivity knowledge.
+Reusable venue/site memory for venue, warehouse, office, install site, customer site and other locations, with accumulated access/load-in/parking/power/connectivity knowledge.
 
 ### `engagement_locations`
 Links an Engagement to one or more locations with role, primary flag, certainty and provenance.
 
 ### `location_memory_v`
-Reusable location history: Engagement count, recurrence dates/current work and accumulated operating knowledge.
-
-Existing Engagement venue fields have been promoted into canonical Locations only by exact text matching; fuzzy entity resolution remains unearned.
+Reusable location history and accumulated operating knowledge.
 
 ## 7. Evidence + representations
 
 ### `source_artifacts`
-Original evidence/provenance. Types include photo, voice, text, import, email reference, document and other.
+Original evidence/provenance: photo, voice, text, import, email reference, document and other.
 
 ### `source_artifact_segments`
 Engagement/project/document/page-level provenance inside larger source artifacts.
@@ -197,48 +174,104 @@ Append-oriented activity/evidence ledger.
 Versioned generated or approved representations of canonical truth:
 `QUOTE`, `INVOICE`, `CONTRACT`, `JOB_BRIEF`, `ASSIGNMENT_SHEET`, `PULL_SHEET`, `PACKING_LIST`, `CLIENT_SUMMARY`, `INSTALL_SCOPE`, `SERVICE_REPORT`, `CLOSEOUT_REPORT`, `OTHER`.
 
-States:
-`DRAFT`, `GENERATED`, `REVIEWED`, `APPROVED`, `SENT`, `SUPERSEDED`, `VOID`.
+Outputs may reference the Playbook step that produced or governs them, but they remain representations rather than canonical truth.
 
-Outputs may have content/payload/storage metadata and client visibility, but they do not replace the structured truth from which they were generated.
+## 8. Reusable operating knowledge
 
-## 8. Contributors + execution
+Canonical design: `docs/JOB_LIFECYCLE_PLAYBOOK.md`.
+
+### `operating_playbooks`
+Versioned process-knowledge families. Current active seed:
+`STAGE_PRESENCE_CORE_LIFECYCLE` v1.
+
+### `operating_playbook_steps`
+Reusable start-to-finish lifecycle knowledge. Each step can carry:
+- phase/order/code/title;
+- CORE / CONDITIONAL / OPTIONAL requiredness;
+- SYSTEM / ASSISTED / HUMAN automation mode;
+- default role/capability;
+- applicable Engagement types;
+- applicability condition;
+- client-touchpoint flag;
+- procedure depth (`MAP_ONLY`, `CHECKLIST`, `SOP`, `VERIFIED_SOP`);
+- instruction/completion/evidence/risk guidance;
+- dependencies, inputs, outputs and tags.
+
+The current v1 seed has 105 steps across 13 phases and covers universal flow plus EVENT, LONG_TERM_RENTAL, INSTALLATION, EQUIPMENT_SALE and SERVICE branches.
+
+A Playbook step is reusable knowledge only. It is not evidence that a specific Engagement requires or completed that step.
+
+### `engagement_step_states`
+Optional per-Engagement process truth. Rows are created only when explicit tracking is useful/earned.
+
+Statuses:
+`NOT_STARTED`, `READY`, `ACTIVE`, `WAITING`, `BLOCKED`, `DONE`, `SKIPPED`, `NOT_APPLICABLE`.
+
+Requirement states:
+`REQUIRED`, `CONDITIONAL`, `OPTIONAL`, `NOT_APPLICABLE`, `UNKNOWN`.
+
+Also holds owner/responsible Party, timing, completion/evidence notes, certainty and provenance.
+
+### `playbook_catalog_v`
+Internal browsable read model of active reusable process knowledge.
+
+### `engagement_job_map_v`
+Crosses one active Engagement with applicable Playbook steps and overlays actual persisted step state/responsibility where it exists. Missing persisted state becomes `UNTRACKED`, meaning **knowledge is available but no job-state claim has been made**.
+
+## 9. Contributors + assignment depth
 
 ### `engagement_assignments`
-People assigned to an Engagement, with role, requested/confirmed/declined/completed state, scheduling and provenance.
+Role-level contributor assignment. In addition to role/state/schedule/provenance it can now hold:
+- `scope_summary`;
+- `briefing_notes`;
+- `acceptance_criteria`;
+- `acknowledgement_state` / `acknowledged_at`;
+- `location_id`;
+- `schedule_item_id`.
+
+The assignment answers: **who is this person on this job?**
+
+### `engagement_step_assignments`
+Granular responsibility mapping between an Engagement assignment and a Playbook step.
+
+Responsibility types:
+`LEAD`, `SUPPORT`, `APPROVER`, `CONSULTED`, `INFORMED`.
+
+This answers: **what specifically do they own/support/approve?**
+
+### `assignment_brief_v`
+Contributor briefing read model combining job role, schedule/location, scope/acceptance and ordered lifecycle responsibilities.
 
 ### `contributor_work_v`
 Contributor-oriented projection of assignments and open work using business-facing username/display identity.
 
-## 9. Learning
+## 10. Learning
 
 ### `engagement_closeouts`
-One learning closeout per Engagement. Captures broad outcome and optional setup/strike time, solution/venue learning, recurrence, next-time improvement and generic `founder_dependent_minutes`.
-
-The legacy `greg_minutes` column is retained only for compatibility; new product surfaces should use `founder_dependent_minutes`.
-
-Closeout can also preserve:
-- client feedback;
-- audience/end-user experience;
-- reliability notes.
+One learning closeout per Engagement, including outcome, optional setup/strike time, solution/venue learning, recurrence, next-time improvement, generic founder-dependent minutes, client feedback, audience/end-user experience and reliability notes.
 
 ### `learning_review_signals`
 Derived review signals for recurring patterns and learning.
 
-## 10. Frontend contracts
+Process learning can become a candidate Playbook improvement, but one job does not automatically rewrite company procedure. Promotion toward detailed SOP/VERIFIED_SOP requires appropriate qualified evidence/review.
+
+## 11. Frontend contracts
 
 The frontend should consume stable business read models instead of reconstructing the relational graph independently on every screen.
 
 ### `engagement_frontend_v`
-Lightweight one-row-per-active-Engagement surface for Today/Work/list/dashboard screens. Includes customer, current commercial position, economics, next work, counts, next schedule, capacity signal and evidence count.
+Lightweight one-row-per-active-Engagement surface for Today/Work/list screens.
 
 ### `engagement_workspace_v`
-Complete internal single-Engagement workspace. One filtered read can expose core state plus parties, facts, configured resources, commercial docs/lines/payments, fulfillment, schedule, assignments, work, costs, commitments, usage, outputs, locations, relationships, evidence and closeout.
-
-Unearned data is represented as null/empty collections rather than fabricated completeness.
+Complete internal single-Engagement workspace.
 
 ### `engagement_client_surface_v`
-Curated future client-facing projection. Excludes internal cost/evidence/internal-work detail and only includes records marked client/shared. It is still internal-member-only today; external portal authorization has not been activated.
+Curated future client-facing projection, still internal-member-only today.
+
+### Process/assignment contracts
+- `playbook_catalog_v`
+- `engagement_job_map_v`
+- `assignment_brief_v`
 
 ### Other read contracts
 - `engagement_economics_v`
@@ -256,6 +289,6 @@ Curated future client-facing projection. Excludes internal cost/evidence/interna
 
 All current app tables are behind the authenticated active-member RLS boundary. Frontend views are `security_invoker=true`. Anonymous Data API privileges are explicitly revoked.
 
-Indexes cover primary operating access paths and foreign-key relationships surfaced by the Supabase advisor. The fact that newly created indexes are initially reported as unused is expected until real traffic exercises them.
+The model deliberately has clean places for future automation, client participation, documents, costs, reservations, usage, process knowledge and assignment depth without claiming those realities exist before evidence supports them.
 
-The model deliberately has clean places for future automation, client participation, documents, costs, reservations and usage without claiming those realities exist before evidence supports them.
+The scaling objective remains: **know the whole operating path, track only the path that becomes real, show each contributor only what helps them contribute, and let each result improve the next Engagement.**
