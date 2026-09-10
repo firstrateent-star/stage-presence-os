@@ -4,19 +4,22 @@
 
 Stage Presence OS should make money understandable without pretending to be the general ledger.
 
-The economic model therefore separates:
+The operating economy is four connected but distinct layers:
 
-**price → revenue → invoice → collection → balance owed → direct cost → contribution → company funds**
+**Engagement economics + company operating costs + asset economics + funds/accounts**
 
-These are related realities, not interchangeable numbers.
+Inside one Engagement, value moves through:
+
+**price → revenue source → invoice → collection → balance owed → direct cost → contribution**
 
 Constitution:
-
 - quoted/proposed value != committed revenue;
 - committed revenue != invoiced amount;
 - invoiced amount != collected cash;
+- aggregate collected snapshot != payment transaction ledger;
 - collected cash != cash currently in the bank;
-- direct job cost != company overhead;
+- direct job cost != company operating cost;
+- operational Resource inventory != asset economic value;
 - contribution != accounting profit;
 - historical rate != current reusable rate;
 - reusable rate profile != the cost a historical job actually incurred;
@@ -26,14 +29,11 @@ Constitution:
 
 ## 1. Revenue source transparency
 
-`engagement_revenue_sources_v` exposes the current primary commercial document at line level.
-
-It answers:
+`engagement_revenue_sources_v` exposes the current primary commercial document at line level and answers:
 
 > Where is the money on this Engagement coming from?
 
-Each line retains its commercial description, group, quantity, resource link where earned, unit/effective/gross value, line discount and a presentation bucket:
-
+Each line retains description, group, quantity, Resource link where earned, unit/effective/gross value, line discount and a presentation bucket:
 - EQUIPMENT
 - SERVICE
 - LOGISTICS
@@ -41,139 +41,148 @@ Each line retains its commercial description, group, quantity, resource link whe
 - DISCOUNT
 - OTHER
 
-Document-level discount, tax and processing fee remain separate from line values. The system does not manufacture synthetic line items merely to make totals reconcile.
+Document-level discount, tax and processing fee remain separate from line values. The system does not invent synthetic lines merely to force reconciliation.
 
-The current source-document selection prefers current signed/paid invoice truth, then committed contract/order truth, then signed quote truth, then open quote truth. Superseded/void documents are excluded.
+## 2. Cash baseline + later payment transactions
 
-## 2. Money position
+Historical imports frequently know an aggregate amount collected at a snapshot date but do not contain a complete transaction ledger.
 
-`engagement_money_position_v` separates:
+`engagement_cash_position_v` therefore treats imported/document collection amounts as **dated baselines**. `commercial_payments` then represents transaction evidence occurring after that baseline.
 
-- proposal value observed;
-- committed revenue observed;
-- invoiced value observed;
-- collected value observed;
-- outstanding balance observed;
-- represented payment schedule amount;
-- represented overdue scheduled amount;
-- primary commercial document;
-- cash evidence type and as-of date.
+Rule:
 
-Cash evidence states:
+> **baseline collection snapshot + only later payment transactions = current observed collection position**
 
+This avoids two opposite errors:
+- letting the old aggregate always win, which makes later receipts invisible;
+- adding every reconstructed payment to the aggregate, which double-counts money already included in history.
+
+Cash evidence states include:
+- `BASELINE_PLUS_PAYMENTS`
 - `PAYMENT_RECORDS`
 - `FINANCIAL_FACT_SNAPSHOT`
 - `DOCUMENT_SNAPSHOT`
 - `UNKNOWN`
 
-A Goodshuffle invoice snapshot can therefore say that $X was observed collected / owed as of a date without claiming that the figure is the current bank or accounting balance.
+`cash_overlap_state` explicitly identifies older/undated payment rows that should not be added on top of the baseline until reconciled.
 
-## 3. Direct job costs
+The current frontend accepts a new payment only after a dated baseline when one exists. Historical payment reconstruction should use a future reconciliation workflow rather than pretending old receipts are new.
 
-`engagement_cost_items` remains the canonical directly caused Engagement cost record.
+## 3. Money position
+
+`engagement_money_position_v` separates:
+- proposal value observed;
+- committed revenue observed;
+- invoiced value observed;
+- collected value observed;
+- outstanding balance observed;
+- payment schedule/overdue amount where represented;
+- primary commercial document;
+- collection baseline;
+- later incremental payments;
+- cash evidence type, overlap state and as-of date.
+
+A Goodshuffle snapshot can therefore say that $X was observed collected/owed as of a date while later Stage Presence OS receipts move the current position without rewriting the historical snapshot.
+
+## 4. Direct job costs
+
+`engagement_cost_items` is the canonical directly caused Engagement cost record.
 
 States:
-
 - ESTIMATE
 - COMMITTED
 - ACTUAL
 - CANCELLED
 
-Categories now include:
+Categories include labor, subcontract, external equipment rental, owned-equipment allocation, transport, travel, lodging, per diem, fuel, materials, purchase, maintenance, processing fee, allocated overhead and other.
 
-- LABOR
-- SUBCONTRACT
-- EQUIPMENT_RENTAL
-- EQUIPMENT_OWNERSHIP
-- TRANSPORT
-- TRAVEL
-- LODGING
-- PER_DIEM
-- FUEL
-- MATERIALS
-- PURCHASE
+A cost can optionally point to the Resource, contributor, vendor/Party, commercial line, fulfillment line, assignment and reusable economic rate profile that caused it.
+
+When a reusable rate is used, the job record snapshots `applied_rate`, `rate_basis` and final `amount`. Later rate changes therefore do not rewrite old job economics.
+
+## 5. Company operating costs
+
+`company_cost_items` represents costs that belong to Stage Presence as a company rather than being directly caused by one Engagement.
+
+Categories include:
+- ADMIN_LABOR
+- SOFTWARE
+- INSURANCE
+- FACILITY
+- VEHICLE
+- MARKETING
+- PROFESSIONAL
+- TAX_LICENSE
+- FINANCING
+- EQUIPMENT
 - MAINTENANCE
-- PROCESSING_FEE
-- OVERHEAD_ALLOCATED
+- UTILITIES
+- OFFICE
+- TRAINING
 - OTHER
 
-A cost can optionally point to the Resource, contributor, vendor/counterparty, commercial line, fulfillment line, assignment and reusable economic rate profile that caused it.
+States remain ESTIMATE / COMMITTED / ACTUAL / CANCELLED.
 
-When a reusable rate is used, the job-level record snapshots `applied_rate`, `rate_basis` and final `amount`. Later changes to the reusable profile therefore do not rewrite old job economics.
+Optional links can connect a company cost to a Party/vendor, financial account, Resource or reusable rate profile without forcing the expense onto a job.
 
-`engagement_cost_breakdown_v` presents these costs as economic buckets such as labor, assets/equipment, subcontract, logistics/travel, materials, fees and explicitly allocated overhead.
+`company_cost_breakdown_v` provides readable operating buckets while preserving evidence state.
 
-## 4. Reusable effective-dated cost assumptions
+A missing company-cost record is not interpreted as zero overhead. `economy_overview_v` reports explicit coverage state instead.
 
-`economic_rate_profiles` stores adjustable company assumptions separately from job history.
+## 6. Reusable effective-dated cost assumptions
 
-A profile has:
+`economic_rate_profiles` stores adjustable future-facing assumptions separately from job history.
 
-- stable profile key + version;
-- DRAFT / APPROVED / RETIRED state;
-- cost domain;
-- rate kind;
-- scope;
-- unit basis;
-- amount/currency;
-- effective-from / effective-through dates;
-- certainty, rationale and provenance;
-- approval evidence.
+A profile has stable family key + version, DRAFT/APPROVED/RETIRED state, domain/kind/scope, unit basis, amount/currency, effective period, certainty/rationale/provenance and approval evidence.
 
-Cost domains include asset, labor, subcontract, logistics, travel, materials, fees, overhead and other.
+Domains include asset, labor, subcontract, logistics, travel, materials, fees, overhead and other.
 
 Rate kinds include internal cost, external cost, ownership allocation, maintenance reserve, replacement reference, pay, burdened cost and other.
 
-Profiles can eventually scope to a Resource, contributor, Party/vendor, role, category or general company assumption.
+Profiles may scope to Resource, contributor, Party/vendor, role, category or general company assumption.
 
 `economic_rate_current_v` exposes only APPROVED profiles effective today.
 
-No rate profiles are seeded merely from plausible assumptions. Stage Presence can add them as reality and governance earn them.
+The frontend creates **DRAFT profiles only**. It does not approve them and does not automatically apply them to Engagements.
 
-## 5. Asset economics
+## 7. Asset economics
 
-Owned equipment creates real economic consumption even when no vendor invoice occurs.
+Operational Resource truth and economic asset truth are separate.
 
-The model therefore supports Resource-scoped rate profiles such as:
+`resource_economic_snapshots` is an append-oriented evidence layer that can represent:
+- ownership state: OWNED / FINANCED / LEASED / RENTED / BORROWED / UNKNOWN;
+- represented quantity;
+- acquired-on date;
+- acquisition cost;
+- current value estimate;
+- replacement cost;
+- financing balance;
+- annual maintenance estimate;
+- certainty and provenance.
 
-- ownership allocation per event/day;
-- maintenance reserve;
-- replacement reference;
-- external rental/substitution cost.
+`resource_economy_current_v` exposes the latest represented snapshot per Resource.
 
-These are internal economic assumptions, not automatically tax depreciation, GAAP accounting or market value.
+A later valuation creates another snapshot rather than rewriting history. These values are operating estimates unless their evidence says otherwise; they are not automatically tax depreciation, GAAP book value or appraised market value.
 
-An Engagement may then record `EQUIPMENT_OWNERSHIP` as a direct-cost estimate/actual using the applicable rate snapshot.
+Owned-equipment consumption on a job can still be represented separately as an `EQUIPMENT_OWNERSHIP` direct cost using an applicable rate snapshot.
 
-## 6. Labor economics
+## 8. Labor economics
 
-Labor rates can change over time without rewriting prior work.
+Labor costs can change over time without rewriting prior jobs.
 
-The rate-profile model can scope labor cost by:
+Reusable rate profiles can eventually scope labor cost by contributor, external Party/vendor, role, category or general assumption. Client-facing pricing remains in `pricing_rules`; internal labor cost belongs in `economic_rate_profiles`. Those must not collapse into one number.
 
-- individual contributor when real contributor records exist;
-- external Party/vendor;
-- role;
-- category/general assumption.
-
-Billable client pricing remains in `pricing_rules`; internal labor cost belongs in `economic_rate_profiles`. The two must not be collapsed.
-
-## 7. Contribution, not profit
+## 9. Contribution, not profit
 
 `engagement_economy_v` combines commercial position, collections, revenue-source lines and direct costs.
 
-It may show:
-
-- projected contribution when a proposal/commitment and supported estimated direct cost exist;
-- actual contribution when supported committed revenue and actual direct cost exist;
-- contribution margin where those values support it.
+It may show projected contribution when supported estimate cost exists and actual contribution when supported committed revenue + actual direct cost exist.
 
 It does **not** call this profit.
 
-General operating overhead is not included unless explicitly allocated to an Engagement. Tax/accounting profit should remain an accounting-system concern.
+Company operating costs, financing, taxes and incomplete asset/funds evidence are not silently included or excluded to create a deceptively precise company-profit number.
 
 Economy states include:
-
 - PROGRAM_ALLOCATION_UNKNOWN
 - ACTUAL_CONTRIBUTION_SUPPORTED
 - PROJECTED_CONTRIBUTION_SUPPORTED
@@ -181,110 +190,128 @@ Economy states include:
 - COMMERCIAL_VALUE_ONLY
 - PARTIAL_OR_UNKNOWN
 
-## 8. Company funds
+## 10. Company funds
 
-Collections across jobs are not the same thing as current company funds.
+Collections across jobs are not current company funds.
 
-`financial_accounts` + append-oriented `financial_account_snapshots` provide a future integration/manual-evidence seam for bank, cash, credit and loan accounts.
+`financial_accounts` + append-oriented `financial_account_snapshots` represent bank, cash, credit, loan and other account evidence.
 
-Normalized snapshot convention:
+Normalized balance convention:
+- positive = value available/owned by Stage Presence;
+- negative = obligation owed by Stage Presence.
 
-- positive balance = value available/owned by Stage Presence;
-- negative balance = obligation owed by Stage Presence.
+The frontend allows users to enter a liability as a positive amount owed and stores the normalized negative balance internally.
 
 `financial_account_current_v` exposes only the latest represented snapshot for each active account.
 
-No account records or balances are invented in the initial migration.
+Until account evidence exists, the frontend says **funds not represented** rather than equating collected revenue with cash-on-hand.
 
-Until real account evidence exists, the frontend must say **funds not represented** rather than equating collected revenue with cash-on-hand.
+## 11. Company operating economy
 
-## 9. Company operating economy
-
-`economy_overview_v` provides the company-level presentation contract for:
-
-- open proposal value observed;
-- committed revenue observed;
-- invoiced value observed;
-- collected value observed;
-- outstanding value observed;
-- direct cost estimate/committed/actual where known;
+`economy_overview_v` is the company-level presentation contract for:
+- open proposal value;
+- committed revenue;
+- invoiced value;
+- collected value;
+- outstanding value;
+- direct job cost estimates/commitments/actuals;
 - contribution where supportable;
-- evidence coverage counts;
+- cost evidence coverage;
 - unresolved program allocations;
-- optional liquid funds / liabilities / net account position when account snapshots exist.
+- liquid funds / liabilities / net account position when represented;
+- company operating-cost evidence/YTD totals;
+- current asset value / replacement / financing / maintenance evidence;
+- explicit overall operating-economy evidence state.
 
-The view intentionally carries evidence coverage next to the totals so a large number cannot hide weak completeness.
+The view intentionally carries evidence coverage next to totals so a large dollar amount cannot hide weak completeness.
 
-## 10. Frontend presentation
+## 12. Frontend presentation
 
-The presentation architecture remains:
+Presentation architecture remains:
 
 **backend truth → business read model → presentation model → visual surface**
 
-Top-level `Economy` should answer only:
-
+Top-level Economy answers:
 - What is in the pipeline?
 - What is committed?
 - What has been observed collected?
 - What is represented as outstanding?
-- Do we know actual company funds?
-- How much of the job portfolio has cost evidence?
-- Is contribution supportable yet?
+- Do we know actual funds?
+- How much job-cost evidence exists?
+- What company costs are represented?
+- What asset economics are represented?
+- Is contribution supportable?
+- What is the strongest missing evidence layer?
 
-Engagement `Money` should answer:
+Heavy structure is progressively disclosed under:
+- Accounts + funds
+- Company operating costs
+- Asset economics
+- Cost rates + assumptions
 
-- What is this job worth commercially?
-- What document supports that?
-- Where does the revenue come from line by line?
-- What was collected / is owed, and as of when?
+Engagement Money answers:
+- What is the job worth commercially?
+- What document supports it?
+- Where does revenue come from line by line?
+- What collection baseline existed, and what later payments moved it?
+- What is currently represented as owed?
 - What direct costs are estimated, committed and actual?
 - What contribution is supportable?
 
-Deep revenue lines and cost records live behind progressive disclosure.
+## 13. Reality capture rules
 
-## 11. Reality capture
+Manual capture is allowed because it creates high-value missing evidence immediately, but it must preserve semantic boundaries.
 
-The initial frontend may manually capture direct job costs because this creates high-value missing evidence immediately.
+Manual job cost capture must not change the client quote or create an approved reusable rate.
 
-Manual cost capture must not:
+Company-cost capture must not silently allocate itself across jobs.
 
-- change the client quote;
-- create a reusable rate automatically;
-- infer a vendor/contributor/resource that was not selected;
-- delete history when corrected.
+Asset snapshots append rather than edit prior economic evidence.
 
-Corrections cancel the prior cost record; future refinements can introduce explicit replacement lineage if repeated use demonstrates the need.
+Account snapshots append rather than mutate earlier balances.
 
-## 12. Current evidence boundary — 2026-09-10
+Rate creation from the Economy UI creates DRAFT assumptions only.
 
-At migration time:
+Payment capture must apply to a canonical commercial document and, when an aggregate baseline exists, must be strictly later than the baseline date. UNC component Engagements with unresolved program allocation do not expose misleading payment capture.
 
-- 30 active Engagement economies
-- 208 line-level revenue-source rows
+Corrections to current cost capture cancel the prior record instead of deleting it.
+
+## 14. Current evidence boundary — 2026-09-10
+
+Current represented reality:
+- 30 active Engagements
+- 208 commercial document lines
+- 208 fulfillment lines
 - about $89.8k observed open proposal value
 - about $127.8k supported committed revenue
 - about $56.3k observed collected
 - about $71.5k represented outstanding
-- 0 direct cost items
+- 0 persisted payment transaction rows
+- 0 direct job cost items
+- 0 company operating-cost items
 - 0 economic rate profiles
-- 0 financial accounts / account snapshots
+- 0 financial accounts / snapshots
+- 0 asset economic snapshots
 - 0 Engagements with supported actual contribution
-- 6 UNC component Engagements still `PROGRAM_ALLOCATION_UNKNOWN`
+- 6 UNC component Engagements remain `PROGRAM_ALLOCATION_UNKNOWN`
+
+A transactional verification inserted a temporary $1,000 Sep 10 payment against the UNC season Sep 9 baseline. The views correctly moved $51,000 collected / $51,000 outstanding to $52,000 / $50,000 with `BASELINE_PLUS_PAYMENTS`, then the transaction was rolled back.
 
 These totals are operating evidence, not audited financial statements.
 
-## 13. Expansion path
+## 15. Expansion path
 
-Reality should now determine the next economic petals:
+Reality should determine subsequent economic petals:
+1. capture real direct job costs while work happens;
+2. enter current company operating costs where useful;
+3. enter actual account snapshots if cash/liability visibility is desired;
+4. add asset snapshots first for economically important/scarce assets, not every cable;
+5. observe repeated labor/asset/logistics cost patterns;
+6. promote stable patterns into governed effective-dated rate profiles;
+7. connect accounting/payment/bank evidence where integration removes repeated entry;
+8. use outcomes to improve pricing, sourcing, ownership and staffing;
+9. preserve the boundary between Stage Presence operating economics and formal accounting/tax truth.
 
-1. capture real job costs while work happens;
-2. observe repeated labor/asset/logistics cost patterns;
-3. promote stable patterns into governed effective-dated rate profiles;
-4. connect vendor/accounting/payment evidence where it removes repeated entry;
-5. connect real account balances when Stage Presence wants cash/liability visibility;
-6. use actual job outcomes to improve pricing, resource ownership decisions and staffing;
-7. preserve a clean boundary between Stage Presence operating economics and formal accounting/tax truth.
+Desired loop:
 
-The desired loop is:
-
-**sell value → collect cash → consume capability → record cost → understand contribution → learn → price/source/operate better next time.**
+**sell value → preserve baseline → collect later cash → consume capability → record direct cost → record company/asset/funds reality → understand supported contribution → learn → price/source/operate better next time.**
