@@ -5,6 +5,16 @@ import { listEngagementRelationships, type EngagementRelationship } from './enga
 import { listEngagementFinancialFacts, type EngagementFinancialFact } from './financialFacts'
 import { listLearningReviewSignals, type LearningReviewSignal } from './learningCloseout'
 import { listEffectiveConfiguredResourceLinks } from './effectiveConfiguredLinks'
+import {
+  listDailyOperatingWork,
+  listEngagementFrontends,
+  listPlaybookCatalog,
+  listRelationshipSummaries,
+  type DailyWorkRow,
+  type EngagementFrontendRow,
+  type PlaybookStepRow,
+  type RelationshipSummaryRow,
+} from './operatingRepository'
 import { listAttentionFacts, listCustomerLinks, listEngagements, listRecentEvents, listResources, type ConfiguredResourceLink, type CustomerLink } from './repository'
 import type { Engagement, EngagementFact, LedgerEvent, Resource } from '../types/domain'
 
@@ -18,6 +28,10 @@ export function useAppData(enabled = true) {
   const [engagementRelationships, setEngagementRelationships] = useState<EngagementRelationship[]>([])
   const [financialFacts, setFinancialFacts] = useState<EngagementFinancialFact[]>([])
   const [learningReviewSignals, setLearningReviewSignals] = useState<LearningReviewSignal[]>([])
+  const [operatingEngagements, setOperatingEngagements] = useState<EngagementFrontendRow[]>([])
+  const [dailyWork, setDailyWork] = useState<DailyWorkRow[]>([])
+  const [relationshipSummaries, setRelationshipSummaries] = useState<RelationshipSummaryRow[]>([])
+  const [playbookSteps, setPlaybookSteps] = useState<PlaybookStepRow[]>([])
   const [loading, setLoading] = useState(isBackendConfigured && enabled)
   const [error, setError] = useState<string | null>(null)
 
@@ -26,7 +40,21 @@ export function useAppData(enabled = true) {
     setLoading(true)
     setError(null)
     try {
-      const [nextEngagements, nextResources, nextEvents, nextCustomers, nextConfigured, nextAttentionFacts, nextRelationships, nextFinancialFacts, nextLearningReviewSignals] = await Promise.all([
+      const [
+        nextEngagements,
+        nextResources,
+        nextEvents,
+        nextCustomers,
+        nextConfigured,
+        nextAttentionFacts,
+        nextRelationships,
+        nextFinancialFacts,
+        nextLearningReviewSignals,
+        nextOperatingEngagements,
+        nextDailyWork,
+        nextRelationshipSummaries,
+        nextPlaybookSteps,
+      ] = await Promise.all([
         listEngagements(),
         listResources(),
         listRecentEvents(),
@@ -36,6 +64,10 @@ export function useAppData(enabled = true) {
         listEngagementRelationships(),
         listEngagementFinancialFacts(),
         listLearningReviewSignals(),
+        listEngagementFrontends(),
+        listDailyOperatingWork(),
+        listRelationshipSummaries(),
+        listPlaybookCatalog(),
       ])
       setEngagements(nextEngagements)
       setResources(nextResources)
@@ -46,6 +78,10 @@ export function useAppData(enabled = true) {
       setEngagementRelationships(nextRelationships)
       setFinancialFacts(nextFinancialFacts)
       setLearningReviewSignals(nextLearningReviewSignals)
+      setOperatingEngagements(nextOperatingEngagements)
+      setDailyWork(nextDailyWork)
+      setRelationshipSummaries(nextRelationshipSummaries)
+      setPlaybookSteps(nextPlaybookSteps)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unable to load Stage Presence data.')
     } finally {
@@ -72,6 +108,10 @@ export function useAppData(enabled = true) {
     engagementRelationships,
     financialFacts,
     learningReviewSignals,
+    operatingEngagements,
+    dailyWork,
+    relationshipSummaries,
+    playbookSteps,
     loading,
     error,
     refresh,
