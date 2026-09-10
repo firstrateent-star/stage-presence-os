@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react'
 
-export type ScreenName = 'today' | 'engagements' | 'resources' | 'new' | 'detail'
+export type ScreenName = 'today' | 'engagements' | 'resources' | 'playbook' | 'new' | 'detail'
 
 export function AppShell({
   current,
@@ -19,6 +19,7 @@ export function AppShell({
     ['today', 'Today'],
     ['engagements', 'Work'],
     ['resources', 'Resources'],
+    ['playbook', 'Playbook'],
   ] as const
 
   return (
@@ -50,13 +51,13 @@ export function AppShell({
       <main className="mx-auto max-w-6xl px-4 pb-28 pt-6 sm:px-6">{children}</main>
 
       <nav className="fixed inset-x-0 bottom-0 z-20 border-t border-zinc-800 bg-zinc-950/95 px-3 pb-[max(0.65rem,env(safe-area-inset-bottom))] pt-2 backdrop-blur sm:hidden">
-        <div className="grid grid-cols-3 gap-2">
+        <div className="grid grid-cols-4 gap-2">
           {nav.map(([value, label]) => (
             <button
               key={value}
               type="button"
               onClick={() => onNavigate(value)}
-              className={`rounded-xl px-3 py-3 text-xs font-semibold ${current === value ? 'bg-zinc-800 text-zinc-100' : 'text-zinc-500'}`}
+              className={`rounded-xl px-2 py-3 text-[11px] font-semibold ${current === value ? 'bg-zinc-800 text-zinc-100' : 'text-zinc-500'}`}
             >
               {label}
             </button>

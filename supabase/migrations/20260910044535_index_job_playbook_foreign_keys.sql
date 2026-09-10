@@ -1,0 +1,5 @@
+create index if not exists engagement_step_states_playbook_step_idx on public.engagement_step_states(playbook_step_id);
+create index if not exists engagement_step_states_responsible_party_idx on public.engagement_step_states(responsible_party_id);
+create index if not exists engagement_step_states_source_artifact_idx on public.engagement_step_states(source_artifact_id);
+create index if not exists engagement_step_states_source_segment_idx on public.engagement_step_states(source_segment_id);
+create index if not exists engagement_step_states_created_by_idx on public.engagement_step_states(created_by);

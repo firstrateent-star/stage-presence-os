@@ -60,7 +60,7 @@ Reason: a line item appearing on a project does not necessarily mean customer-re
 
 ## 2026-09-09 — Business command surface over raw attention queue
 Decision: evolve Today from a raw `NEEDS_ATTENTION` list into a business-model command surface centered on Protect Delivery → Convert Demand → Capacity Pressure → Relationships → Unresolved Truth.
-Reason: once real operating data is loaded, a generic exception queue recreates Greg's cognitive bottleneck. The home surface should allocate scarce human attention according to Stage Presence's value-creation and risk model.
+Reason: once real operating data is loaded, a generic exception queue recreates a cognitive bottleneck. The home surface should allocate scarce human attention according to Stage Presence's value-creation and risk model.
 
 ## 2026-09-09 — Relationship value is first-class
 Decision: recurring customer/relationship nodes must be surfaced independently of individual Engagement status.
@@ -79,7 +79,7 @@ Decision: verify uncertain resource quantity/timing/sourcing first where that un
 Reason: a full inventory audit creates work without necessarily creating value. Scarce resources participating in signed/open overlap deserve verification before low-use accessories with no current decision impact.
 
 ## 2026-09-09 — Routine flow should be fast; humans handle exceptions
-Decision: future commercial and operating automation should default routine, well-evidenced work through deterministic paths and surface Greg/Sean/Nancy only for material exceptions.
+Decision: future commercial and operating automation should default routine, well-evidenced work through deterministic paths and surface people only for material exceptions.
 Reason: Stage Presence scales by moving continuity and calculation into systems while preserving human judgment for relationships, technical ambiguity, scarce capacity, pricing/risk exceptions and unusual commitments.
 
 ## 2026-09-09 — Commitment readiness is a ladder, not one status
@@ -96,7 +96,7 @@ Reason: actual resource use, timing, venue learning, labor, sourcing, scope chan
 
 ## 2026-09-09 — Chat-first operating desk is transitional
 Decision: use ChatGPT as a low-cost interpretation/operating-desk bridge during Operational Validation, but do not treat that workflow as the target architecture.
-Reason: real photos, text, conversations and updates can teach us what the native Stage Presence ingestion/interpreter layer must do before we spend more capital. As Stage Presence and Vlourish scale and hosting/storage/AI/integration economics justify it, this intake and interpretation should progressively move into Stage Presence OS itself. The backend must therefore remain compatible with eventual native secure capture, source retention, interpretation/matching and exception-only human review.
+Reason: real photos, text, conversations and updates can teach us what the native Stage Presence ingestion/interpreter layer must do before we spend more capital. As usage and economics justify it, this intake and interpretation should progressively move into Stage Presence OS itself. The backend must remain compatible with eventual native secure capture, source retention, interpretation/matching and exception-only human review.
 
 ## 2026-09-09 — Frontend reads should be business contracts, not table choreography
 Decision: add stable read models for Engagement list/dashboard, complete internal workspace, economics, contributor work, relationship memory, location memory, resource commitments and a curated future client surface.
@@ -125,3 +125,23 @@ Reason: configured fulfillment evidence is not capacity commitment, and reservat
 ## 2026-09-09 — Venue text may be promoted only by exact canonical evidence
 Decision: normalize existing Engagement venue name/address pairs into reusable Location records using exact canonical text, with no fuzzy merging.
 Reason: recurring venue memory creates value immediately, but premature entity resolution could silently merge different sites. Exact promotion provides reuse without false certainty.
+
+## 2026-09-10 — Process knowledge is separate from job-state truth
+Decision: represent Stage Presence's reusable start-to-finish lifecycle in versioned `operating_playbooks` / `operating_playbook_steps`, while keeping actual per-Engagement applicability/completion in optional `engagement_step_states`.
+Reason: Stage Presence needs the whole operating path available as institutional knowledge, but a standard step existing must never be interpreted as evidence that the step applies, is due, or has been completed on a specific job. Canonical design: `docs/JOB_LIFECYCLE_PLAYBOOK.md`.
+
+## 2026-09-10 — Do not materialize the whole Playbook as tasks
+Decision: `work_items` remain attention/movement records and may reference Playbook steps; the system must not automatically create one task for every applicable lifecycle step.
+Reason: a 100-step knowledge base is valuable, but a 100-item task list on every Engagement would recreate administrative burden. The system should open work only when an actual action, decision, dependency, exception or evidence requirement needs attention.
+
+## 2026-09-10 — Assignment is role plus concrete responsibility
+Decision: keep Engagement-level assignment (`engagement_assignments`) separate from step-level responsibility (`engagement_step_assignments`). Step responsibility may be LEAD, SUPPORT, APPROVER, CONSULTED or INFORMED.
+Reason: assigning a contributor as “Video Tech,” “PM,” or “Labor” does not tell the organization which parts of the job they actually own. Granular responsibility must be available without duplicating the entire process as disconnected tasks.
+
+## 2026-09-10 — Technical and safety knowledge has explicit maturity depth
+Decision: each Playbook step carries `procedure_depth = MAP_ONLY / CHECKLIST / SOP / VERIFIED_SOP`. Technical/safety-sensitive steps are seeded conservatively as MAP_ONLY unless qualified evidence supports more detail.
+Reason: knowing that a process step exists is different from possessing a safe, manufacturer/site-specific, reviewed procedure. AI plausibility is not sufficient evidence to promote technical or safety instructions to verified SOP status.
+
+## 2026-09-10 — Today and Work begin consuming operating read contracts
+Decision: progressively move the live frontend from screen-specific business reconstruction onto `engagement_frontend_v`, `daily_work_queue_v`, and relationship/read-model contracts while retaining the existing detail editor during transition.
+Reason: the backend should own business interpretation and the frontend should primarily present it. Progressive migration reduces breakage and lets missing truth surface through real use rather than a large UI rewrite.

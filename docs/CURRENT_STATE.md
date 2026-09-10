@@ -1,378 +1,315 @@
-# Current State — 2026-09-09
+# Current State — 2026-09-10
 
 ## Canonical system
 - Private repo: `firstrateent-star/stage-presence-os`
 - Default branch: `main`
-- Supabase: `stage-presence-os` (`yaojcuvgtlncytujfxef`), `us-east-1`, `ACTIVE_HEALTHY`
+- Supabase: `stage-presence-os` (`yaojcuvgtlncytujfxef`), `us-east-1`
 - Hosting: Cloudflare Workers Static Assets
 - Production URL: `https://stage-presence-os.falling-butterfly-aad6.workers.dev`
-- Current implementation work uses the discipline: Flower branch → GitHub Build Check → PR → `main` → Cloudflare.
+- Engineering discipline: Flower branch → GitHub Build Check (`tsc` + Vite) → PR → `main` → Cloudflare.
 
 ## Product center
 
 > **History informs. Active inherited work gets enough truth to move. New work is born correctly. Systems carry continuity; people handle material judgment.**
 
-One canonical Engagement remains the root through:
+One canonical Engagement persists through:
 
-**opportunity → commitment → preparation → delivery → closeout → recurrence**
+**intent → requirements → solution → feasibility → commercial decision → commitment → preparation → delivery → economic close → learning → recurrence**
 
-Goodshuffle, QuickBooks and other source systems are evidence sources, not Stage Presence OS architecture.
+Goodshuffle, QuickBooks, spreadsheets and conversations are evidence sources, not Stage Presence OS architecture.
 
-The backend is deliberately richer than the visible experience. The frontend should show the business while the backend carries provenance, uncertainty, commercial/economic distinctions, capacity truth, automation state and learning.
+The backend is deliberately richer than the visible experience. The frontend should expose the business while the backend carries provenance, uncertainty, economics, capacity, reusable process knowledge, assignment responsibility and learning.
 
 ## Frontend operating backend
 
-Canonical design: `docs/FRONTEND_OPERATING_CONTRACT.md`.
-Current schema map: `docs/DATA_MODEL.md`.
+Canonical references:
+- `docs/BUSINESS_MODEL_CURRENT.md`
+- `docs/FRONTEND_OPERATING_CONTRACT.md`
+- `docs/JOB_LIFECYCLE_PLAYBOOK.md`
+- `docs/DATA_MODEL.md`
 
-The backend is now organized into seven durable information petals without splitting the canonical Engagement:
+The operating backend remains organized around seven connected information petals without splitting the Engagement:
 
-1. **People** — customers, buyers, payers, planners, referrers, vendors, contributors and end users.
-2. **Engagement** — state, requirements/facts, relationships and next movement.
-3. **Money** — documents, payment evidence, direct Engagement costs and evidence-aware economics.
-4. **Capability** — resources, configured solution, fulfillment, true holds/reservations and actual usage.
+1. **People** — customer/contact/buyer/payer/planner/referrer/vendor/partner/end-user/contributor reality.
+2. **Engagement** — one commercial/operational lifecycle root, facts, relationships and movement.
+3. **Money** — documents, payment evidence, direct costs and evidence-aware economics.
+4. **Capability** — resources, fulfillment, requirement windows, pressure, commitments and actual usage.
 5. **Time + Place** — schedules, delivery/load-in/out and reusable venue/site memory.
-6. **Evidence + Outputs** — source provenance plus generated representations such as quotes, job briefs and assignment sheets.
-7. **Learning** — closeout, relationship memory, venue memory, pricing observations and delivered experience.
+6. **Evidence + Outputs** — original source/provenance plus generated business representations.
+7. **Learning** — closeout, experience, reliability, venue/relationship/pricing/process learning.
 
-### Frontend read contracts now live
+### Frontend read contracts live
 
-- `engagement_frontend_v` — lightweight one-row-per-Engagement list/dashboard contract.
+- `engagement_frontend_v` — lightweight one-row-per-active-Engagement operating summary.
 - `engagement_workspace_v` — complete internal single-Engagement workspace.
-- `daily_work_queue_v` — actionable continuity queue with owner, responsible Party, visibility and origin.
-- `engagement_economics_v` — evidence-aware proposal/commitment/cash/cost/contribution position.
-- `relationship_summary_v` — recurring Party relationship memory.
-- `location_memory_v` — venue/site recurrence and operational memory.
-- `contributor_work_v` — contributor-oriented assignments/work.
-- `resource_commitment_current_v` — actual tentative/confirmed resource commitments only.
-- `engagement_client_surface_v` — curated future client contract; still internal-member-only today.
-- Existing `capacity_pressure_signals`, `fulfillment_plan_current_v`, `pricing_observations_v`, and `learning_review_signals` remain available.
+- `daily_work_queue_v` — open/waiting/blocked movement.
+- `engagement_economics_v` — proposal/commitment/cash/cost/contribution evidence.
+- `relationship_summary_v` — recurring relationship memory.
+- `location_memory_v` — recurring venue/site memory.
+- `contributor_work_v` — contributor-oriented work.
+- `resource_commitment_current_v` — true resource commitments only.
+- `engagement_client_surface_v` — curated future client contract; internal-only today.
+- `playbook_catalog_v` — reusable lifecycle knowledge.
+- `engagement_job_map_v` — applicable lifecycle map overlaid with actual per-job tracking.
+- `assignment_brief_v` — role + schedule/location + granular responsibility briefing.
 
-Current smoke counts:
-- 30 active Engagement rows in the frontend/workspace/economics contracts.
-- 20 Party relationship summaries.
-- 21 normalized location-memory records.
-- 7 open reality-derived work items, now explicitly marked `SYSTEM` origin.
+Existing capacity, fulfillment, pricing-observation and learning views remain available.
 
-A frontend can therefore access essentially the full represented Engagement story without joining the entire graph screen-by-screen. Missing/unearned layers return null/empty collections rather than fabricated completeness.
+## Job lifecycle knowledge — live
 
-## Current product spine
+Canonical: `docs/JOB_LIFECYCLE_PLAYBOOK.md`.
+
+The system now distinguishes:
+
+**Playbook knowledge ≠ Engagement step state ≠ work item ≠ contributor assignment**
+
+Current active Playbook:
+- code: `STAGE_PRESENCE_CORE_LIFECYCLE`
+- version: 1
+- 105 active reusable steps
+- 13 phases
+- covers EVENT, LONG_TERM_RENTAL, INSTALLATION, EQUIPMENT_SALE and SERVICE branches plus universal lifecycle steps.
+
+The 13 phases are:
+- Intent & Intake
+- Requirements
+- Solution Design
+- Feasibility & Risk
+- Commercial
+- Commitment & Handoff
+- Installation-Specific Preparation
+- Preproduction & Preparation
+- Delivery & Experience
+- Strike, Return & Reconciliation
+- Economic Close
+- Closeout & Learning
+- Relationship & Recurrence
+
+Each step can express requiredness, automation mode, default role/capability, Engagement-type applicability, client touchpoint, completion definition, risk, evidence expectation, dependencies and procedure maturity.
+
+Procedure maturity is explicit:
+`MAP_ONLY / CHECKLIST / SOP / VERIFIED_SOP`.
+
+Technical and safety-sensitive steps are deliberately conservative. `MAP_ONLY` means the system knows the step exists and why it matters but does **not** claim to contain a qualified detailed technical/safety procedure.
+
+### No checklist inflation
+
+The Playbook is not materialized into 105 tasks on every job.
+
+Current persisted `engagement_step_states`: **0**.
+
+This is intentional. Existing historical jobs were not assigned fake completion histories. `engagement_job_map_v` exposes applicable process knowledge as `UNTRACKED` until actual job evidence creates a tracked state.
+
+All seven current reality-derived work items are mapped to the lifecycle knowledge they belong to. A work item continues to mean an action/decision/dependency that deserves attention, not a generic process checkbox.
+
+## Assignment depth — live structure, no invented people
+
+`engagement_assignments` now supports role-level assignment detail:
+- role and assignment state;
+- schedule window;
+- location/schedule linkage;
+- scope summary;
+- briefing notes;
+- acceptance criteria;
+- acknowledgement state/time.
+
+`engagement_step_assignments` adds granular responsibility:
+`LEAD / SUPPORT / APPROVER / CONSULTED / INFORMED`.
+
+This lets the OS distinguish “this person is the Video Tech on the job” from “this person leads commissioning, supports load-in, verifies playback and is informed about client acceptance.”
+
+Current reality boundary:
+- `team_members`: 0
+- `engagement_assignments`: 0
+- `engagement_step_assignments`: 0
+
+No contributor identities, availability, rates, capabilities or assignments were invented merely to populate the feature.
+
+## Frontend transition underway on `flower/job-playbook`
+
+The live branch progressively moves visible surfaces onto the operating read contracts while preserving the existing editor for continuity.
 
 ### Today
-Answers: **What actually matters now?**
-
-Business-facing sections remain centered on:
+Backend-connected Today now uses `engagement_frontend_v`, `daily_work_queue_v` and `relationship_summary_v` to show:
 - Needs You
 - Next Up
 - Sales
-- Team Handling
 - Capacity
 - Relationships
-- trustworthy known economic value only
+- known committed value only where represented.
 
-The Decision Resolver / Exception Engine remains underneath rather than leading the experience.
+The screen no longer needs to independently reconstruct the business model from raw tables.
 
 ### Work
-Visible navigation remains **Work** while one Engagement remains the backend object.
+Backend-connected Work now consumes `engagement_frontend_v` and groups the same Engagement reality into:
+- Opportunities
+- Upcoming Jobs
+- Past / Needs Resolution
 
-Presentation may group work into Opportunities, Upcoming Jobs and Past / Needs Resolution without creating separate Lead / Quote / Job records.
+Cards can show customer/date/venue, observed proposal/committed value, open movement count, fulfillment depth, capacity signal and next movement without creating separate lead/job objects.
 
 ### Engagement
-The business-facing top should answer:
+The existing business story and detailed editor remain in place. A new **Job Map** panel exposes the relevant start-to-finish Playbook for that Engagement species.
 
-> **What is happening with this piece of business?**
+Untracked steps are shown as available knowledge, not overdue/incomplete work.
 
-The new `engagement_workspace_v` can provide the full internal story from one filtered read:
-- people;
-- facts/requirements;
-- configured resources;
-- commercial documents, lines, payment schedules and payments;
-- fulfillment plans and lines;
-- execution schedule;
-- assignments;
-- work items;
-- direct costs;
-- resource commitments;
-- actual usage;
-- generated outputs;
-- locations;
-- related Engagements;
-- evidence/provenance;
-- closeout/learning;
-- economics.
+### Playbook
+A new internal Playbook navigation surface allows the company to browse lifecycle knowledge by:
+- Event
+- Long-term Rental
+- Installation
+- Equipment Sale
+- Service
+- All Knowledge
+
+The Playbook stays a reference/learning surface rather than dominating daily operations.
+
+Demo mode retains the older Today/Work presentation because live operating read contracts require Supabase.
 
 ## Goodshuffle reality translation
 
-Live imported state:
-- 30 active Goodshuffle-derived Engagements.
-- 20 identified customer/contact Parties.
-- 30 commercial-document records.
-- 30 fulfillment plans.
-- **208 raw fulfillment lines** preserved from the individual pull-sheet workbooks.
-- 128 fulfillment lines linked to canonical Resources by exact Goodshuffle external ID.
-- 2 unresolved external IDs remain: Film Festival `Video Tech` and `Content Creation`.
-- 1 zero-quantity Shellabration promotional-discount line preserved even though the aggregate export omitted it.
-- 3 package-child lines preserved.
-- 90 source-artifact segments currently provide document/project/pull-sheet provenance.
+Live imported/translated reality remains:
+- 30 active Goodshuffle-derived Engagements
+- 20 identified customer/contact Parties
+- 30 commercial documents
+- 30 fulfillment plans
+- **208 raw fulfillment lines** from individual pull-sheet workbooks
+- 128 exact Resource links by Goodshuffle external ID
+- 2 unmatched service IDs: Film Festival `Video Tech` and `Content Creation`
+- 1 Shellabration zero-quantity promotional-discount line preserved although the aggregate export omitted it
+- 3 package-child lines preserved
+- 90 source-artifact segments for document/project/pull-sheet provenance
+- 21 normalized locations / 28 Engagement-location links
+- 7 current system-derived work items
 
 Translation rules remain:
-- `Contract Signed` → `WON / SIGNED`, not automatic operational confirmation.
-- no deposit evidence → no reservation inference.
-- `$0` unresolved program components are not free work.
-- `CONFIGURED` does not mean requested, recommended, owned, available, held or reserved.
-- fulfillment plan does not mean capacity commitment or actual usage.
-- Goodshuffle quantity fields remain evidence, not audited physical-inventory truth.
+- signed source evidence does not automatically mean deposit received or operationally confirmed;
+- fulfillment does not imply hold/reservation/usage;
+- `CONFIGURED` does not mean requested/recommended/owned/available/held/reserved;
+- `$0` unresolved program components are not free work;
+- source quantity does not equal audited physical inventory;
+- unknown/TBD/conflicting history is preserved rather than repaired by guess.
 
-### UNC economic exception proved by reality
+### UNC economic guardrail
 
-The UNC season is the parent economic truth currently represented:
-- $102,000 observed committed value.
-- $51,000 observed collected in the Sep 9 source snapshot.
-- $51,000 observed remaining in that snapshot.
+The UNC season carries $102,000 observed committed value with a Sep 9 source snapshot of $51,000 observed collected / $51,000 observed remaining.
 
-The six individual game records have source documents whose project totals are `$0`, but the existing facts explicitly say per-game economic allocation is unknown.
-
-`engagement_economics_v` therefore returns `PROGRAM_ALLOCATION_UNKNOWN` for those game components rather than falsely turning them into zero-value work.
+Six component games have literal `$0` project documents while explicit facts say their per-game economic allocation is unknown. `engagement_economics_v` returns `PROGRAM_ALLOCATION_UNKNOWN` for those children rather than $0 revenue/receivable truth.
 
 ## Commercial + economic model
 
-Live structures now distinguish:
+Current flow can represent:
 
-**Commercial document → document lines → payment schedule/payment evidence → directly caused Engagement costs → evidence-aware economics**
+**commercial document → document lines → payment schedule/payment evidence → direct Engagement costs → evidence-aware contribution**
 
-Commercial documents support revision lineage and lifecycle timestamps through version, supersession, issued/sent/accepted/valid-through and client-visible fields.
-
-`engagement_cost_items` provides a place for direct labor, subcontract, external rental, transport, travel, lodging, per diem, fuel, materials, purchases and processing fees with estimate/committed/actual state.
+Commercial documents support versioning/supersession and lifecycle timestamps. Historical quoted price remains evidence rather than current approved pricing authority.
 
 Current reality boundary:
-- `engagement_cost_items`: 0 rows.
-- audited contribution/margin is therefore not claimed.
-- `commercial_document_lines`: historical atomic price recovery still remains an important next evidence layer.
+- `commercial_document_lines`: 0; line-level commercial recovery remains a high-value next evidence move.
+- `commercial_payment_schedule`: 0
+- `commercial_payments`: 0
+- `engagement_cost_items`: 0
+- audited contribution/margin is not claimed.
 
 Constitution:
 
 **revenue != cash != contribution**
 
-and
-
-**historical quoted price != current pricing authority**
-
 ## Capability + capacity truth
 
-The resource model now has distinct first-class places for:
+Current sequence remains:
 
-**configured solution → requirement window → pressure → hold/reservation/allocation → actual usage**
+**configuration → requirement window → pressure → hold → reservation/allocation → actual usage**
 
-Live:
-- resource library with mixed verified/unverified quantity and price evidence.
-- Engagement-specific configured resources and requirement windows.
-- 30 Goodshuffle fulfillment plans / 208 fulfillment lines.
-- RLS-safe capacity-pressure derivation.
-- `resource_commitments` exists for true holds/reservations/allocations.
-- `resource_usage` exists for what actually went to the job.
+Live structures exist for all stages. Current evidence boundary:
+- `resource_commitments`: 0
+- `resource_usage`: 0
 
-Current reality boundary:
-- `resource_commitments`: 0 rows.
-- `resource_usage`: 0 rows.
+The OS therefore does not mistake imported fulfillment for committed/used inventory.
 
-Therefore the OS does **not** claim that imported pull-sheet lines are reservations or proof of actual asset usage.
+## Time + location memory
 
-## Time + place memory
+Reusable `locations` / `engagement_locations` / `location_memory_v` are live.
 
-A reusable site/venue layer now exists:
-- `locations`
-- `engagement_locations`
-- `engagement_schedule_items.location_id`
-- `location_memory_v`
+Existing venue text was normalized only from exact canonical name/address pairs. No fuzzy venue merge was used.
 
-Existing canonical Engagement venue text was promoted only by exact normalized name/address evidence — no fuzzy entity matching.
+Location knowledge can progressively accumulate access, load-in, parking, power and connectivity learning so repeat venues become easier rather than being rediscovered.
 
-Current result:
-- 21 distinct normalized locations.
-- 28 Engagement-to-location links.
-- two active Engagements still lack venue truth rather than receiving invented locations.
+## People, clients and delivered experience
 
-Locations can progressively retain access, load-in, parking, power and connectivity knowledge so recurring venue knowledge does not need to be rediscovered on every job.
+Party roles support customer, primary contact, buyer, payer, decision maker, planner, referrer, venue contact, end user, production partner and vendor.
 
-## People, contributors and clients
+Contributor identity remains separate from authentication through `team_members`.
 
-Party roles now support different commercial/experience actors:
-- customer
-- primary contact
-- buyer
-- payer
-- decision maker
-- planner
-- referrer
-- venue contact
-- end user
-- production partner
-- vendor
+External client access is still **not activated**. `engagement_client_surface_v` remains an internal preview of a future curated client experience and intentionally excludes internal costs, evidence and private operating work.
 
-This lets Stage Presence distinguish who buys from who experiences the outcome.
+Closeout supports client feedback, audience/end-user experience and reliability so the system can learn from the delivered human outcome, not only equipment movement.
 
-Contributor identity remains separate from authentication through `team_members`; product surfaces should use business-facing username/display identity rather than hard-coded personal names.
+## Evidence + generated outputs
 
-New supporting structures:
-- `team_member_capabilities`
-- `engagement_assignments`
-- `party_relationships`
-- `engagement_access_grants`
+Original evidence remains append-oriented in `source_artifacts`, `source_artifact_segments` and `events`.
 
-Current reality boundary:
-- active `team_members`: 0.
-- `engagement_assignments`: 0.
-- active external access grants: 0.
+`engagement_outputs` provides a versioned home for quote, invoice, contract, job brief, assignment sheet, pull sheet, packing list, client summary, install scope, service report and closeout report representations. Outputs may now reference the Playbook step they came from.
 
-No Greg/Nancy/employee/client accounts or assignments were invented.
-
-### Future client surface
-
-`engagement_client_surface_v` now defines a curated representation that can eventually expose only:
-- relevant Engagement/date/location state;
-- client-facing people;
-- client-visible commercial documents;
-- schedule;
-- client-visible generated outputs;
-- shared/client actions.
-
-It deliberately excludes internal costs, provenance/evidence, internal work and private operational detail.
-
-This is a design/access seam only. Current RLS still restricts it to authenticated active Stage Presence app members; external client access has **not** been activated.
-
-## Evidence + output generation
-
-Evidence remains append-oriented through:
-- `source_artifacts`
-- `source_artifact_segments`
-- `events`
-
-`engagement_outputs` now provides a versioned home for generated/approved representations including:
-- quote
-- invoice
-- contract
-- job brief
-- assignment sheet
-- pull sheet
-- packing list
-- client summary
-- install scope
-- service report
-- closeout report
-
-Current reality boundary:
-- `engagement_outputs`: 0 rows.
-- automatic document rendering/sending is not claimed.
+Current `engagement_outputs`: 0. Automatic rendering/sending is not claimed.
 
 Rule:
 
 **generated representation != canonical business truth**
 
-The structured Engagement/commercial/fulfillment records remain authoritative; documents represent them.
-
 ## Automation direction
 
-The target operating loop is now structurally supported:
+The new Playbook creates a stronger substrate for the intended low-technical-intervention loop:
 
-**source arrives → preserve source → interpret candidates → match existing reality → promote supported truth → derive next movement → route routine work → generate representation → human judgment at material exceptions → capture result → learn**
+**source arrives → preserve → interpret/match → promote supported truth → evaluate applicable process knowledge → satisfy deterministic steps → create only necessary work/decisions → route responsibility → generate representations → human judgment at material exceptions → capture actual result → learn → improve Playbook**
 
-`work_items.origin`, provenance, certainty states and output states make future system/AI behavior inspectable instead of allowing a hidden automation reality.
+The system should eliminate remembering and duplicate entry, not automate consequential judgment invisibly.
 
-Current automation remains intentionally limited. The seven current business actions are system-derived, but there is no automatic AI interpretation, autonomous quote approval or source integration yet.
+Future assignment automation should reason from required capability and job steps, then propose/route people based on represented capability/availability rather than names or habit.
 
-## Learning / repeatability
+## Source-storage boundary
 
-`engagement_closeouts` remains one learning record per Engagement and now has room for:
-- delivery/lost/cancelled/other outcome;
-- setup and strike time;
-- generic `founder_dependent_minutes`;
-- solution changes;
-- venue learning;
-- next-time improvement;
-- recurrence;
-- client feedback;
-- audience/end-user experience;
-- reliability notes.
+Private Supabase `source-artifacts` storage remains image-oriented and member-only. Goodshuffle hashes/structured provenance are not equivalent to recoverable original source binaries. A general private document-import seam remains future deliberate work.
 
-The legacy `greg_minutes` field remains only for compatibility and should not be used by new product surfaces.
+## Security + scale
 
-Existing reality still supports future internal archetypes rather than forced customer-facing packages:
-- repeated UNC visual/production configuration;
-- repeated trailer + logistics combinations;
-- recurring venues such as Polk Place;
-- recurring Party relationships.
-
-## Forward-Born Truth
-
-Canonical: `docs/FORWARD_BORN_TRUTH.md`.
-
-Current private Quick Capture preserves:
-
-**source evidence != structured business truth**
-
-Freeform text/photo evidence can be preserved without automatically asserting customer request, technical requirement, Party identity or AI interpretation.
-
-Goal remains:
-
-**capture once → preserve source → interpret candidates → match existing reality → promote supported truth → ask only material questions → move the Engagement**
-
-## Source storage boundary
-
-Private Supabase bucket: `source-artifacts`.
-
-Current bucket remains intentionally image-oriented:
-- private;
-- 15 MB limit;
-- JPEG, PNG, WebP, HEIC, HEIF;
-- authenticated active members may read;
-- uploads restricted to the member's user-id folder.
-
-The Goodshuffle recovery preserved source hashes/metadata and structured evidence, but the original export binaries were not retrospectively placed into Storage.
-
-Do not pretend fingerprint/provenance equals a recoverable source file.
-
-A general private document-import intake seam should be activated deliberately when useful rather than widening storage merely because it is possible.
-
-## Security + performance
-
-- Supabase remains behind the explicit `app_members` allowlist + RLS.
-- all new operating tables have RLS.
-- all frontend read models are `security_invoker=true`.
-- anonymous Data API privileges are explicitly revoked from Stage Presence public relations.
-- browser app still uses only publishable Supabase credentials.
-- no service-role/database secret is exposed in browser or repo.
-- no external client access has been activated.
-- security advisor reports only the known leaked-password-protection warning.
-- all foreign-key paths flagged by the performance advisor now have covering indexes; current remaining index notices are expected informational `unused_index` findings on this very small/new workload.
+- explicit `app_members` allowlist + RLS remains the internal access boundary
+- new Playbook/step-state/step-assignment tables use RLS
+- frontend views use `security_invoker=true`
+- anonymous Data API privileges are revoked
+- browser app uses publishable credentials only
+- no external client access is active
+- no unrelated infrastructure, especially NFL DFS, is touched
 
 ## Current true boundaries
 
 Not currently claimed:
-- automatic Goodshuffle sync;
-- QuickBooks/accounting integration;
-- payment processor integration;
-- AI interpretation of uploaded sources;
-- automatic customer/Party matching;
-- complete commercial line-item recovery from the Goodshuffle packet;
-- audited job-cost completeness, margin or contribution;
-- actual holds/reservations/allocation records;
-- actual resource usage capture;
-- contributor roster/capability/availability truth;
-- automated crew scheduling;
-- external client login/portal authorization;
-- automatic document rendering, sending or e-signature;
-- newest Cloudflare deployment behavior after future merges until observed.
+- automatic Goodshuffle sync
+- QuickBooks/accounting integration
+- payment processor integration
+- AI interpretation of uploaded sources
+- automatic customer/Party matching
+- complete line-level commercial/pricing recovery
+- approved price-book/rules engine
+- audited job-cost completeness or margin
+- actual holds/reservations/usage records
+- contributor roster/capability/availability truth
+- automatic crew scheduling
+- detailed verified technical/safety SOPs for MAP_ONLY steps
+- external client login/portal authorization
+- automatic document rendering/sending/e-signature
+- independent browser verification of the next Cloudflare deployment until observed.
 
 ## Current direction
 
-The next frontend should consume business read contracts rather than duplicate backend reasoning.
+The immediate coherent boundary is now:
 
-The immediate architecture now supports a low-technical-intervention path:
+**Operating read contracts + lifecycle knowledge + deep assignment model + progressive Today/Work/Engagement frontend migration.**
 
-1. preserve source once;
-2. derive/match supported truth;
-3. show contributors only the work/context they need;
-4. show clients only the state/actions/documents appropriate to them;
-5. let economic/capacity/relationship logic live behind the UI;
-6. automate routine continuity while preserving human approval at consequential exceptions;
-7. capture actual outcome/cost/usage/experience so each Engagement improves the next one.
+After this branch passes Build Check and merges, the strongest next reality-driven layers are:
+
+1. commercial line recovery + approved price/rules seam so quote generation can begin learning from history without turning history into policy;
+2. selective process activation so current Engagement truth opens only the Playbook steps/work items that actually need attention;
+3. real contributor roster/capability/assignment evidence when Stage Presence is ready to represent the team;
+4. assignment-sheet/job-brief generation from canonical schedule, fulfillment, location, assignments and step responsibility;
+5. closeout/actual-cost/actual-usage learning so process and economics improve from real jobs.
