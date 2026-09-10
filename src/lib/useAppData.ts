@@ -8,10 +8,12 @@ import { listEffectiveConfiguredResourceLinks } from './effectiveConfiguredLinks
 import {
   listDailyOperatingWork,
   listEngagementFrontends,
+  listOperatingFocus,
   listPlaybookCatalog,
   listRelationshipSummaries,
   type DailyWorkRow,
   type EngagementFrontendRow,
+  type MovementCandidateRow,
   type PlaybookStepRow,
   type RelationshipSummaryRow,
 } from './operatingRepository'
@@ -30,6 +32,7 @@ export function useAppData(enabled = true) {
   const [learningReviewSignals, setLearningReviewSignals] = useState<LearningReviewSignal[]>([])
   const [operatingEngagements, setOperatingEngagements] = useState<EngagementFrontendRow[]>([])
   const [dailyWork, setDailyWork] = useState<DailyWorkRow[]>([])
+  const [operatingFocus, setOperatingFocus] = useState<MovementCandidateRow[]>([])
   const [relationshipSummaries, setRelationshipSummaries] = useState<RelationshipSummaryRow[]>([])
   const [playbookSteps, setPlaybookSteps] = useState<PlaybookStepRow[]>([])
   const [loading, setLoading] = useState(isBackendConfigured && enabled)
@@ -52,6 +55,7 @@ export function useAppData(enabled = true) {
         nextLearningReviewSignals,
         nextOperatingEngagements,
         nextDailyWork,
+        nextOperatingFocus,
         nextRelationshipSummaries,
         nextPlaybookSteps,
       ] = await Promise.all([
@@ -66,6 +70,7 @@ export function useAppData(enabled = true) {
         listLearningReviewSignals(),
         listEngagementFrontends(),
         listDailyOperatingWork(),
+        listOperatingFocus(),
         listRelationshipSummaries(),
         listPlaybookCatalog(),
       ])
@@ -80,6 +85,7 @@ export function useAppData(enabled = true) {
       setLearningReviewSignals(nextLearningReviewSignals)
       setOperatingEngagements(nextOperatingEngagements)
       setDailyWork(nextDailyWork)
+      setOperatingFocus(nextOperatingFocus)
       setRelationshipSummaries(nextRelationshipSummaries)
       setPlaybookSteps(nextPlaybookSteps)
     } catch (err) {
@@ -110,6 +116,7 @@ export function useAppData(enabled = true) {
     learningReviewSignals,
     operatingEngagements,
     dailyWork,
+    operatingFocus,
     relationshipSummaries,
     playbookSteps,
     loading,
