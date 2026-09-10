@@ -97,3 +97,31 @@ Reason: actual resource use, timing, venue learning, labor, sourcing, scope chan
 ## 2026-09-09 — Chat-first operating desk is transitional
 Decision: use ChatGPT as a low-cost interpretation/operating-desk bridge during Operational Validation, but do not treat that workflow as the target architecture.
 Reason: real photos, text, conversations and updates can teach us what the native Stage Presence ingestion/interpreter layer must do before we spend more capital. As Stage Presence and Vlourish scale and hosting/storage/AI/integration economics justify it, this intake and interpretation should progressively move into Stage Presence OS itself. The backend must therefore remain compatible with eventual native secure capture, source retention, interpretation/matching and exception-only human review.
+
+## 2026-09-09 — Frontend reads should be business contracts, not table choreography
+Decision: add stable read models for Engagement list/dashboard, complete internal workspace, economics, contributor work, relationship memory, location memory, resource commitments and a curated future client surface.
+Reason: the UI must remain simpler than the business model. Requiring each screen to join many canonical tables independently duplicates business logic and makes schema evolution unnecessarily expensive.
+
+## 2026-09-09 — Seven operating petals organize backend growth
+Decision: organize frontend-relevant backend reality under People, Engagement, Money, Capability, Time/Place, Evidence/Outputs and Learning while preserving Engagement as the root.
+Reason: these domains cover the realities already evidenced by the business model without creating disconnected CRM, accounting, inventory, scheduling and portal systems.
+
+## 2026-09-09 — Client participation is modeled before client access is activated
+Decision: represent client/shared action visibility and scoped Engagement access grants, but keep all current database access inside the authenticated `app_members` boundary.
+Reason: a future client experience needs a deliberate, curated contract. Merely adding a portal-shaped view must never expose internal costs, notes, evidence or operational data.
+
+## 2026-09-09 — Economic flow separates document, cash, cost and contribution
+Decision: add direct Engagement cost items and an evidence-aware economics read model rather than deriving profit from quote/invoice totals alone.
+Reason: revenue is not cash and cash is not contribution. Direct-cost evidence may be partial, so the read model must expose its evidence state instead of overstating margin certainty.
+
+## 2026-09-09 — Program-level economics override literal zero component documents
+Decision: when source evidence explicitly says a component's economic allocation is unknown, a `$0` child document must remain economically unknown rather than becoming zero revenue/zero receivable truth.
+Reason: the UNC season proves a source document can be operationally useful while its project-level total is not a valid economic allocation. Unknown is legitimate data.
+
+## 2026-09-09 — Capacity commitment and actual usage are first-class and distinct
+Decision: add explicit resource hold/reservation/allocation records separately from actual resource-usage records.
+Reason: configured fulfillment evidence is not capacity commitment, and reservation is not proof of what actually went to the job. Both are required for reliable future capacity and asset economics.
+
+## 2026-09-09 — Venue text may be promoted only by exact canonical evidence
+Decision: normalize existing Engagement venue name/address pairs into reusable Location records using exact canonical text, with no fuzzy merging.
+Reason: recurring venue memory creates value immediately, but premature entity resolution could silently merge different sites. Exact promotion provides reuse without false certainty.
