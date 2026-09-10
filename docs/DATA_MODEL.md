@@ -1,4 +1,4 @@
-# Data Model — v0.5 Operating Backend + Playbook
+# Data Model — v0.6 Operating Backend + Playbook + Selective Movement
 
 ## Center
 
@@ -8,13 +8,14 @@ The model is organized around seven durable information domains while preserving
 
 **People → Engagement → Money → Capability → Time/Place → Evidence/Outputs → Learning**
 
-Reusable operating knowledge is a cross-cutting layer beneath these domains; it does not create a second job object.
+Reusable operating knowledge and selective movement are cross-cutting layers beneath these domains; neither creates a second job object.
 
 Core distinctions are constitutional:
 - customer request != technical requirement;
 - commercial document != fulfillment plan;
 - configured != required != held != reserved != used;
 - reusable process knowledge != actual job state;
+- derived movement candidate != persisted work item;
 - role assignment != step responsibility;
 - work item != every possible process step;
 - revenue != cash != contribution;
@@ -37,7 +38,7 @@ Business-facing contributor identity independent of authentication. Holds userna
 Evidence-aware contributor capabilities and proficiency (`LEARNING`, `ASSIST`, `INDEPENDENT`, `LEAD`, `EXPERT`, `UNKNOWN`).
 
 ### `engagement_access_grants`
-Future scoped access seam for client/contributor/observer participation. Records can express commercial/operations/upload/approval permissions, but current RLS still restricts database access to authenticated active app members. Merely creating a grant does not activate external access.
+Future scoped access seam for client/contributor/observer participation. Current RLS still restricts database access to authenticated active app members. Merely creating a grant does not activate external access.
 
 ## 2. People + relationships
 
@@ -48,7 +49,7 @@ A `PERSON` or `ORGANIZATION`. Holds business contact identity and can recur acro
 Many-to-many Engagement relationships. Roles include:
 `CUSTOMER`, `PRIMARY_CONTACT`, `BUYER`, `PAYER`, `DECISION_MAKER`, `PLANNER`, `REFERRER`, `VENUE_CONTACT`, `END_USER`, `PRODUCTION_PARTNER`, `VENDOR`, `OTHER`.
 
-This allows the buyer, payer, planner, venue, referrer and people experiencing the outcome to be different realities.
+The buyer, payer, planner, venue, referrer and people experiencing the outcome can therefore be different realities.
 
 ### `party_relationships`
 Reusable Party-to-Party relationships such as `CONTACT_FOR`, `EMPLOYEE_OF`, `DEPARTMENT_OF`, `REFERS_TO`, `PARTNER_WITH`, `VENDOR_TO`, `RELATED_TO`.
@@ -56,7 +57,7 @@ Reusable Party-to-Party relationships such as `CONTACT_FOR`, `EMPLOYEE_OF`, `DEP
 ### `relationship_summary_v`
 Party-level recurring relationship memory with Engagement frequency and observed revenue/cash/contribution only where supported.
 
-## 3. Engagement + movement
+## 3. Engagement + persisted movement
 
 ### `engagements`
 Canonical business object.
@@ -87,12 +88,58 @@ Links related Engagements such as parent programs and component events without m
 ### `work_items`
 Durable next movement / continuity records. Can hold internal owner, external responsible Party, due/trigger, reason, instructions, success condition, next-step hint, certainty, provenance, visibility (`INTERNAL`, `SHARED`, `CLIENT`) and origin (`MANUAL`, `SYSTEM`, `AUTOMATION`, `IMPORT`, `CLIENT`, `OTHER`).
 
-A work item can now reference `playbook_step_id` and/or `engagement_step_state_id`. This connection gives an action process context without turning every Playbook step into a task.
+A work item can reference `playbook_step_id` and/or `engagement_step_state_id`. This gives an action process context without turning every Playbook step into a task.
 
 ### `daily_work_queue_v`
-Open/waiting/blocked work read contract enriched with business-facing owner and responsible Party.
+Open/waiting/blocked persisted work read contract enriched with business-facing owner and responsible Party.
 
-## 4. Money
+## 4. Selective movement — derived, not persisted
+
+Canonical design: `docs/SELECTIVE_MOVEMENT_ENGINE.md`.
+
+### `engagement_movement_candidates_v`
+Deterministic, explainable read model deriving movement candidates from current Engagement reality + reusable Playbook knowledge.
+
+A candidate includes:
+- deterministic `candidate_key`;
+- Engagement + Playbook step context;
+- movement class and focus domain;
+- reason code + `why_now`;
+- materiality and urgency;
+- recommended handling (`SYSTEM`, `ASSISTED`, `HUMAN`);
+- suggested work/action type;
+- whether persistence is likely warranted;
+- defensible due-date hint only where supported;
+- certainty + JSONB evidence basis;
+- represented economic value where relevant;
+- equivalent open-work count;
+- `COVERED` / `UNMATERIALIZED` continuity state;
+- priority score.
+
+Current deterministic signal families cover open proposal decisions, open demand needing scope, commitment handoff, imminent schedule/crew/site reconciliation, represented balance verification, final readiness, recent closeout learning and resource-window pressure.
+
+The view does **not** insert rows. A candidate is not proof the Playbook step is required and is not a work item.
+
+Existing open `work_items` on the same Engagement + Playbook step suppress duplicate attention by marking a candidate `COVERED`.
+
+### `engagement_operating_focus_v`
+Read model of uncovered non-LATER movement candidates.
+
+Ordering constitution:
+1. urgency horizon: `NOW → SOON → WATCH → LATER`;
+2. priority/consequence inside the horizon;
+3. event timing and stable tie-breakers.
+
+This lets future capacity risk remain visible without displacing an imminent delivery issue merely because its abstract score is high.
+
+Frontend vocabulary:
+
+**Needs You = persisted business work**  
+**System Sees = derived model recommendation**
+
+Automatic candidate → work materialization is intentionally not active yet.
+
+## 5. Money
 
 ### `engagement_financial_facts`
 Evidence-aware aggregate financial facts such as quote total, contract total, amount collected and direct-cost aggregates.
@@ -118,7 +165,7 @@ Evidence-aware read model for proposal value, committed revenue, collected cash,
 ### `pricing_observations_v`
 Historical quoted line evidence vs current Resource reference pricing.
 
-## 5. Capability + fulfillment
+## 6. Capability + fulfillment
 
 ### `resources`
 Capability/resource library covering physical equipment and services. Carries source identity, category/type, sourcing model, quantity/condition state, reference price and price authority/evidence. Existence never implies availability.
@@ -145,10 +192,12 @@ Capacity truth sequence:
 
 **configuration → requirement window → pressure → hold → reservation/allocation → actual usage**
 
-## 6. Time + place
+Selective Movement may surface capacity pressure, but it cannot turn pressure into commitment or usage.
+
+## 7. Time + place
 
 ### `engagement_schedule_items`
-Execution schedule for event, load-in/out, delivery, pickup, return, setup, show, strike, travel and prep. Supports exact timestamps, date-only truth and uncertainty. A schedule item may reference a `location_id` and now may also reference a `playbook_step_id`.
+Execution schedule for event, load-in/out, delivery, pickup, return, setup, show, strike, travel and prep. Supports exact timestamps, date-only truth and uncertainty. A schedule item may reference a `location_id` and a `playbook_step_id`.
 
 ### `locations`
 Reusable venue/site memory for venue, warehouse, office, install site, customer site and other locations, with accumulated access/load-in/parking/power/connectivity knowledge.
@@ -159,7 +208,7 @@ Links an Engagement to one or more locations with role, primary flag, certainty 
 ### `location_memory_v`
 Reusable location history and accumulated operating knowledge.
 
-## 7. Evidence + representations
+## 8. Evidence + representations
 
 ### `source_artifacts`
 Original evidence/provenance: photo, voice, text, import, email reference, document and other.
@@ -176,7 +225,7 @@ Versioned generated or approved representations of canonical truth:
 
 Outputs may reference the Playbook step that produced or governs them, but they remain representations rather than canonical truth.
 
-## 8. Reusable operating knowledge
+## 9. Reusable operating knowledge
 
 Canonical design: `docs/JOB_LIFECYCLE_PLAYBOOK.md`.
 
@@ -218,10 +267,10 @@ Internal browsable read model of active reusable process knowledge.
 ### `engagement_job_map_v`
 Crosses one active Engagement with applicable Playbook steps and overlays actual persisted step state/responsibility where it exists. Missing persisted state becomes `UNTRACKED`, meaning **knowledge is available but no job-state claim has been made**.
 
-## 9. Contributors + assignment depth
+## 10. Contributors + assignment depth
 
 ### `engagement_assignments`
-Role-level contributor assignment. In addition to role/state/schedule/provenance it can now hold:
+Role-level contributor assignment. In addition to role/state/schedule/provenance it can hold:
 - `scope_summary`;
 - `briefing_notes`;
 - `acceptance_criteria`;
@@ -245,7 +294,7 @@ Contributor briefing read model combining job role, schedule/location, scope/acc
 ### `contributor_work_v`
 Contributor-oriented projection of assignments and open work using business-facing username/display identity.
 
-## 10. Learning
+## 11. Learning
 
 ### `engagement_closeouts`
 One learning closeout per Engagement, including outcome, optional setup/strike time, solution/venue learning, recurrence, next-time improvement, generic founder-dependent minutes, client feedback, audience/end-user experience and reliability notes.
@@ -255,27 +304,27 @@ Derived review signals for recurring patterns and learning.
 
 Process learning can become a candidate Playbook improvement, but one job does not automatically rewrite company procedure. Promotion toward detailed SOP/VERIFIED_SOP requires appropriate qualified evidence/review.
 
-## 11. Frontend contracts
+## 12. Frontend contracts
 
-The frontend should consume stable business read models instead of reconstructing the relational graph independently on every screen.
+The frontend consumes stable business read models instead of reconstructing the relational graph independently on every screen.
 
-### `engagement_frontend_v`
-Lightweight one-row-per-active-Engagement surface for Today/Work/list screens.
+Primary:
+- `engagement_frontend_v`
+- `engagement_workspace_v`
+- `engagement_client_surface_v`
 
-### `engagement_workspace_v`
-Complete internal single-Engagement workspace.
+Operating attention:
+- `daily_work_queue_v` — persisted action reality
+- `engagement_movement_candidates_v` — explainable derived movement
+- `engagement_operating_focus_v` — selective uncovered attention
 
-### `engagement_client_surface_v`
-Curated future client-facing projection, still internal-member-only today.
-
-### Process/assignment contracts
+Process/assignment:
 - `playbook_catalog_v`
 - `engagement_job_map_v`
 - `assignment_brief_v`
 
-### Other read contracts
+Other:
 - `engagement_economics_v`
-- `daily_work_queue_v`
 - `contributor_work_v`
 - `relationship_summary_v`
 - `location_memory_v`
@@ -287,8 +336,10 @@ Curated future client-facing projection, still internal-member-only today.
 
 ## Security + scale posture
 
-All current app tables are behind the authenticated active-member RLS boundary. Frontend views are `security_invoker=true`. Anonymous Data API privileges are explicitly revoked.
+All current app tables are behind the authenticated active-member RLS boundary. Frontend/derived views use `security_invoker=true`. Anonymous Data API privileges are explicitly revoked.
 
-The model deliberately has clean places for future automation, client participation, documents, costs, reservations, usage, process knowledge and assignment depth without claiming those realities exist before evidence supports them.
+The model deliberately has clean places for future automation, client participation, documents, costs, reservations, usage, process knowledge, assignment depth and movement derivation without claiming those realities exist before evidence supports them.
 
-The scaling objective remains: **know the whole operating path, track only the path that becomes real, show each contributor only what helps them contribute, and let each result improve the next Engagement.**
+The scaling objective remains:
+
+> **Know the whole operating path, activate only what reality earns, show each contributor only what helps them contribute, automate continuity rather than judgment, and let each result improve the next Engagement.**
