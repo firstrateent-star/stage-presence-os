@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import type { Session } from '@supabase/supabase-js'
 import { AppShell, type ScreenName } from './components/AppShell'
 import { CapacityDefaultsPanel } from './components/CapacityDefaultsPanel'
+import { CommercialIntelligencePanel } from './components/CommercialIntelligencePanel'
 import { EngagementBusinessStory } from './components/EngagementBusinessStory'
 import { JobMapPanel } from './components/JobMapPanel'
 import { LearningCloseoutSlot } from './components/LearningCloseoutSlot'
@@ -223,6 +224,7 @@ export default function App() {
           />
 
           {isBackendConfigured && <MovementFocusPanel engagementId={selectedEngagement.id} />}
+          {isBackendConfigured && <CommercialIntelligencePanel engagementId={selectedEngagement.id} />}
           {isBackendConfigured && <JobMapPanel engagementId={selectedEngagement.id} />}
 
           <details className="mt-8 rounded-2xl border border-zinc-900 bg-zinc-950/40">
