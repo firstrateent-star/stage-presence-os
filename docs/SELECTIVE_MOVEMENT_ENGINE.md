@@ -1,6 +1,6 @@
 # Selective Movement Engine — Working Design
 
-**Status:** Active working architecture
+**Status:** Initial deterministic read-only engine live in Supabase; frontend integration on `flower/selective-movement-engine`  
 **Date:** 2026-09-10
 
 ## Center
@@ -57,13 +57,13 @@ Candidate movement should be ranked by business consequence, not by database com
 4. **Reduce coordination friction** — assignments, schedule, job brief, pull/prep, client dependencies and handoff.
 5. **Compound capability and relationships** — recurrence, venue memory, process learning, contributor capability, asset/solution learning.
 
-A lower-ranked item can rise when time pressure or materiality makes it consequential.
+Time horizon is applied before score on the main operating-focus surface: **NOW → SOON → WATCH → LATER**. Materiality, economic value, and business consequence refine priority inside that horizon. This prevents an important medium-term signal from displacing an imminent delivery issue merely because its abstract score is higher.
 
 ## Movement candidate contract
 
 Movement candidates are **derived signals**, not tasks and not proof a Playbook step is required.
 
-Each candidate should expose:
+Each candidate exposes:
 - Engagement and Playbook step;
 - reason code and human-readable `why_now`;
 - movement class (`ACTION`, `DECISION`, `CHECK`, `AUTOMATION`, `LEARNING`);
@@ -76,7 +76,7 @@ Each candidate should expose:
 - due-date hint only when defensible from known dates;
 - whether an equivalent open work item already exists.
 
-The first implementation remains deterministic and inspectable. It does not use an opaque generic rules engine and does not autonomously approve consequential commitments.
+The first implementation is deterministic and inspectable. It does not use an opaque generic rules engine and does not autonomously approve consequential commitments.
 
 ## Activation principles
 
@@ -86,11 +86,14 @@ The Engagement's commercial/commitment/operational state determines which part o
 ### Decision leverage before completeness
 Ask for or verify information when it can change a decision. Do not audit every inventory item or every venue field merely because a field is empty.
 
+### Inherited evidence debt is not automatically work
+Imported Goodshuffle Engagements often have fulfillment/commercial evidence without native Stage Presence OS schedule or contributor records. A missing native record becomes a candidate only when timing, commitment, delivery risk, economics, or another current decision makes reconciliation valuable.
+
 ### Time pressure changes priority
 Known dates can raise otherwise routine movement. Date-only truth is sufficient for date-based urgency; exact times must remain unknown until supported.
 
 ### Existing work suppresses duplicates
-A derived candidate may explain why something matters even when a work item already exists, but it must not create duplicate continuity tasks.
+A derived candidate may explain why something matters even when a work item already exists, but it must not create duplicate continuity tasks. Current candidate rows expose `COVERED` versus `UNMATERIALIZED` continuity state by matching the same Engagement + Playbook step to open work.
 
 ### Consequential actions stay human-governed
 Price exceptions, unusual terms, scarce-capacity commitments, technical/safety ambiguity, relationship-sensitive communication, major procurement/working-capital decisions and material scope changes require human judgment unless an explicitly approved boundary is later encoded.
@@ -98,19 +101,36 @@ Price exceptions, unusual terms, scarce-capacity commitments, technical/safety a
 ### Routine continuity can become assisted/system work
 Examples include formatting known data, surfacing venue history, calculating represented totals, preparing a draft job brief, reminding against a known due date, or generating a draft from approved structured truth.
 
-## Initial deterministic signal families
+## Initial deterministic signal families — live
 
-The first engine should derive only high-confidence families supported by the current business model and data:
+`engagement_movement_candidates_v` currently derives these high-confidence families from represented reality:
 
-- **Demand / commercial decision** — open proposal or negotiation that needs a next decision.
-- **Quote creation** — legitimate open demand where enough represented scope exists to begin a draft; never invent price authority.
-- **Commitment handoff** — signed/won work whose accepted scope must be translated into operations.
-- **Payment verification** — only where an actual payment obligation/evidence state exists; signature alone does not invent a deposit requirement.
-- **Delivery readiness** — committed upcoming work with unresolved schedule, fulfillment, assignment, client dependency, access or capacity signals.
-- **Capacity pressure** — scarce overlapping requirement signal; pressure is not reservation.
-- **Economic close** — completed/past work with represented balance/cost/scope-change obligations still unresolved.
-- **Learning closeout** — delivered work lacking a closeout when fresh learning can improve future work.
-- **Recurrence / relationship** — evidenced recurring program/customer/venue where a future movement can compound relationship value.
+- **OPEN_PROPOSAL_DECISION** → `FOLLOW_UP_DECISION`: proposed/negotiating demand still needing a customer decision.
+- **OPEN_DEMAND_NEEDS_SCOPE** → `TRANSLATE_REQUIREMENTS`: open demand with no commercial document, where requirements/solution need shaping before pricing.
+- **COMMITTED_SCOPE_NOT_HANDED_OFF** → `HANDOFF_ACCEPTED_SCOPE`: committed work with no represented fulfillment handoff.
+- **IMMINENT_JOB_SCHEDULE_NOT_REPRESENTED** → `BUILD_EXECUTION_SCHEDULE`: committed work within seven days without a native execution schedule; explicitly a reconciliation need, not proof no timing exists in source material.
+- **IMMINENT_JOB_CREW_NOT_REPRESENTED** → `ASSIGN_JOB_ROLES`: committed field work within seven days without represented contributor assignments; no person is inferred.
+- **IMMINENT_SITE_ACCESS_RECONCILIATION** → `CONFIRM_VENUE_ACCESS`: near-term committed work with a known site but no native schedule context carrying access detail.
+- **BALANCE_SNAPSHOT_NEEDS_VERIFICATION** → `VERIFY_PAYMENT_STATE`: a near-term/recent committed Engagement whose represented commercial snapshot shows a balance; the snapshot is not promoted to current bank/accounting truth.
+- **FINAL_EXECUTION_READINESS** → `FINAL_READINESS_REVIEW`: committed work within two days; final exception scan rather than a claim that every Playbook step is tracked.
+- **RECENT_DELIVERY_NEEDS_CLOSEOUT** → `CAPTURE_DELIVERY_OUTCOME`: recently delivered committed work without closeout, while learning is still fresh.
+- **RESOURCE_WINDOW_PRESSURE** → `CHECK_CAPACITY_PRESSURE`: overlapping represented resource requirement windows; pressure remains distinct from hold/reservation/availability truth.
+
+`engagement_operating_focus_v` exposes only uncovered non-LATER candidates and ranks them for the operating surface.
+
+## Current reality stress test
+
+The first live run proved several useful Flower behaviors:
+
+- existing real work suppresses equivalent model suggestions instead of duplicating them;
+- current Goodshuffle fulfillment can satisfy handoff context without being mistaken for reservation/usage;
+- Music Farm and the Sep 12 UNC opener rise because their represented dates make schedule, crew, access, payment/readiness questions consequential now;
+- a recently delivered Red Palm Engagement surfaces payment-verification and learning-closeout opportunities without claiming the commercial snapshot is current accounting truth;
+- a Sep 4 equipment-sale proposal still commercially open surfaces as stale decision truth needing resolution rather than silently disappearing;
+- November resource overlap remains visible as WATCH capacity pressure instead of outranking September execution needs;
+- existing Cummins/IES/20th Anniversary follow-up work is recognized as covered rather than re-created.
+
+This is exactly the desired transition from **database completeness** to **business consequence**.
 
 ## Materialization boundary
 
@@ -121,17 +141,24 @@ The first engine is read-only/derived. A movement candidate becomes persisted wo
 - the system can state a useful success condition;
 - persistence improves continuity beyond merely displaying the signal.
 
-Automatic materialization should come later, after observing false-positive/false-negative behavior on real Stage Presence work.
+Automatic materialization comes later, after observing false-positive/false-negative behavior on real Stage Presence work.
+
+The frontend therefore distinguishes:
+
+**Needs You = persisted business work**  
+**System Sees = derived movement recommendation**
+
+No recommendation becomes an assignment, reservation, client message, or task simply because the model can derive it.
 
 ## Economic integration
 
-The engine must reason with separate economic states:
+The engine reasons with separate economic states:
 
 **proposal value → committed value → payment obligation → collected cash → direct cost → contribution**
 
 It must never infer contribution from revenue alone or treat a source snapshot as current bank/accounting truth.
 
-Historical commercial lines will eventually strengthen quote/pricing movement through:
+Historical commercial lines will strengthen quote/pricing movement through:
 
 **current requirement + approved pricing policy + historical observations + capacity/risk/relationship context → draft commercial decision**
 
