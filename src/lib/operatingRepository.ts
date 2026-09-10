@@ -168,6 +168,42 @@ export interface EngagementJobMapRow extends PlaybookStepRow {
   step_assignments: Array<Record<string, unknown>>
 }
 
+export interface MovementCandidateRow {
+  candidate_key: string
+  engagement_id: string
+  engagement_number: string
+  engagement_name: string
+  engagement_type: string
+  event_start_date: string | null
+  event_end_date: string | null
+  playbook_step_id: string
+  step_code: string
+  phase_order: number
+  phase_code: string
+  phase_name: string
+  step_title: string
+  movement_class: 'ACTION' | 'DECISION' | 'CHECK' | 'AUTOMATION' | 'LEARNING'
+  focus_domain: 'DELIVERY' | 'ECONOMICS' | 'DEMAND' | 'COORDINATION' | 'RELATIONSHIP' | 'KNOWLEDGE'
+  reason_code: string
+  why_now: string
+  materiality: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL'
+  urgency: 'NOW' | 'SOON' | 'WATCH' | 'LATER'
+  recommended_handling: 'SYSTEM' | 'ASSISTED' | 'HUMAN'
+  playbook_automation_mode: 'SYSTEM' | 'ASSISTED' | 'HUMAN'
+  procedure_depth: 'MAP_ONLY' | 'CHECKLIST' | 'SOP' | 'VERIFIED_SOP'
+  suggested_action_type: string
+  should_create_work: boolean
+  due_date_hint: string | null
+  certainty_state: 'VERIFIED' | 'KNOWN' | 'ESTIMATED' | 'ASSUMED' | 'CONFLICTING'
+  evidence_basis: Record<string, unknown>
+  economic_value: number | null
+  equivalent_open_work_count: number
+  continuity_state: 'COVERED' | 'UNMATERIALIZED'
+  priority_score: number
+  engagement_focus_rank?: number
+  global_focus_rank?: number
+}
+
 export async function listEngagementFrontends(): Promise<EngagementFrontendRow[]> {
   const client = requireClient()
   const { data, error } = await client
@@ -206,6 +242,32 @@ export async function listDailyOperatingWork(): Promise<DailyWorkRow[]> {
     .order('due_at', { ascending: true, nullsFirst: false })
   if (error) throw error
   return (data ?? []) as unknown as DailyWorkRow[]
+}
+
+/**
+ * Derived selective attention. These rows explain what the system currently sees;
+ * they are not persisted tasks and do not prove a Playbook step is required.
+ */
+export async function listOperatingFocus(limit = 40): Promise<MovementCandidateRow[]> {
+  const client = requireClient()
+  const { data, error } = await client
+    .from('engagement_operating_focus_v')
+    .select('*')
+    .order('global_focus_rank')
+    .limit(limit)
+  if (error) throw error
+  return (data ?? []) as unknown as MovementCandidateRow[]
+}
+
+export async function listEngagementMovementCandidates(engagementId: string): Promise<MovementCandidateRow[]> {
+  const client = requireClient()
+  const { data, error } = await client
+    .from('engagement_movement_candidates_v')
+    .select('*')
+    .eq('engagement_id', engagementId)
+    .order('priority_score', { ascending: false })
+  if (error) throw error
+  return (data ?? []) as unknown as MovementCandidateRow[]
 }
 
 export async function listPlaybookCatalog(): Promise<PlaybookStepRow[]> {
