@@ -1,4 +1,14 @@
+import { EngagementSummaryCard } from '../components/EngagementSummaryCard'
 import type { DailyWorkRow, EngagementFrontendRow, MovementCandidateRow, RelationshipSummaryRow } from '../lib/operatingRepository'
+import {
+  bySoonestEngagement,
+  formatMoney,
+  isCommittedEngagement,
+  isOpportunityEngagement,
+  isPastEngagement,
+  localDateKey,
+  presentEngagementCard,
+} from '../lib/presentationModel'
 
 export function OperatingTodayScreen({
   engagements,
@@ -18,12 +28,12 @@ export function OperatingTodayScreen({
   const systemSees = focus
     .filter((item) => item.engagement_focus_rank === 1 && (item.urgency === 'NOW' || item.urgency === 'SOON'))
     .slice(0, 6)
-  const nextUp = engagements.filter((row) => isCommitted(row) && !isPast(row, now)).sort(bySoonest).slice(0, 6)
-  const sales = engagements.filter((row) => isOpportunity(row) && !isPast(row, now)).sort(bySoonest).slice(0, 6)
+  const nextUp = engagements.filter((row) => isCommittedEngagement(row) && !isPastEngagement(row, now)).sort(bySoonestEngagement).slice(0, 6)
+  const sales = engagements.filter((row) => isOpportunityEngagement(row) && !isPastEngagement(row, now)).sort(bySoonestEngagement).slice(0, 6)
   const capacity = engagements.filter((row) => row.capacity_signal === 'HIGH' || row.capacity_signal === 'WATCH').slice(0, 6)
   const recurring = relationships.filter((row) => row.engagement_count > 1).slice(0, 5)
   const knownCommitted = engagements.reduce((sum, row) => {
-    if (!isCommitted(row)) return sum
+    if (!isCommittedEngagement(row)) return sum
     const economics = asRecord(row.economics)
     const value = numberValue(economics?.committed_revenue_observed)
     return sum + (value ?? 0)
@@ -40,7 +50,7 @@ export function OperatingTodayScreen({
           </div>
           <div className="rounded-2xl border border-zinc-900 bg-zinc-950/70 px-4 py-3 text-right">
             <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-zinc-700">Known committed value</div>
-            <div className="mt-1 text-xl font-semibold text-zinc-200">{money(knownCommitted)}</div>
+            <div className="mt-1 text-xl font-semibold text-zinc-200">{formatMoney(knownCommitted)}</div>
             <div className="mt-1 text-[10px] text-zinc-700">Only represented committed value; unknown allocations stay unknown.</div>
           </div>
         </div>
@@ -55,15 +65,15 @@ export function OperatingTodayScreen({
       </TodaySection>
 
       <TodaySection title="Next Up" description="Committed work approaching delivery." count={nextUp.length}>
-        {nextUp.length ? nextUp.map((row) => <EngagementCard key={row.id} row={row} onOpen={onOpen} mode="delivery" />) : <Empty text="No upcoming committed work is represented." />}
+        {nextUp.length ? nextUp.map((row) => <EngagementSummaryCard key={row.id} card={presentEngagementCard(row, 'delivery')} onOpen={onOpen} compact />) : <Empty text="No upcoming committed work is represented." />}
       </TodaySection>
 
       <TodaySection title="Sales" description="Open demand that still needs a commercial decision." count={sales.length}>
-        {sales.length ? sales.map((row) => <EngagementCard key={row.id} row={row} onOpen={onOpen} mode="sales" />) : <Empty text="No current sales movement is represented." />}
+        {sales.length ? sales.map((row) => <EngagementSummaryCard key={row.id} card={presentEngagementCard(row, 'sales')} onOpen={onOpen} compact />) : <Empty text="No current sales movement is represented." />}
       </TodaySection>
 
       <TodaySection title="Capacity" description="Pressure signals only. Configuration and signature do not automatically create a reservation." count={capacity.length}>
-        {capacity.length ? capacity.map((row) => <EngagementCard key={row.id} row={row} onOpen={onOpen} mode="capacity" />) : <Empty text="No WATCH or HIGH capacity signal is currently represented." />}
+        {capacity.length ? capacity.map((row) => <EngagementSummaryCard key={row.id} card={presentEngagementCard(row, 'capacity')} onOpen={onOpen} compact capacityMode />) : <Empty text="No WATCH or HIGH capacity signal is currently represented." />}
       </TodaySection>
 
       <TodaySection title="Relationships" description="Recurring relationship nodes that can compound value beyond one job." count={recurring.length}>
@@ -127,35 +137,11 @@ function FocusCard({ item, onOpen }: { item: MovementCandidateRow; onOpen: (id: 
   )
 }
 
-function EngagementCard({ row, onOpen, mode }: { row: EngagementFrontendRow; onOpen: (id: string) => void; mode: 'delivery' | 'sales' | 'capacity' }) {
-  const economics = asRecord(row.economics)
-  const next = asRecord(row.next_work)
-  const value = numberValue(mode === 'sales' ? economics?.proposal_value_observed : economics?.committed_revenue_observed)
-  return (
-    <button type="button" onClick={() => onOpen(row.id)} className="rounded-2xl border border-zinc-900 bg-zinc-950/70 p-4 text-left hover:border-zinc-700">
-      <div className="flex items-start justify-between gap-4">
-        <div><div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-zinc-700">{dateLabel(row)}</div><div className="mt-1 font-semibold text-zinc-200">{row.name}</div><div className="mt-1 text-xs text-zinc-600">{row.venue_name || 'Location not represented'}</div></div>
-        {mode === 'capacity' ? <span className="rounded-full border border-amber-900/60 px-2 py-1 text-[10px] font-semibold text-amber-500">{row.capacity_signal}</span> : value !== null ? <span className="text-sm font-semibold text-zinc-400">{money(value)}</span> : <span className="text-xs text-zinc-700">Value unknown</span>}
-      </div>
-      <div className="mt-3 border-t border-zinc-900 pt-3 text-sm text-zinc-500">{stringValue(next?.title) || fallbackMovement(row)}</div>
-    </button>
-  )
-}
-
 function RelationshipCard({ row }: { row: RelationshipSummaryRow }) {
-  return <div className="rounded-2xl border border-zinc-900 bg-zinc-950/70 p-4"><div className="flex items-start justify-between gap-4"><div><div className="font-semibold text-zinc-200">{row.name}</div>{row.organization_name && <div className="mt-1 text-xs text-zinc-600">{row.organization_name}</div>}</div><div className="text-right"><div className="text-lg font-semibold text-zinc-300">{row.engagement_count}</div><div className="text-[10px] text-zinc-700">Engagements</div></div></div><div className="mt-3 flex justify-between border-t border-zinc-900 pt-3 text-xs text-zinc-600"><span>{row.current_future_count} current / future</span><span>{money(Number(row.committed_revenue_observed || 0))} observed committed</span></div></div>
+  return <div className="rounded-2xl border border-zinc-900 bg-zinc-950/70 p-4"><div className="flex items-start justify-between gap-4"><div><div className="font-semibold text-zinc-200">{row.name}</div>{row.organization_name && <div className="mt-1 text-xs text-zinc-600">{row.organization_name}</div>}</div><div className="text-right"><div className="text-lg font-semibold text-zinc-300">{row.engagement_count}</div><div className="text-[10px] text-zinc-700">Engagements</div></div></div><div className="mt-3 flex justify-between border-t border-zinc-900 pt-3 text-xs text-zinc-600"><span>{row.current_future_count} current / future</span><span>{formatMoney(Number(row.committed_revenue_observed || 0))} observed committed</span></div></div>
 }
 
 function Empty({ text }: { text: string }) { return <div className="rounded-2xl border border-zinc-900 bg-zinc-950/30 p-5 text-sm leading-6 text-zinc-600">{text}</div> }
-function isCommitted(row: EngagementFrontendRow) { return row.commercial_state === 'WON' || ['SIGNED', 'DEPOSIT_PENDING', 'CONFIRMED'].includes(row.commitment_state) }
-function isOpportunity(row: EngagementFrontendRow) { return ['NEW', 'DISCOVERY', 'DESIGNING', 'PROPOSED', 'NEGOTIATING'].includes(row.commercial_state) && !['SIGNED', 'DEPOSIT_PENDING', 'CONFIRMED', 'CANCELLED'].includes(row.commitment_state) }
-function isPast(row: EngagementFrontendRow, today: string) { const key = row.event_start_date ?? row.event_start?.slice(0, 10); return Boolean(key && key < today) }
-function bySoonest(a: EngagementFrontendRow, b: EngagementFrontendRow) { return (a.event_start_date ?? '9999-12-31').localeCompare(b.event_start_date ?? '9999-12-31') || b.updated_at.localeCompare(a.updated_at) }
-function dateLabel(row: EngagementFrontendRow) { const key = row.event_start_date ?? row.event_start?.slice(0, 10); return key ? dateText(key) : 'Date TBD' }
 function dateText(key: string) { return new Date(`${key}T12:00:00`).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) }
-function localDateKey(date: Date) { return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}` }
-function fallbackMovement(row: EngagementFrontendRow) { return isOpportunity(row) ? 'Advance the next commercial decision.' : isCommitted(row) ? 'Protect the next delivery dependency.' : 'Review current state.' }
-function money(value: number) { return new Intl.NumberFormat(undefined, { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(value) }
 function asRecord(value: unknown): Record<string, unknown> | null { return value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : null }
-function stringValue(value: unknown) { return typeof value === 'string' ? value : null }
 function numberValue(value: unknown) { if (typeof value === 'number' && Number.isFinite(value)) return value; if (typeof value === 'string' && value.trim() && Number.isFinite(Number(value))) return Number(value); return null }
