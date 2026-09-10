@@ -4,11 +4,13 @@ import { AppShell, type ScreenName } from './components/AppShell'
 import { CapacityDefaultsPanel } from './components/CapacityDefaultsPanel'
 import { CommercialIntelligencePanel } from './components/CommercialIntelligencePanel'
 import { EngagementBusinessStory } from './components/EngagementBusinessStory'
+import { EngagementEconomyPanel } from './components/EngagementEconomyPanel'
 import { JobMapPanel } from './components/JobMapPanel'
 import { LearningCloseoutSlot } from './components/LearningCloseoutSlot'
 import { MovementFocusPanel } from './components/MovementFocusPanel'
 import { GregTodayScreen } from './screens/GregTodayScreen'
 import { EngagementsScreen } from './screens/EngagementsScreen'
+import { EconomyScreen } from './screens/EconomyScreen'
 import { OperatingTodayScreen } from './screens/OperatingTodayScreen'
 import { OperatingWorkScreen } from './screens/OperatingWorkScreen'
 import { PlaybookScreen } from './screens/PlaybookScreen'
@@ -37,7 +39,7 @@ function readRoute(): RouteState {
     return id ? { screen: 'detail', selectedId: id } : { screen: 'engagements', selectedId: null }
   }
 
-  if (route === 'engagements' || route === 'resources' || route === 'playbook' || route === 'new' || route === 'today') {
+  if (route === 'engagements' || route === 'economy' || route === 'resources' || route === 'playbook' || route === 'new' || route === 'today') {
     return { screen: route, selectedId: null }
   }
 
@@ -200,6 +202,8 @@ export default function App() {
         )
       ) : screen === 'engagements' ? (
         isBackendConfigured ? <OperatingWorkScreen rows={data.operatingEngagements} onOpen={openEngagement} /> : <EngagementsScreen engagements={data.engagements} onOpen={openEngagement} />
+      ) : screen === 'economy' ? (
+        isBackendConfigured ? <EconomyScreen onOpen={openEngagement} /> : <div className="sm:ml-48 rounded-2xl border border-zinc-900 p-6 text-zinc-600">Connect the Stage Presence backend to view the operating economy.</div>
       ) : screen === 'resources' ? (
         <ResourcesScreen resources={data.resources} />
       ) : screen === 'playbook' ? (
@@ -224,6 +228,7 @@ export default function App() {
           />
 
           {isBackendConfigured && <MovementFocusPanel engagementId={selectedEngagement.id} />}
+          {isBackendConfigured && <EngagementEconomyPanel engagementId={selectedEngagement.id} onChanged={data.refresh} />}
           {isBackendConfigured && <CommercialIntelligencePanel engagementId={selectedEngagement.id} />}
           {isBackendConfigured && <JobMapPanel engagementId={selectedEngagement.id} />}
 
