@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { EconomyRealityMap } from '../components/EconomyRealityMap'
 import { EconomyStructurePanel } from '../components/EconomyStructurePanel'
 import { getEconomyOverview, listEngagementEconomies, type EconomyOverviewRow, type EngagementEconomyRow } from '../lib/economyRepository'
 import { dateLabel, moneyOrUnknown, presentEconomyOverview } from '../lib/economyPresentation'
@@ -69,6 +70,7 @@ export function EconomyScreen({ onOpen }: { onOpen: (id: string) => void }) {
       </div>
 
       <EvidenceBanner overview={overview} cashEvidence={view.cashEvidence} />
+      <EconomyRealityMap />
 
       <section className="mt-10">
         <div className="mb-3 flex items-end justify-between gap-4">
