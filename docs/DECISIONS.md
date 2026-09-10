@@ -157,3 +157,19 @@ Reason: inherited Goodshuffle work can carry valid commercial/fulfillment eviden
 ## 2026-09-10 — Persisted work and System Sees remain visibly distinct
 Decision: Today presents persisted `daily_work_queue_v` action reality separately from derived selective-movement recommendations. Existing open work for the same Engagement + Playbook step marks a candidate `COVERED` rather than creating a duplicate.
 Reason: users must be able to tell what the business has actually committed to doing from what the model merely recommends. This distinction is a prerequisite for trustworthy low-touch automation.
+
+## 2026-09-10 — Aggregate collection snapshots are baselines, not transaction ledgers
+Decision: treat imported/document `amount collected` values as dated aggregate baselines and add only payment transactions occurring after that baseline when calculating the current collected position.
+Reason: imported Goodshuffle cash truth already includes earlier receipts. Adding every later-created payment row to that number would double-count history, while letting the baseline always win would make new receipts invisible. `engagement_cash_position_v` preserves both realities and exposes overlap/reconciliation state.
+
+## 2026-09-10 — Company operating costs are separate from direct Engagement costs
+Decision: store non-job operating expense evidence in `company_cost_items` rather than forcing insurance, software, facility, admin, vehicle, financing and similar costs onto Engagements.
+Reason: direct contribution answers whether a job economically creates value before general company overhead. Company operating economics require another layer; collapsing the two would make job comparison and company economics both less trustworthy.
+
+## 2026-09-10 — Asset economics are append-oriented and separate from operational inventory
+Decision: store ownership/value/financing/replacement/maintenance observations in `resource_economic_snapshots`, independently of Resource quantity, availability, commitments and usage.
+Reason: an LED trailer can be operationally configured or available without its book/market/replacement economics being known. Later value estimates must create new snapshots rather than rewrite earlier economic evidence.
+
+## 2026-09-10 — Contribution is not promoted to profit
+Decision: continue presenting Engagement contribution where supported, but do not calculate or label company profit until direct-cost, company-cost, funds and any required accounting coverage is explicit enough to support the claim.
+Reason: a mathematically precise number built from incomplete economic coverage would be less truthful than an intentional unknown. The company Economy surface should expose evidence coverage beside value.
