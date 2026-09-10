@@ -1,18 +1,23 @@
-import type { DailyWorkRow, EngagementFrontendRow, RelationshipSummaryRow } from '../lib/operatingRepository'
+import type { DailyWorkRow, EngagementFrontendRow, MovementCandidateRow, RelationshipSummaryRow } from '../lib/operatingRepository'
 
 export function OperatingTodayScreen({
   engagements,
   work,
+  focus,
   relationships,
   onOpen,
 }: {
   engagements: EngagementFrontendRow[]
   work: DailyWorkRow[]
+  focus: MovementCandidateRow[]
   relationships: RelationshipSummaryRow[]
   onOpen: (id: string) => void
 }) {
   const now = localDateKey(new Date())
   const needsYou = work.filter((item) => item.priority === 'NOW' || item.status === 'BLOCKED').slice(0, 8)
+  const systemSees = focus
+    .filter((item) => item.engagement_focus_rank === 1 && (item.urgency === 'NOW' || item.urgency === 'SOON'))
+    .slice(0, 6)
   const nextUp = engagements.filter((row) => isCommitted(row) && !isPast(row, now)).sort(bySoonest).slice(0, 6)
   const sales = engagements.filter((row) => isOpportunity(row) && !isPast(row, now)).sort(bySoonest).slice(0, 6)
   const capacity = engagements.filter((row) => row.capacity_signal === 'HIGH' || row.capacity_signal === 'WATCH').slice(0, 6)
@@ -41,8 +46,12 @@ export function OperatingTodayScreen({
         </div>
       </header>
 
-      <TodaySection title="Needs You" description="Immediate or blocked actions that deserve human attention now." count={needsYou.length}>
+      <TodaySection title="Needs You" description="Persisted work already carrying business continuity. These are real represented actions, not model suggestions." count={needsYou.length}>
         {needsYou.length ? needsYou.map((item) => <ActionCard key={item.id} item={item} onOpen={onOpen} />) : <Empty text="No NOW or blocked operating action is represented." />}
+      </TodaySection>
+
+      <TodaySection title="System Sees" description="Selective Flower signals derived from current reality. They explain likely movement but remain suggestions until the business earns a durable action." count={systemSees.length}>
+        {systemSees.length ? systemSees.map((item) => <FocusCard key={item.candidate_key} item={item} onOpen={onOpen} />) : <Empty text="No uncovered NOW or SOON movement signal is currently represented." />}
       </TodaySection>
 
       <TodaySection title="Next Up" description="Committed work approaching delivery." count={nextUp.length}>
@@ -96,6 +105,26 @@ function ActionCard({ item, onOpen }: { item: DailyWorkRow; onOpen: (id: string)
     </>
   )
   return canOpen ? <button type="button" onClick={() => onOpen(item.engagement_id!)} className="rounded-2xl border border-zinc-900 bg-zinc-950/70 p-4 text-left hover:border-zinc-700">{body}</button> : <div className="rounded-2xl border border-zinc-900 bg-zinc-950/70 p-4">{body}</div>
+}
+
+function FocusCard({ item, onOpen }: { item: MovementCandidateRow; onOpen: (id: string) => void }) {
+  return (
+    <button type="button" onClick={() => onOpen(item.engagement_id)} className="rounded-2xl border border-zinc-900 bg-zinc-950/50 p-4 text-left transition hover:border-zinc-700">
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-sky-600">{item.urgency} · {item.focus_domain.replaceAll('_', ' ')}</div>
+          <div className="mt-1 text-base font-semibold text-zinc-200">{item.step_title}</div>
+          <div className="mt-1 text-xs text-zinc-600">{item.engagement_name}</div>
+        </div>
+        <span className="shrink-0 rounded-full border border-zinc-900 px-2 py-1 text-[10px] text-zinc-600">{item.recommended_handling.toLowerCase()}</span>
+      </div>
+      <p className="mt-3 text-sm leading-6 text-zinc-500">{item.why_now}</p>
+      <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-zinc-900 pt-3 text-[10px] text-zinc-700">
+        <span>System suggestion · not a task</span>
+        <span>{item.materiality.toLowerCase()} materiality · {item.certainty_state.toLowerCase()} basis</span>
+      </div>
+    </button>
+  )
 }
 
 function EngagementCard({ row, onOpen, mode }: { row: EngagementFrontendRow; onOpen: (id: string) => void; mode: 'delivery' | 'sales' | 'capacity' }) {
