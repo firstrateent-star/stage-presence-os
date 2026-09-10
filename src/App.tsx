@@ -3,9 +3,13 @@ import type { Session } from '@supabase/supabase-js'
 import { AppShell, type ScreenName } from './components/AppShell'
 import { CapacityDefaultsPanel } from './components/CapacityDefaultsPanel'
 import { EngagementBusinessStory } from './components/EngagementBusinessStory'
+import { JobMapPanel } from './components/JobMapPanel'
 import { LearningCloseoutSlot } from './components/LearningCloseoutSlot'
 import { GregTodayScreen } from './screens/GregTodayScreen'
 import { EngagementsScreen } from './screens/EngagementsScreen'
+import { OperatingTodayScreen } from './screens/OperatingTodayScreen'
+import { OperatingWorkScreen } from './screens/OperatingWorkScreen'
+import { PlaybookScreen } from './screens/PlaybookScreen'
 import { ResourcesScreen } from './screens/ResourcesScreen'
 import { EngagementDetailScreen } from './screens/EngagementDetailScreen'
 import { NewEngagementScreen } from './screens/NewEngagementScreen'
@@ -31,7 +35,7 @@ function readRoute(): RouteState {
     return id ? { screen: 'detail', selectedId: id } : { screen: 'engagements', selectedId: null }
   }
 
-  if (route === 'engagements' || route === 'resources' || route === 'new' || route === 'today') {
+  if (route === 'engagements' || route === 'resources' || route === 'playbook' || route === 'new' || route === 'today') {
     return { screen: route, selectedId: null }
   }
 
@@ -177,30 +181,36 @@ export default function App() {
       {data.loading ? (
         <div className="sm:ml-48 py-20 text-zinc-600">Loading shared reality…</div>
       ) : screen === 'today' ? (
-        <GregTodayScreen
-          engagements={data.engagements}
-          events={data.events}
-          customerLinks={data.customerLinks}
-          configuredLinks={data.configuredLinks}
-          attentionFacts={data.attentionFacts}
-          engagementRelationships={data.engagementRelationships}
-          financialFacts={data.financialFacts}
-          learningReviewSignals={data.learningReviewSignals}
-          onOpen={openEngagement}
-        />
+        isBackendConfigured ? (
+          <OperatingTodayScreen engagements={data.operatingEngagements} work={data.dailyWork} relationships={data.relationshipSummaries} onOpen={openEngagement} />
+        ) : (
+          <GregTodayScreen
+            engagements={data.engagements}
+            events={data.events}
+            customerLinks={data.customerLinks}
+            configuredLinks={data.configuredLinks}
+            attentionFacts={data.attentionFacts}
+            engagementRelationships={data.engagementRelationships}
+            financialFacts={data.financialFacts}
+            learningReviewSignals={data.learningReviewSignals}
+            onOpen={openEngagement}
+          />
+        )
       ) : screen === 'engagements' ? (
-        <EngagementsScreen engagements={data.engagements} onOpen={openEngagement} />
+        isBackendConfigured ? <OperatingWorkScreen rows={data.operatingEngagements} onOpen={openEngagement} /> : <EngagementsScreen engagements={data.engagements} onOpen={openEngagement} />
       ) : screen === 'resources' ? (
         <ResourcesScreen resources={data.resources} />
+      ) : screen === 'playbook' ? (
+        isBackendConfigured ? <PlaybookScreen steps={data.playbookSteps} /> : <div className="sm:ml-48 rounded-2xl border border-zinc-900 p-6 text-zinc-600">Connect the Stage Presence backend to browse the live operating playbook.</div>
       ) : screen === 'new' ? (
         <NewEngagementScreen onCancel={() => navigate('today')} onCreated={() => { void data.refresh(); navigate('engagements') }} />
       ) : selectedEngagement ? (
         <div className="sm:ml-48">
-          <button type="button" onClick={() => navigate('engagements')} className="mb-5 text-sm text-zinc-500 hover:text-zinc-200">← Engagements</button>
+          <button type="button" onClick={() => navigate('engagements')} className="mb-5 text-sm text-zinc-500 hover:text-zinc-200">← Work</button>
           <div className="border-b border-zinc-900 pb-6">
             <div className="text-xs tracking-[0.14em] text-zinc-600">{selectedEngagement.engagement_number}</div>
             <h1 className="mt-2 text-3xl font-semibold tracking-tight text-zinc-100">{selectedEngagement.name}</h1>
-            <p className="mt-2 text-sm text-zinc-600">What is happening with this piece of business?</p>
+            <p className="mt-2 text-sm text-zinc-600">What is happening, and what does this Engagement require from start to finish?</p>
           </div>
 
           <EngagementBusinessStory
@@ -210,6 +220,8 @@ export default function App() {
             financialFacts={data.financialFacts}
             capacityPressures={selectedCapacityPressures}
           />
+
+          {isBackendConfigured && <JobMapPanel engagementId={selectedEngagement.id} />}
 
           <details className="mt-8 rounded-2xl border border-zinc-900 bg-zinc-950/40">
             <summary className="cursor-pointer px-5 py-4 text-sm font-semibold text-zinc-400 hover:text-zinc-200">Working details · evidence, people, resources, next-move controls and activity</summary>
