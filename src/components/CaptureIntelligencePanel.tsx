@@ -1,7 +1,8 @@
 import { useMemo, useState } from 'react'
 import { interpretCapture, type CaptureInterpretation, type CaptureProposal, type CaptureUnknown } from '../lib/captureIntelligence'
 import { preserveExistingEngagementCapture, routeCapturedUnknown } from '../lib/captureReality'
-import { buildCaptureReviewMetadata, recordCaptureReview, type ProposalReviewDecision, type UnknownReviewDecision } from '../lib/captureReviewTrace'
+import { buildCaptureReviewMetadata, type ProposalReviewDecision, type UnknownReviewDecision } from '../lib/captureReviewModel'
+import { recordCaptureReview } from '../lib/captureReviewTrace'
 import { createAssignment, createScheduleItem, listTeamMemberOptions } from '../lib/operationsReality'
 import { listCommitmentCandidates, saveResourceCommitment } from '../lib/resourceCommitments'
 
