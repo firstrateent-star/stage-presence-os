@@ -1,5 +1,6 @@
 -- Refine the stable Capability contract without splitting historical Resource identity.
 -- The resources table remains canonical; capability_kind is a derived semantic.
+-- Existing column order is preserved; new semantic columns are appended.
 
 create or replace view public.capability_summary_v
 with (security_invoker = true)
@@ -54,8 +55,6 @@ select
   r.name,
   r.category,
   r.resource_type,
-  r.capability_kind,
-  (r.capability_kind = 'PHYSICAL_CAPACITY') as capacity_relevant,
   r.sourcing_model,
   r.quantity,
   r.quantity_state,
@@ -92,7 +91,9 @@ select
     when r.quantity_state <> 'VERIFIED' or r.sourcing_model = 'UNKNOWN' then 'CAPABILITY_TRUTH_PARTIAL'
     when coalesce(ur.represented_actual_usage_count, 0) = 0 then 'ACTUAL_USE_NOT_YET_OBSERVED'
     else 'OPERATING_EVIDENCE_PRESENT'
-  end as capability_evidence_state
+  end as capability_evidence_state,
+  r.capability_kind,
+  (r.capability_kind = 'PHYSICAL_CAPACITY') as capacity_relevant
 from classified r
 left join commitment_rollup cr on cr.resource_id = r.id
 left join usage_rollup ur on ur.resource_id = r.id
