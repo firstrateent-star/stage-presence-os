@@ -75,7 +75,7 @@ export async function linkCanonicalVenue(
   if (matchError) throw matchError
 
   if ((matches ?? []).length > 1) {
-    const { data: existingConflict, error: conflictReadError } = await client
+    const { data: existingConflicts, error: conflictReadError } = await client
       .from('engagement_facts')
       .select('id')
       .eq('engagement_id', engagementId)
@@ -83,10 +83,10 @@ export async function linkCanonicalVenue(
       .eq('label', 'Venue/location match needs review')
       .eq('value_text', name)
       .in('certainty_state', ['UNKNOWN', 'CONFLICTING'])
-      .maybeSingle()
+      .limit(1)
     if (conflictReadError) throw conflictReadError
 
-    if (!existingConflict) {
+    if (!(existingConflicts ?? []).length) {
       const { error: conflictError } = await client.from('engagement_facts').insert({
         engagement_id: engagementId,
         category: 'VENUE',
