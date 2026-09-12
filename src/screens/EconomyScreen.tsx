@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { CollectionProvenancePanel } from '../components/CollectionProvenancePanel'
 import { EconomyRealityMap } from '../components/EconomyRealityMap'
 import { EconomyStructurePanel } from '../components/EconomyStructurePanel'
 import { getEconomyOverview, listEngagementEconomies, type EconomyOverviewRow, type EngagementEconomyRow } from '../lib/economyRepository'
@@ -70,6 +71,8 @@ export function EconomyScreen({ onOpen }: { onOpen: (id: string) => void }) {
       </div>
 
       <EvidenceBanner overview={overview} cashEvidence={view.cashEvidence} />
+      <ContributionReadiness engagements={engagements} onOpen={onOpen} />
+      <CollectionProvenancePanel onOpenEngagement={onOpen} />
       <EconomyRealityMap />
 
       <section className="mt-10">
@@ -102,6 +105,30 @@ function EvidenceBanner({ overview, cashEvidence }: { overview: EconomyOverviewR
   return <div className="mt-4 rounded-xl border border-zinc-900 bg-zinc-950/45 px-4 py-3 text-xs leading-5 text-zinc-600"><span className="font-medium text-zinc-400">{headline}</span> {cashEvidence} {overview.engagements_with_unknown_program_allocation > 0 ? `${overview.engagements_with_unknown_program_allocation} program component Engagements intentionally retain unknown economic allocation.` : ''}</div>
 }
 
+function ContributionReadiness({ engagements, onOpen }: { engagements: EngagementEconomyRow[]; onOpen: (id: string) => void }) {
+  const committed = engagements.filter(row => row.committed_revenue_observed != null || ['SIGNED','DEPOSIT_PENDING','CONFIRMED'].includes(row.commitment_state))
+  const actual = committed.filter(row => row.economy_state === 'ACTUAL_CONTRIBUTION_SUPPORTED')
+  const projected = committed.filter(row => row.economy_state === 'PROJECTED_CONTRIBUTION_SUPPORTED')
+  const costMissing = committed.filter(row => row.economy_state === 'REVENUE_VISIBLE_COSTS_UNPOPULATED')
+  const allocationUnknown = committed.filter(row => row.economy_state === 'PROGRAM_ALLOCATION_UNKNOWN')
+  const unresolved = committed.filter(row => !['ACTUAL_CONTRIBUTION_SUPPORTED','PROJECTED_CONTRIBUTION_SUPPORTED'].includes(row.economy_state)).slice(0, 8)
+
+  return <section className="mt-6 rounded-2xl border border-zinc-900 bg-zinc-950/45 p-5">
+    <div>
+      <div className="text-[10px] font-semibold uppercase tracking-[0.16em] text-zinc-700">Contribution readiness</div>
+      <h2 className="mt-1 text-lg font-semibold text-zinc-200">Which job economics are actually supportable?</h2>
+      <p className="mt-2 max-w-3xl text-sm leading-6 text-zinc-600">This is not a score. It shows whether represented revenue and direct-cost evidence are strong enough to support actual or projected contribution without treating missing cost as zero.</p>
+    </div>
+    <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
+      <MetricCount label="Actual supported" value={actual.length} />
+      <MetricCount label="Projected supported" value={projected.length} />
+      <MetricCount label="Costs missing" value={costMissing.length} warn={costMissing.length > 0} />
+      <MetricCount label="Allocation unknown" value={allocationUnknown.length} warn={allocationUnknown.length > 0} />
+    </div>
+    {unresolved.length > 0 && <div className="mt-4 space-y-2">{unresolved.map(row => <button key={row.engagement_id} type="button" onClick={() => onOpen(row.engagement_id)} className="flex w-full items-start justify-between gap-4 rounded-xl border border-zinc-900 bg-zinc-950/55 px-4 py-3 text-left hover:border-zinc-700"><div><div className="text-sm font-medium text-zinc-300">{row.engagement_name}</div><div className="mt-1 text-xs text-zinc-700">{contributionBlocker(row)}</div></div><div className="text-right text-xs text-zinc-500">{moneyOrUnknown(row.committed_revenue_observed)}</div></button>)}</div>}
+  </section>
+}
+
 function EconomyEngagementCard({ row, onOpen }: { row: EngagementEconomyRow; onOpen: (id: string) => void }) {
   const commercialValue = row.committed_revenue_observed ?? row.proposal_value_observed
   const label = row.committed_revenue_observed != null ? 'Committed' : 'Proposal'
@@ -116,9 +143,11 @@ function EconomyEngagementCard({ row, onOpen }: { row: EngagementEconomyRow; onO
 function EconomyMetric({ label, value, detail, emphasis=false }: { label: string; value: string; detail: string; emphasis?: boolean }) { return <div className={`rounded-2xl border p-4 ${emphasis ? 'border-amber-950/70 bg-amber-950/10' : 'border-zinc-900 bg-zinc-950/65'}`}><div className={`text-2xl font-semibold ${emphasis ? 'text-amber-400' : 'text-zinc-100'}`}>{value}</div><div className="mt-1 text-xs font-semibold text-zinc-500">{label}</div><div className="mt-2 text-[10px] leading-4 text-zinc-700">{detail}</div></div> }
 function StatusCard({ eyebrow, value, detail }: { eyebrow: string; value: string; detail: string }) { return <div className="rounded-2xl border border-zinc-900 bg-zinc-950/50 p-4"><div className="text-[9px] font-semibold uppercase tracking-[0.12em] text-zinc-700">{eyebrow}</div><div className="mt-1 text-xl font-semibold text-zinc-300">{value}</div><div className="mt-2 text-xs leading-5 text-zinc-600">{detail}</div></div> }
 function Tiny({ label, value }: { label: string; value: string }) { return <div><div className="text-[9px] font-semibold uppercase tracking-[0.08em] text-zinc-700">{label}</div><div className="mt-1 truncate text-xs font-medium text-zinc-400">{value}</div></div> }
+function MetricCount({ label, value, warn=false }: { label: string; value: number; warn?: boolean }) { return <div className={`rounded-xl border p-3 ${warn ? 'border-amber-950/60 bg-amber-950/10' : 'border-zinc-900 bg-zinc-950/55'}`}><div className={`text-lg font-semibold ${warn ? 'text-amber-400' : 'text-zinc-300'}`}>{value}</div><div className="mt-1 text-[9px] uppercase tracking-[0.08em] text-zinc-700">{label}</div></div> }
 function Empty({ text }: { text: string }) { return <div className="rounded-xl border border-zinc-900 bg-zinc-950/30 p-4 text-sm leading-6 text-zinc-700">{text}</div> }
 function isEconomicallyActive(row: EngagementEconomyRow) { return ['NEW','DISCOVERY','DESIGNING','PROPOSED','NEGOTIATING','WON'].includes(row.commercial_state) || ['SIGNED','DEPOSIT_PENDING','CONFIRMED'].includes(row.commitment_state) }
 function bySoonest(a: EngagementEconomyRow, b: EngagementEconomyRow) { return (a.event_start_date ?? '9999-12-31').localeCompare(b.event_start_date ?? '9999-12-31') }
 function byMostRecent(a: EngagementEconomyRow, b: EngagementEconomyRow) { return (b.event_start_date ?? '0000-00-00').localeCompare(a.event_start_date ?? '0000-00-00') }
 function economyStateLabel(row: EngagementEconomyRow) { if (row.economy_state === 'PROGRAM_ALLOCATION_UNKNOWN') return 'Program allocation unresolved'; if (row.economy_state === 'ACTUAL_CONTRIBUTION_SUPPORTED') return 'Actual contribution supported'; if (row.economy_state === 'PROJECTED_CONTRIBUTION_SUPPORTED') return 'Projected contribution supported'; if (row.economy_state === 'REVENUE_VISIBLE_COSTS_UNPOPULATED') return 'Revenue visible · costs not populated'; return humanize(row.economy_state) }
+function contributionBlocker(row: EngagementEconomyRow) { if (row.economy_state === 'PROGRAM_ALLOCATION_UNKNOWN') return 'Program-level allocation is intentionally unresolved.'; if (row.committed_revenue_observed == null) return 'Committed revenue is not represented.'; if (row.direct_cost_actual_observed == null && row.direct_cost_estimate_observed == null) return 'No direct-cost evidence is represented yet.'; if (row.direct_cost_actual_observed == null) return 'Projected cost exists, but actual direct cost is not yet represented.'; return 'Economic evidence remains partial.' }
 function humanize(value: string) { return value.replaceAll('_',' ').toLowerCase().replace(/^./, x => x.toUpperCase()) }
