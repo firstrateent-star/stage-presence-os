@@ -16,6 +16,7 @@ import { OperatingTodayScreen } from './screens/OperatingTodayScreen'
 import { OperatingWorkScreen } from './screens/OperatingWorkScreen'
 import { PlaybookScreen } from './screens/PlaybookScreen'
 import { RecoveryScreen } from './screens/RecoveryScreen'
+import { RelationshipsScreen } from './screens/RelationshipsScreen'
 import { ResourcesScreen } from './screens/ResourcesScreen'
 import { EngagementDetailScreen } from './screens/EngagementDetailScreen'
 import { NewEngagementScreen } from './screens/NewEngagementScreen'
@@ -41,7 +42,7 @@ function readRoute(): RouteState {
     return id ? { screen: 'detail', selectedId: id } : { screen: 'engagements', selectedId: null }
   }
 
-  if (route === 'engagements' || route === 'recovery' || route === 'economy' || route === 'resources' || route === 'playbook' || route === 'new' || route === 'today') {
+  if (route === 'engagements' || route === 'relationships' || route === 'recovery' || route === 'economy' || route === 'resources' || route === 'playbook' || route === 'new' || route === 'today') {
     return { screen: route, selectedId: null }
   }
 
@@ -204,6 +205,10 @@ export default function App() {
         )
       ) : screen === 'engagements' ? (
         isBackendConfigured ? <OperatingWorkScreen rows={data.operatingEngagements} onOpen={openEngagement} /> : <EngagementsScreen engagements={data.engagements} onOpen={openEngagement} />
+      ) : screen === 'relationships' ? (
+        isBackendConfigured ? (
+          <RelationshipsScreen relationships={data.relationshipSummaries} customerLinks={data.customerLinks} engagements={data.engagements} onOpenEngagement={openEngagement} />
+        ) : <div className="sm:ml-48 rounded-2xl border border-zinc-900 p-6 text-zinc-600">Connect the Stage Presence backend to view relationship memory.</div>
       ) : screen === 'recovery' ? (
         isBackendConfigured ? <RecoveryScreen onOpenEngagement={openEngagement} /> : <div className="sm:ml-48 rounded-2xl border border-zinc-900 p-6 text-zinc-600">Connect the Stage Presence backend to view Recovery.</div>
       ) : screen === 'economy' ? (
