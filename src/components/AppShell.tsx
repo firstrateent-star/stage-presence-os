@@ -44,7 +44,7 @@ export function AppShell({
               onClick={() => onNavigate('new')}
               className="rounded-full bg-amber-500 px-4 py-2.5 text-sm font-bold text-zinc-950 shadow-sm transition hover:bg-amber-400"
             >
-              + New
+              + Capture
             </button>
           </div>
         </div>
