@@ -121,6 +121,14 @@ export async function linkCanonicalVenue(
     locationId = location.id
   }
 
+  const { error: demoteError } = await client
+    .from('engagement_locations')
+    .update({ is_primary: false })
+    .eq('engagement_id', engagementId)
+    .eq('role', 'VENUE')
+    .eq('is_primary', true)
+  if (demoteError) throw demoteError
+
   const sourceKey = `manual-venue:${engagementId}`
   const { error: linkError } = await client.from('engagement_locations').upsert({
     engagement_id: engagementId,
