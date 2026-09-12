@@ -3,6 +3,7 @@ import type { Session } from '@supabase/supabase-js'
 import { AppShell, type ScreenName } from './components/AppShell'
 import { CapacityDefaultsPanel } from './components/CapacityDefaultsPanel'
 import { CommercialIntelligencePanel } from './components/CommercialIntelligencePanel'
+import { DeliveryActualsPanel } from './components/DeliveryActualsPanel'
 import { EngagementBusinessStory } from './components/EngagementBusinessStory'
 import { EngagementEconomyPanel } from './components/EngagementEconomyPanel'
 import { JobMapPanel } from './components/JobMapPanel'
@@ -244,6 +245,16 @@ export default function App() {
               {isBackendConfigured && <CapacityDefaultsPanel engagement={selectedEngagement} onSaved={data.refresh} />}
             </div>
           </details>
+
+          {isBackendConfigured && (
+            <DeliveryActualsPanel
+              engagementId={selectedEngagement.id}
+              eventStartDate={selectedEngagement.event_start_date}
+              eventEndDate={selectedEngagement.event_end_date}
+              operationalState={selectedEngagement.operational_state}
+              onChanged={data.refresh}
+            />
+          )}
 
           <LearningCloseoutSlot
             engagementId={selectedEngagement.id}
