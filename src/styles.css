@@ -14,4 +14,11 @@ button, input, textarea, select { font: inherit; }
 button { cursor: pointer; }
 * { box-sizing: border-box; }
 
+/* Frontend v1 shell owns the desktop offset. Preserved legacy screens may still
+   carry the old responsive sidebar utility while they are progressively cut over. */
+@media (min-width: 640px) {
+  .sm\:ml-48 { margin-left: 0 !important; }
+  .sm\:-ml-48 { margin-left: 0 !important; }
+}
+
 ::selection { background: #d6a85f; color: #0a0a0b; }
