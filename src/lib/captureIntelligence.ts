@@ -71,6 +71,8 @@ export function interpretCapture(input: {
   const confirmationLanguage = /\b(confirm(?:ed)?|booked|locked\s+in|definitely\s+working)\b/i.test(raw)
   if (confirmationLanguage) {
     for (const member of input.teamMembers) {
+      const primaryRole = normalize(member.primary_role || '')
+      if (primaryRole.includes('sales')) continue
       const aliases = [member.display_name, member.username].filter(Boolean).map(value => normalize(String(value)))
       if (!aliases.some(alias => alias && containsPhrase(normalized, alias))) continue
       const roleCode = inferRole(member)
@@ -90,19 +92,22 @@ export function interpretCapture(input: {
   const schedule = extractSchedule(raw, input.eventDate ?? null)
   if (schedule) proposals.push(schedule)
 
-  for (const candidate of input.resourceCandidates) {
-    const name = candidate.resource?.name
-    if (!name || !resourceMentioned(normalized, normalize(name))) continue
-    proposals.push({
-      id: `resource:${candidate.link_id}`,
-      kind: 'RESOURCE_RESERVATION',
-      title: `Reserve ${name}`,
-      detail: 'The text appears to commit this represented Resource. A confirmed reservation is consequential and is never created without explicit approval.',
-      authority: 'CONSEQUENTIAL',
-      confidence: 'MEDIUM',
-      requiresHumanReview: true,
-      payload: { engagementResourceLinkId: candidate.link_id, commitmentType: 'RESERVATION', commitmentState: 'CONFIRMED' },
-    })
+  const resourceCommitmentLanguage = /\b(taking|bringing|using|reserve|reserved|booked|allocated|deploy(?:ing|ed)?|send(?:ing)?|going\s+with)\b/i.test(raw)
+  if (resourceCommitmentLanguage) {
+    for (const candidate of input.resourceCandidates) {
+      const name = candidate.resource?.name
+      if (!name || !resourceMentioned(normalized, normalize(name))) continue
+      proposals.push({
+        id: `resource:${candidate.link_id}`,
+        kind: 'RESOURCE_RESERVATION',
+        title: `Reserve ${name}`,
+        detail: 'The text appears to commit this represented Resource. A confirmed reservation is consequential and is never created without explicit approval.',
+        authority: 'CONSEQUENTIAL',
+        confidence: 'MEDIUM',
+        requiresHumanReview: true,
+        payload: { engagementResourceLinkId: candidate.link_id, commitmentType: 'RESERVATION', commitmentState: 'CONFIRMED' },
+      })
+    }
   }
 
   const payment = extractPayment(raw)
