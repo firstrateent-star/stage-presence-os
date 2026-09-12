@@ -1,4 +1,5 @@
 import { supabase } from './supabase'
+import { linkCanonicalVenue, saveCanonicalNextMove } from './canonicalWrites'
 import type { Engagement, EngagementFact, LedgerEvent, Resource } from '../types/domain'
 
 const SOURCE_BUCKET = 'source-artifacts'
@@ -347,7 +348,15 @@ export async function createEngagement(input: CreateEngagementInput): Promise<En
     typedSourceArtifactId = artifact.id
   }
 
-  const { raw_capture: _rawCapture, source_artifact_ids: sourceArtifactIds = [], ...engagementInput } = input
+  const {
+    raw_capture: _rawCapture,
+    source_artifact_ids: sourceArtifactIds = [],
+    venue_name: submittedVenueName,
+    next_action: submittedNextAction,
+    next_action_at: submittedNextActionAt,
+    ...engagementInput
+  } = input
+
   const { data, error } = await client
     .from('engagements')
     .insert({
@@ -356,9 +365,6 @@ export async function createEngagement(input: CreateEngagementInput): Promise<En
       desired_outcome: engagementInput.desired_outcome || null,
       event_start: engagementInput.event_start || null,
       event_start_date: engagementInput.event_start_date || null,
-      venue_name: engagementInput.venue_name || null,
-      next_action: engagementInput.next_action || null,
-      next_action_at: engagementInput.next_action_at || null,
       created_by: actorUserId,
     })
     .select('*')
@@ -394,14 +400,65 @@ export async function createEngagement(input: CreateEngagementInput): Promise<En
     if (sourceEventError) throw sourceEventError
   }
 
+  if (submittedVenueName?.trim()) {
+    await linkCanonicalVenue(data.id, submittedVenueName.trim(), { sourceArtifactId: typedSourceArtifactId })
+  }
+  if (submittedNextAction?.trim()) {
+    await saveCanonicalNextMove({
+      engagementId: data.id,
+      title: submittedNextAction.trim(),
+      dueAt: submittedNextActionAt || null,
+      attentionState: 'NORMAL',
+      sourceArtifactId: typedSourceArtifactId,
+    })
+  }
+
   return data as Engagement
 }
 
 export async function updateEngagement(id: string, patch: Partial<Pick<Engagement, 'customer_request' | 'desired_outcome' | 'commercial_state' | 'commitment_state' | 'operational_state' | 'attention_state' | 'next_action' | 'next_action_at' | 'waiting_on' | 'blocked_reason' | 'venue_name'>>) {
   const client = requireClient()
-  const { data, error } = await client.from('engagements').update(patch).eq('id', id).select('*').single()
-  if (error) throw error
-  return data as Engagement
+  const hasMovementPatch = Object.prototype.hasOwnProperty.call(patch, 'next_action')
+    || Object.prototype.hasOwnProperty.call(patch, 'next_action_at')
+    || Object.prototype.hasOwnProperty.call(patch, 'waiting_on')
+    || Object.prototype.hasOwnProperty.call(patch, 'blocked_reason')
+
+  const {
+    venue_name: submittedVenueName,
+    next_action: submittedNextAction,
+    next_action_at: submittedNextActionAt,
+    waiting_on: submittedWaitingOn,
+    blocked_reason: submittedBlockedReason,
+    ...canonicalRootPatch
+  } = patch
+
+  let data: Engagement
+  if (Object.keys(canonicalRootPatch).length) {
+    const { data: updated, error } = await client.from('engagements').update(canonicalRootPatch).eq('id', id).select('*').single()
+    if (error) throw error
+    data = updated as Engagement
+  } else {
+    const { data: existing, error } = await client.from('engagements').select('*').eq('id', id).single()
+    if (error) throw error
+    data = existing as Engagement
+  }
+
+  if (submittedVenueName !== undefined && submittedVenueName?.trim()) {
+    await linkCanonicalVenue(id, submittedVenueName.trim())
+  }
+
+  if (hasMovementPatch) {
+    await saveCanonicalNextMove({
+      engagementId: id,
+      title: submittedNextAction,
+      dueAt: submittedNextActionAt,
+      attentionState: patch.attention_state ?? data.attention_state,
+      waitingOn: submittedWaitingOn,
+      blockedReason: submittedBlockedReason,
+    })
+  }
+
+  return data
 }
 
 export async function archiveEngagement(id: string) {
