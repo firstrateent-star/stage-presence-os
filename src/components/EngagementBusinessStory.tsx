@@ -1,3 +1,4 @@
+import { JobDayPanel } from './JobDayPanel'
 import { OperatingRealityPanel } from './OperatingRealityPanel'
 import { businessNextMovement, importedScopeFallback } from '../lib/businessPresentation'
 import { engagementDateLabel, type CapacityPressure } from '../lib/businessSignals'
@@ -79,6 +80,14 @@ export function EngagementBusinessStory({
       </section>
 
       <OperatingRealityPanel engagementId={engagement.id} />
+      <JobDayPanel
+        engagementId={engagement.id}
+        engagementType={engagement.engagement_type}
+        commercialState={engagement.commercial_state}
+        commitmentState={engagement.commitment_state}
+        eventStartDate={engagement.event_start_date}
+        eventEndDate={engagement.event_end_date}
+      />
     </section>
   )
 }
