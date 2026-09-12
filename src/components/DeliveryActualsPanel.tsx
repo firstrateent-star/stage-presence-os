@@ -208,8 +208,14 @@ function deliveryIsRelevant(startDate: string | null, endDate: string | null, op
   if (['ACTIVE', 'COMPLETE', 'CLOSED'].includes(operationalState)) return true
   const date = endDate || startDate
   if (!date) return false
-  const today = new Date().toISOString().slice(0, 10)
-  return date <= today
+  return date <= localDateKey(new Date())
+}
+
+function localDateKey(value: Date) {
+  const year = value.getFullYear()
+  const month = String(value.getMonth() + 1).padStart(2, '0')
+  const day = String(value.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
 }
 
 function StatePill({ value }: { value: string }) { return <span className="rounded-full border border-zinc-800 px-2 py-1 text-[10px] font-semibold tracking-wide text-zinc-500">{value.replaceAll('_', ' ')}</span> }
