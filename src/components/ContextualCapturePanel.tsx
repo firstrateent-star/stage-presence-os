@@ -10,7 +10,7 @@ export function ContextualCapturePanel({
   engagementId: string
   engagementName: string
   eventDate: string | null
-  onApplied: () => void
+  onApplied?: () => void
 }) {
   const [rawText, setRawText] = useState('')
 
@@ -46,7 +46,7 @@ export function ContextualCapturePanel({
             rawText={rawText}
             onApplied={() => {
               setRawText('')
-              onApplied()
+              onApplied?.()
             }}
           />
         )}
