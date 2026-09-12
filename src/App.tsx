@@ -6,7 +6,6 @@ import { CommercialIntelligencePanel } from './components/CommercialIntelligence
 import { ContextualCapturePanel } from './components/ContextualCapturePanel'
 import { DeliveryActualsPanel } from './components/DeliveryActualsPanel'
 import { EconomicActualsBridgePanel } from './components/EconomicActualsBridgePanel'
-import { EngagementBusinessStory } from './components/EngagementBusinessStory'
 import { EngagementEconomyPanel } from './components/EngagementEconomyPanel'
 import { JobMapPanel } from './components/JobMapPanel'
 import { LearningCloseoutSlot } from './components/LearningCloseoutSlot'
@@ -15,13 +14,8 @@ import { EngagementDetailScreen } from './screens/EngagementDetailScreen'
 import { NewEngagementScreen } from './screens/NewEngagementScreen'
 import { LoginScreen } from './screens/LoginScreen'
 import { RecoveryScreen } from './screens/RecoveryScreen'
-import {
-  CapabilityV2,
-  EconomyV2,
-  EngagementsV2,
-  RelationshipsV2,
-  TodayV2,
-} from './screens/OperatingSurfaceV2'
+import { CapabilityV2, EconomyV2, RelationshipsV2 } from './screens/OperatingSurfaceV2'
+import { ExploreHub, HumanToday, HumanWork, SystemHub, WorkStory } from './screens/HumanInterfaceV2'
 import { buildBusinessSignals } from './lib/businessSignals'
 import { supabase } from './lib/supabase'
 import { isBackendConfigured } from './lib/config'
@@ -42,7 +36,7 @@ function readRoute(): RouteState {
     const id = decodeURIComponent(route.slice('engagement/'.length))
     return id ? { screen: 'detail', selectedId: id } : { screen: 'engagements', selectedId: null }
   }
-  if (['engagements', 'relationships', 'recovery', 'economy', 'resources', 'new', 'today'].includes(route)) {
+  if (['today', 'engagements', 'new', 'explore', 'system', 'relationships', 'resources', 'economy', 'recovery'].includes(route)) {
     return { screen: route as ScreenName, selectedId: null }
   }
   return { screen: 'today', selectedId: null }
@@ -56,16 +50,17 @@ function writeRoute(screen: ScreenName, selectedId: string | null = null) {
   if (window.location.hash !== nextHash) window.history.pushState(null, '', nextHash)
 }
 
-function DetailSection({ eyebrow, title, description, children }: { eyebrow: string; title: string; description: string; children: React.ReactNode }) {
+function Disclosure({ title, description, children, open = false }: { title: string; description: string; children: React.ReactNode; open?: boolean }) {
   return (
-    <section className="mt-8">
-      <div className="mb-3">
-        <div className="text-[10px] font-semibold uppercase tracking-[0.16em] text-zinc-700">{eyebrow}</div>
-        <h2 className="mt-1 text-lg font-semibold text-zinc-200">{title}</h2>
-        <p className="mt-1 max-w-2xl text-xs leading-5 text-zinc-600">{description}</p>
-      </div>
-      {children}
-    </section>
+    <details open={open} className="rounded-2xl border border-zinc-900 bg-zinc-950/35">
+      <summary className="cursor-pointer list-none px-5 py-4 marker:hidden">
+        <div className="flex items-center justify-between gap-4">
+          <div><div className="text-sm font-semibold text-zinc-200">{title}</div><div className="mt-1 text-xs leading-5 text-zinc-600">{description}</div></div>
+          <span className="text-zinc-700">＋</span>
+        </div>
+      </summary>
+      <div className="border-t border-zinc-900 p-5">{children}</div>
+    </details>
   )
 }
 
@@ -198,11 +193,17 @@ export default function App() {
       {loading ? (
         <div className="py-24 text-center text-sm text-zinc-700">Loading operating reality…</div>
       ) : !isBackendConfigured ? (
-        <div className="rounded-2xl border border-zinc-900 p-8 text-sm text-zinc-500">Connect the Stage Presence backend to use the rebuilt operating surface.</div>
+        <div className="rounded-2xl border border-zinc-900 p-8 text-sm text-zinc-500">Connect the Stage Presence backend to use the operating surface.</div>
       ) : screen === 'today' ? (
-        <TodayV2 engagements={surface.engagements} recovery={surface.recovery} role={role} onOpen={openEngagement} onCapture={() => navigate('new')} />
+        <HumanToday engagements={surface.engagements} recovery={surface.recovery} role={role} onOpen={openEngagement} onCapture={() => navigate('new')} />
       ) : screen === 'engagements' ? (
-        <EngagementsV2 engagements={surface.engagements} onOpen={openEngagement} />
+        <HumanWork engagements={surface.engagements} onOpen={openEngagement} />
+      ) : screen === 'new' ? (
+        <NewEngagementScreen onCancel={() => navigate('today')} onCreated={() => { void refreshAll(); navigate('engagements') }} />
+      ) : screen === 'explore' ? (
+        <ExploreHub relationships={surface.relationships} capabilities={surface.capabilities} economy={surface.economy} onOpenRelationships={() => navigate('relationships')} onOpenCapability={() => navigate('resources')} onOpenEconomy={() => navigate('economy')} />
+      ) : screen === 'system' ? (
+        <SystemHub recovery={surface.recovery} onOpenRecovery={() => navigate('recovery')} />
       ) : screen === 'relationships' ? (
         <RelationshipsV2 relationships={surface.relationships} />
       ) : screen === 'resources' ? (
@@ -211,68 +212,57 @@ export default function App() {
         <EconomyV2 economy={surface.economy} />
       ) : screen === 'recovery' ? (
         <RecoveryScreen onOpenEngagement={openEngagement} />
-      ) : screen === 'new' ? (
-        <NewEngagementScreen onCancel={() => navigate('today')} onCreated={() => { void refreshAll(); navigate('engagements') }} />
       ) : selectedEngagement ? (
-        <div className="mx-auto max-w-6xl">
-          <button type="button" onClick={() => navigate('engagements')} className="mb-5 text-sm text-zinc-600 hover:text-zinc-300">← Engagements</button>
-          <div className="flex flex-col gap-5 border-b border-zinc-900 pb-6 md:flex-row md:items-end md:justify-between">
-            <div>
-              <div className="text-[10px] font-semibold uppercase tracking-[0.16em] text-zinc-700">{selectedEngagement.engagement_number}</div>
-              <h1 className="mt-2 text-3xl font-semibold tracking-tight text-zinc-100">{selectedEngagement.name}</h1>
-              <p className="mt-2 text-sm text-zinc-600">One Engagement, one operating story, progressively revealed.</p>
-            </div>
-            <div className="flex flex-wrap gap-2 text-[10px] font-semibold uppercase tracking-[0.12em]">
-              <span className="rounded-full border border-zinc-800 px-2.5 py-1 text-zinc-500">{selectedEngagement.commercial_state}</span>
-              <span className="rounded-full border border-zinc-800 px-2.5 py-1 text-zinc-500">{selectedEngagement.commitment_state}</span>
-              <span className="rounded-full border border-zinc-800 px-2.5 py-1 text-zinc-500">{selectedEngagement.operational_state}</span>
-              {selectedSummary?.open_work_count ? <span className="rounded-full border border-amber-900/60 bg-amber-950/20 px-2.5 py-1 text-amber-400">{selectedSummary.open_work_count} open work</span> : null}
-            </div>
+        <div className="space-y-6">
+          <button type="button" onClick={() => navigate('engagements')} className="text-sm text-zinc-600 hover:text-zinc-300">← Work</button>
+
+          <WorkStory
+            engagement={selectedEngagement}
+            summary={selectedSummary}
+            onCapture={<button type="button" onClick={() => document.getElementById('capture-update')?.scrollIntoView({ behavior: 'smooth', block: 'start' })} className="rounded-xl bg-amber-500 px-4 py-2.5 text-sm font-bold text-zinc-950">Capture update</button>}
+          />
+
+          <div id="capture-update" className="mx-auto max-w-5xl scroll-mt-24">
+            <ContextualCapturePanel engagementId={selectedEngagement.id} engagementName={selectedEngagement.name} eventDate={selectedEngagement.event_start_date} onApplied={() => void refreshAll()} />
           </div>
 
-          <DetailSection eyebrow="Reality intake" title="What changed?" description="The fastest way to keep the OS aligned with what is actually happening.">
-            <ContextualCapturePanel engagementId={selectedEngagement.id} engagementName={selectedEngagement.name} eventDate={selectedEngagement.event_start_date} onApplied={() => void refreshAll()} />
-          </DetailSection>
+          <div className="mx-auto max-w-5xl space-y-3">
+            <Disclosure title="Manage what happens next" description="Committed work stays separate from general information." open>
+              <MovementFocusPanel engagementId={selectedEngagement.id} />
+            </Disclosure>
 
-          <DetailSection eyebrow="Business story" title="Why · Who · What" description="Customer intent, relationship, represented solution, and the evidence behind the Engagement.">
-            <EngagementBusinessStory engagement={selectedEngagement} customerLinks={legacy.customerLinks} configuredLinks={legacy.configuredLinks} financialFacts={legacy.financialFacts} capacityPressures={selectedCapacityPressures} />
-          </DetailSection>
-
-          <DetailSection eyebrow="Movement" title="What needs to happen next?" description="Committed work and selective movement stay distinct from general information.">
-            <MovementFocusPanel engagementId={selectedEngagement.id} />
-          </DetailSection>
-
-          <DetailSection eyebrow="Commercial + economics" title="Money" description="Commercial evidence, collections, direct costs, contribution readiness, and pricing intelligence remain separate truths.">
-            <div className="space-y-5">
-              <EngagementEconomyPanel engagementId={selectedEngagement.id} onChanged={refreshAll} />
-              <CommercialIntelligencePanel engagementId={selectedEngagement.id} />
-            </div>
-          </DetailSection>
-
-          <DetailSection eyebrow="Fulfillment" title="How · Where · When · Who" description="The operational plan, delivery map, people, timing, and committed capacity.">
-            <JobMapPanel engagementId={selectedEngagement.id} />
-            <details className="mt-5 rounded-2xl border border-zinc-900 bg-zinc-950/40">
-              <summary className="cursor-pointer px-5 py-4 text-sm font-semibold text-zinc-400 hover:text-zinc-200">Working details + canonical controls</summary>
-              <div className="border-t border-zinc-900 p-5">
-                <EngagementDetailScreen engagement={selectedEngagement} onBack={() => navigate('engagements')} onChanged={refreshAll} />
+            <Disclosure title="People, timeline + delivery" description="Crew, schedule, capacity, logistics, and fulfillment details when you need them.">
+              <div className="space-y-5">
+                <JobMapPanel engagementId={selectedEngagement.id} />
                 <CapacityDefaultsPanel engagement={selectedEngagement} onSaved={refreshAll} />
+                <details className="rounded-xl border border-zinc-900 bg-zinc-950/40">
+                  <summary className="cursor-pointer px-4 py-3 text-sm text-zinc-500">Edit facts, people, resources, notes, or attention state</summary>
+                  <div className="border-t border-zinc-900 p-4"><EngagementDetailScreen engagement={selectedEngagement} onBack={() => navigate('engagements')} onChanged={refreshAll} /></div>
+                </details>
               </div>
-            </details>
-          </DetailSection>
+            </Disclosure>
 
-          <DetailSection eyebrow="Actuals" title="What actually happened?" description="Delivery actuals and economic actuals should be captured after reality occurs — never inferred from the plan.">
-            <div className="space-y-5">
-              <DeliveryActualsPanel engagementId={selectedEngagement.id} eventStartDate={selectedEngagement.event_start_date} eventEndDate={selectedEngagement.event_end_date} operationalState={selectedEngagement.operational_state} onChanged={refreshAll} />
-              <EconomicActualsBridgePanel engagementId={selectedEngagement.id} onChanged={refreshAll} />
-            </div>
-          </DetailSection>
+            <Disclosure title="Money" description="Quotes, collections, direct costs, contribution readiness, and pricing intelligence stay distinct.">
+              <div className="space-y-5">
+                <EngagementEconomyPanel engagementId={selectedEngagement.id} onChanged={refreshAll} />
+                <CommercialIntelligencePanel engagementId={selectedEngagement.id} />
+              </div>
+            </Disclosure>
 
-          <DetailSection eyebrow="Learning" title="Close the loop" description="Outcome, variance, venue memory, recurrence, and what Stage Presence should carry forward.">
-            <LearningCloseoutSlot engagementId={selectedEngagement.id} eventEndDate={selectedEngagement.event_end_date} commercialState={selectedEngagement.commercial_state} commitmentState={selectedEngagement.commitment_state} onSaved={refreshAll} />
-          </DetailSection>
+            <Disclosure title="What actually happened?" description="Actual people, equipment, and direct costs belong here only after reality occurs.">
+              <div className="space-y-5">
+                <DeliveryActualsPanel engagementId={selectedEngagement.id} eventStartDate={selectedEngagement.event_start_date} eventEndDate={selectedEngagement.event_end_date} operationalState={selectedEngagement.operational_state} onChanged={refreshAll} />
+                <EconomicActualsBridgePanel engagementId={selectedEngagement.id} onChanged={refreshAll} />
+              </div>
+            </Disclosure>
+
+            <Disclosure title="What should we remember?" description="Outcome, variance, recurrence, venue memory, and learning close the loop.">
+              <LearningCloseoutSlot engagementId={selectedEngagement.id} eventEndDate={selectedEngagement.event_end_date} commercialState={selectedEngagement.commercial_state} commitmentState={selectedEngagement.commitment_state} onSaved={refreshAll} />
+            </Disclosure>
+          </div>
         </div>
       ) : (
-        <div className="py-16 text-zinc-600">Engagement not found.</div>
+        <div className="py-16 text-zinc-600">Work not found.</div>
       )}
     </AppShell>
   )
