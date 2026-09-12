@@ -113,6 +113,8 @@ export async function createScheduleItem(input: {
   startAt?: string | null
   endAt?: string | null
   notes?: string | null
+  sourceArtifactId?: string | null
+  captureSurface?: string | null
 }) {
   const client = requireClient()
   const { data: userData } = await client.auth.getUser()
@@ -151,8 +153,9 @@ export async function createScheduleItem(input: {
       end_date: endDate,
       time_state: timeState,
       location_id: locationId,
+      source_artifact_id: input.sourceArtifactId ?? null,
       notes: input.notes?.trim() || null,
-      metadata: { source_type: 'MANUAL', capture_surface: 'engagement_operating_workspace' },
+      metadata: { source_type: 'MANUAL', capture_surface: input.captureSurface || 'engagement_operating_workspace' },
       created_by: userData.user?.id ?? null,
     })
     .select('id')
@@ -169,6 +172,8 @@ export async function createAssignment(input: {
   assignmentState: AssignmentState
   scopeSummary?: string | null
   briefingNotes?: string | null
+  sourceArtifactId?: string | null
+  captureSurface?: string | null
 }) {
   const client = requireClient()
   const { data: existingRows, error: existingError } = await client
@@ -188,7 +193,8 @@ export async function createAssignment(input: {
     scope_summary: input.scopeSummary?.trim() || null,
     briefing_notes: input.briefingNotes?.trim() || null,
     acknowledgement_state: 'UNSENT',
-    metadata: { source_type: 'MANUAL', capture_surface: 'engagement_operating_workspace' },
+    source_artifact_id: input.sourceArtifactId ?? null,
+    metadata: { source_type: 'MANUAL', capture_surface: input.captureSurface || 'engagement_operating_workspace' },
   }
 
   const existing = existingRows?.[0]

@@ -79,6 +79,8 @@ export async function saveResourceCommitment(input: {
   fromDate?: string | null
   throughDate?: string | null
   notes?: string | null
+  sourceArtifactId?: string | null
+  captureSurface?: string | null
 }) {
   const client = requireClient()
   const { data: userData } = await client.auth.getUser()
@@ -103,10 +105,11 @@ export async function saveResourceCommitment(input: {
     through_date: input.throughDate ?? link.required_through_date,
     planned_sourcing_model: link.planned_sourcing_model,
     certainty_state: 'KNOWN',
+    source_artifact_id: input.sourceArtifactId ?? null,
     notes: input.notes?.trim() || null,
     metadata: {
       source_type: 'MANUAL',
-      capture_surface: 'engagement_operating_workspace',
+      capture_surface: input.captureSurface || 'engagement_operating_workspace',
       engagement_resource_link_id: input.engagementResourceLinkId,
     },
     created_by: userData.user?.id ?? null,
