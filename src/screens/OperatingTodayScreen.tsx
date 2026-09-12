@@ -1,3 +1,4 @@
+import { useEffect, useMemo, useState } from 'react'
 import { EngagementSummaryCard } from '../components/EngagementSummaryCard'
 import type { DailyWorkRow, EngagementFrontendRow, MovementCandidateRow, RelationshipSummaryRow } from '../lib/operatingRepository'
 import {
@@ -9,6 +10,13 @@ import {
   localDateKey,
   presentEngagementCard,
 } from '../lib/presentationModel'
+import { supabase } from '../lib/supabase'
+import { focusMatchesLens, getTodayRoleLens, workMatchesLens } from '../lib/todayRoleLens'
+
+type TodayIdentity = {
+  userId: string | null
+  role: string | null
+}
 
 export function OperatingTodayScreen({
   engagements,
@@ -23,10 +31,34 @@ export function OperatingTodayScreen({
   relationships: RelationshipSummaryRow[]
   onOpen: (id: string) => void
 }) {
+  const [identity, setIdentity] = useState<TodayIdentity>({ userId: null, role: null })
+
+  useEffect(() => {
+    if (!supabase) return
+    let active = true
+    void supabase.auth.getUser().then(async ({ data }) => {
+      if (!active) return
+      const userId = data.user?.id ?? null
+      if (!userId) return setIdentity({ userId: null, role: null })
+      const { data: membership } = await supabase!.from('app_members').select('role,active').eq('user_id', userId).maybeSingle()
+      if (!active) return
+      setIdentity({ userId, role: membership?.active ? membership.role : null })
+    })
+    return () => { active = false }
+  }, [])
+
+  const lens = useMemo(() => getTodayRoleLens(identity.role), [identity.role])
   const now = localDateKey(new Date())
-  const needsYou = work.filter((item) => item.priority === 'NOW' || item.status === 'BLOCKED').slice(0, 8)
+  const urgentWork = work.filter((item) => item.priority === 'NOW' || item.status === 'BLOCKED')
+  const personalWork = urgentWork.filter((item) => ownerUserId(item) === identity.userId && identity.userId != null)
+  const relevantUnassigned = urgentWork.filter((item) => ownerUserId(item) == null && workMatchesLens(item, lens))
+  const needsYou = uniqueWork([
+    ...personalWork,
+    ...(lens.showUnassignedUrgent ? relevantUnassigned : []),
+  ]).slice(0, 8)
   const systemSees = focus
     .filter((item) => item.engagement_focus_rank === 1 && (item.urgency === 'NOW' || item.urgency === 'SOON'))
+    .filter((item) => focusMatchesLens(item, lens))
     .slice(0, 6)
   const nextUp = engagements.filter((row) => isCommittedEngagement(row) && !isPastEngagement(row, now)).sort(bySoonestEngagement).slice(0, 6)
   const sales = engagements.filter((row) => isOpportunityEngagement(row) && !isPastEngagement(row, now)).sort(bySoonestEngagement).slice(0, 6)
@@ -45,8 +77,12 @@ export function OperatingTodayScreen({
         <p className="text-sm text-zinc-500">What actually matters now?</p>
         <div className="mt-1 flex flex-wrap items-end justify-between gap-4">
           <div>
-            <h1 className="text-3xl font-semibold tracking-tight">Today</h1>
-            <p className="mt-3 max-w-2xl text-sm leading-6 text-zinc-600">The system holds the detail. This surface concentrates attention on movement, delivery, capacity, relationships and trustworthy economics.</p>
+            <div className="flex flex-wrap items-center gap-2">
+              <h1 className="text-3xl font-semibold tracking-tight">Today</h1>
+              <span className="rounded-full border border-zinc-800 px-2.5 py-1 text-[10px] font-semibold text-zinc-500">{lens.label}</span>
+            </div>
+            <p className="mt-3 max-w-2xl text-sm leading-6 text-zinc-600">{lens.explanation}</p>
+            <p className="mt-1 max-w-2xl text-[10px] leading-4 text-zinc-700">The lens changes presentation only. Work ownership, Engagement state, economics and operating truth remain canonical in the shared backend.</p>
           </div>
           <div className="rounded-2xl border border-zinc-900 bg-zinc-950/70 px-4 py-3 text-right">
             <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-zinc-700">Known committed value</div>
@@ -56,29 +92,29 @@ export function OperatingTodayScreen({
         </div>
       </header>
 
-      <TodaySection title="Needs You" description="Persisted work already carrying business continuity. These are real represented actions, not model suggestions." count={needsYou.length}>
-        {needsYou.length ? needsYou.map((item) => <ActionCard key={item.id} item={item} onOpen={onOpen} />) : <Empty text="No NOW or blocked operating action is represented." />}
+      <TodaySection title={personalWork.length ? 'My Work' : 'Needs Attention'} description={personalWork.length ? 'Urgent persisted Work explicitly assigned to this signed-in user, followed by relevant unassigned urgent work.' : 'Urgent unassigned Work relevant to this role lens. Visibility does not assign ownership.'} count={needsYou.length}>
+        {needsYou.length ? needsYou.map((item) => <ActionCard key={item.id} item={item} onOpen={onOpen} />) : <Empty text={identity.role === 'VIEWER' ? 'No personally assigned urgent Work is represented for this viewer.' : 'No personally assigned or role-relevant unassigned urgent Work is represented.'} />}
       </TodaySection>
 
-      <TodaySection title="System Sees" description="Selective Flower signals derived from current reality. They explain likely movement but remain suggestions until the business earns a durable action." count={systemSees.length}>
-        {systemSees.length ? systemSees.map((item) => <FocusCard key={item.candidate_key} item={item} onOpen={onOpen} />) : <Empty text="No uncovered NOW or SOON movement signal is currently represented." />}
+      <TodaySection title="System Sees" description="Selective Flower signals derived from current reality and filtered for this role lens. They remain suggestions until the business earns a durable action." count={systemSees.length}>
+        {systemSees.length ? systemSees.map((item) => <FocusCard key={item.candidate_key} item={item} onOpen={onOpen} />) : <Empty text="No NOW or SOON movement signal relevant to this lens is currently represented." />}
       </TodaySection>
 
-      <TodaySection title="Next Up" description="Committed work approaching delivery." count={nextUp.length}>
+      {lens.showNextUp && <TodaySection title="Next Up" description="Committed work approaching delivery." count={nextUp.length}>
         {nextUp.length ? nextUp.map((row) => <EngagementSummaryCard key={row.id} card={presentEngagementCard(row, 'delivery')} onOpen={onOpen} compact />) : <Empty text="No upcoming committed work is represented." />}
-      </TodaySection>
+      </TodaySection>}
 
-      <TodaySection title="Sales" description="Open demand that still needs a commercial decision." count={sales.length}>
+      {lens.showSales && <TodaySection title="Sales" description="Open demand that still needs a commercial decision." count={sales.length}>
         {sales.length ? sales.map((row) => <EngagementSummaryCard key={row.id} card={presentEngagementCard(row, 'sales')} onOpen={onOpen} compact />) : <Empty text="No current sales movement is represented." />}
-      </TodaySection>
+      </TodaySection>}
 
-      <TodaySection title="Capacity" description="Pressure signals only. Configuration and signature do not automatically create a reservation." count={capacity.length}>
+      {lens.showCapacity && <TodaySection title="Capacity" description="Pressure signals only. Configuration and signature do not automatically create a reservation." count={capacity.length}>
         {capacity.length ? capacity.map((row) => <EngagementSummaryCard key={row.id} card={presentEngagementCard(row, 'capacity')} onOpen={onOpen} compact capacityMode />) : <Empty text="No WATCH or HIGH capacity signal is currently represented." />}
-      </TodaySection>
+      </TodaySection>}
 
-      <TodaySection title="Relationships" description="Recurring relationship nodes that can compound value beyond one job." count={recurring.length}>
+      {lens.showRelationships && <TodaySection title="Relationships" description="Recurring relationship nodes that can compound value beyond one job." count={recurring.length}>
         {recurring.length ? recurring.map((row) => <RelationshipCard key={row.party_id} row={row} />) : <Empty text="No recurring relationship node is represented yet." />}
-      </TodaySection>
+      </TodaySection>}
     </div>
   )
 }
@@ -145,3 +181,5 @@ function Empty({ text }: { text: string }) { return <div className="rounded-2xl 
 function dateText(key: string) { return new Date(`${key}T12:00:00`).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) }
 function asRecord(value: unknown): Record<string, unknown> | null { return value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : null }
 function numberValue(value: unknown) { if (typeof value === 'number' && Number.isFinite(value)) return value; if (typeof value === 'string' && value.trim() && Number.isFinite(Number(value))) return Number(value); return null }
+function ownerUserId(item: DailyWorkRow) { const value = item.owner_user_id; return typeof value === 'string' ? value : null }
+function uniqueWork(items: DailyWorkRow[]) { const seen = new Set<string>(); return items.filter(item => { if (seen.has(item.id)) return false; seen.add(item.id); return true }) }
