@@ -5,6 +5,15 @@ export type CaptureAuthority = 'OBSERVE' | 'SUGGEST' | 'REVERSIBLE' | 'CONSEQUEN
 export type CaptureConfidence = 'HIGH' | 'MEDIUM' | 'LOW'
 export type CaptureProposalKind = 'CREW_CONFIRMATION' | 'SCHEDULE' | 'RESOURCE_RESERVATION' | 'PAYMENT_REPORT'
 
+export interface CaptureUnknown {
+  id: string
+  code: 'NO_TEXT' | 'PAYMENT_AMOUNT' | 'PAYMENT_VERIFICATION' | 'SCHEDULE_DATE'
+  label: string
+  detail: string
+  category: 'EVENT' | 'LOGISTICS' | 'CUSTOMER' | 'OTHER'
+  decisionLeverage: 'LOW' | 'MEDIUM' | 'HIGH'
+}
+
 export type CaptureProposal =
   | {
       id: string
@@ -50,7 +59,7 @@ export type CaptureProposal =
 export interface CaptureInterpretation {
   interpreter: 'DETERMINISTIC_V0_1'
   proposals: CaptureProposal[]
-  unknowns: string[]
+  unknowns: CaptureUnknown[]
   notes: string[]
 }
 
@@ -63,10 +72,13 @@ export function interpretCapture(input: {
   const raw = input.text.trim()
   const normalized = normalize(raw)
   const proposals: CaptureProposal[] = []
-  const unknowns: string[] = []
+  const unknowns: CaptureUnknown[] = []
   const notes: string[] = []
 
-  if (!raw) return { interpreter: 'DETERMINISTIC_V0_1', proposals, unknowns: ['No text was supplied for interpretation.'], notes }
+  if (!raw) {
+    unknowns.push({ id: 'unknown:no-text', code: 'NO_TEXT', label: 'Capture text missing', detail: 'No text was supplied for interpretation.', category: 'OTHER', decisionLeverage: 'LOW' })
+    return { interpreter: 'DETERMINISTIC_V0_1', proposals, unknowns, notes }
+  }
 
   const confirmationLanguage = /\b(confirm(?:ed)?|booked|locked\s+in|definitely\s+working)\b/i.test(raw)
   if (confirmationLanguage) {
@@ -90,7 +102,10 @@ export function interpretCapture(input: {
   }
 
   const schedule = extractSchedule(raw, input.eventDate ?? null)
-  if (schedule) proposals.push(schedule)
+  if (schedule) {
+    proposals.push(schedule.proposal)
+    if (schedule.unknown) unknowns.push(schedule.unknown)
+  }
 
   const resourceCommitmentLanguage = /\b(taking|bringing|using|reserve|reserved|booked|allocated|deploy(?:ing|ed)?|send(?:ing)?|going\s+with)\b/i.test(raw)
   if (resourceCommitmentLanguage) {
@@ -122,16 +137,30 @@ export function interpretCapture(input: {
       requiresHumanReview: true,
       payload: { amount: payment.amount, paymentDateText: payment.dateText },
     })
-    if (payment.amount == null) unknowns.push('Reported payment amount is not explicit.')
-    unknowns.push('Accounting / processor verification for the reported payment is not represented.')
+    if (payment.amount == null) unknowns.push({
+      id: 'unknown:payment-amount',
+      code: 'PAYMENT_AMOUNT',
+      label: 'Reported payment amount',
+      detail: 'A payment was reported, but the amount is not explicit in the source.',
+      category: 'OTHER',
+      decisionLeverage: 'HIGH',
+    })
+    unknowns.push({
+      id: 'unknown:payment-verification',
+      code: 'PAYMENT_VERIFICATION',
+      label: 'Payment verification',
+      detail: 'Accounting / processor verification for the reported payment is not represented.',
+      category: 'OTHER',
+      decisionLeverage: 'HIGH',
+    })
   }
 
   if (!proposals.length) notes.push('No governed operating command was confidently recognized. Preserve the text as source evidence or use manual structured Capture.')
 
-  return { interpreter: 'DETERMINISTIC_V0_1', proposals, unknowns: unique(unknowns), notes }
+  return { interpreter: 'DETERMINISTIC_V0_1', proposals, unknowns: uniqueUnknowns(unknowns), notes }
 }
 
-function extractSchedule(raw: string, eventDate: string | null): CaptureProposal | null {
+function extractSchedule(raw: string, eventDate: string | null): { proposal: CaptureProposal; unknown: CaptureUnknown | null } | null {
   const patterns: Array<{ type: ScheduleType; label: string; regex: RegExp }> = [
     { type: 'LOAD_IN', label: 'Load-in', regex: /\bload[ -]?in\b[^\d]{0,16}(\d{1,2}(?::\d{2})?\s*(?:am|pm)?)/i },
     { type: 'SETUP', label: 'Setup', regex: /\bsetup\b[^\d]{0,16}(\d{1,2}(?::\d{2})?\s*(?:am|pm)?)/i },
@@ -145,14 +174,24 @@ function extractSchedule(raw: string, eventDate: string | null): CaptureProposal
     const clock = parseClock(match[1])
     const startAt = eventDate && clock ? `${eventDate}T${clock}:00` : null
     return {
-      id: `schedule:${pattern.type}`,
-      kind: 'SCHEDULE',
-      title: `${pattern.label} ${match[1].trim()}`,
-      detail: startAt ? `Proposed ${pattern.label.toLowerCase()} timing on the represented Engagement date.` : `A ${pattern.label.toLowerCase()} time was detected, but the Engagement date is unavailable; preserve the time without inventing a date.`,
-      authority: 'REVERSIBLE',
-      confidence: startAt ? 'HIGH' : 'MEDIUM',
-      requiresHumanReview: true,
-      payload: { scheduleType: pattern.type, label: pattern.label, startAt, startDate: startAt ? null : eventDate },
+      proposal: {
+        id: `schedule:${pattern.type}`,
+        kind: 'SCHEDULE',
+        title: `${pattern.label} ${match[1].trim()}`,
+        detail: startAt ? `Proposed ${pattern.label.toLowerCase()} timing on the represented Engagement date.` : `A ${pattern.label.toLowerCase()} time was detected, but the Engagement date is unavailable; preserve the time without inventing a date.`,
+        authority: 'REVERSIBLE',
+        confidence: startAt ? 'HIGH' : 'MEDIUM',
+        requiresHumanReview: true,
+        payload: { scheduleType: pattern.type, label: pattern.label, startAt, startDate: startAt ? null : eventDate },
+      },
+      unknown: startAt || eventDate ? null : {
+        id: `unknown:schedule-date:${pattern.type}`,
+        code: 'SCHEDULE_DATE',
+        label: `${pattern.label} date`,
+        detail: `${pattern.label} time is represented, but no Engagement date is available to place it on the calendar.`,
+        category: 'LOGISTICS',
+        decisionLeverage: 'MEDIUM',
+      },
     }
   }
   return null
@@ -210,4 +249,4 @@ function normalize(value: string) { return value.toLowerCase().replaceAll('×', 
 function tokens(value: string) { return normalize(value).split(/\s+/).filter(Boolean) }
 function containsPhrase(text: string, phrase: string) { return ` ${text} `.includes(` ${phrase} `) }
 function human(value: string) { return value.replaceAll('_', ' ').toLowerCase() }
-function unique(values: string[]) { return [...new Set(values)] }
+function uniqueUnknowns(values: CaptureUnknown[]) { return [...new Map(values.map(value => [value.id, value])).values()] }
