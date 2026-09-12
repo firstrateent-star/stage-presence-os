@@ -4,6 +4,7 @@ import { AppShell, type ScreenName } from './components/AppShell'
 import { CapacityDefaultsPanel } from './components/CapacityDefaultsPanel'
 import { CommercialIntelligencePanel } from './components/CommercialIntelligencePanel'
 import { DeliveryActualsPanel } from './components/DeliveryActualsPanel'
+import { EconomicActualsBridgePanel } from './components/EconomicActualsBridgePanel'
 import { EngagementBusinessStory } from './components/EngagementBusinessStory'
 import { EngagementEconomyPanel } from './components/EngagementEconomyPanel'
 import { JobMapPanel } from './components/JobMapPanel'
@@ -260,6 +261,8 @@ export default function App() {
               onChanged={data.refresh}
             />
           )}
+
+          {isBackendConfigured && <EconomicActualsBridgePanel engagementId={selectedEngagement.id} onChanged={data.refresh} />}
 
           <LearningCloseoutSlot
             engagementId={selectedEngagement.id}
