@@ -6,290 +6,419 @@
 - Supabase: `stage-presence-os` (`yaojcuvgtlncytujfxef`), `us-east-1`
 - Hosting: Cloudflare Workers Static Assets
 - Production URL: `https://stage-presence-os.falling-butterfly-aad6.workers.dev`
-- Engineering discipline: Flower branch → GitHub Build Check (`tsc` + Vite) → PR → `main` → Cloudflare.
+- Engineering discipline: Flower branch → GitHub Build Check → PR → `main` → Cloudflare.
 
-## Product center
+## Current center
 
-> **History informs. Active inherited work gets enough truth to move. New work is born correctly. Systems carry continuity; people handle material judgment.**
+> **Operational Clarity: organize the real company before optimizing the interface or adding intelligence for its own sake.**
+
+Stage Presence OS remains the shared operating memory for six connected business realities:
+
+1. **Things** — equipment, warehouse, capability, commitments, usage, maintenance
+2. **People** — contributors, roles, capabilities, rates, assignments, labor actuals
+3. **Relationships** — people, organizations, customers, planners, venues, vendors, partners
+4. **Work** — one persistent Engagement from inquiry through delivery and closeout
+5. **Time** — schedules, calls, logistics, warehouse work, commitments and follow-up
+6. **Money** — Price, Sale, Cost and Cash kept separate
+
+Evidence, files, communication, history, Unknown and Capture/AI surround and support those six domains rather than replacing them.
 
 One canonical Engagement persists through:
 
 **intent → requirements → solution → feasibility → commercial decision → commitment → preparation → delivery → economic close → learning → recurrence**
 
-Frontend presentation rule:
+Architecture rule:
+
+> **Populate and use existing canonical homes before adding abstractions. Reality outranks model. Unknown is legitimate data.**
+
+Frontend rule:
 
 > **Store richly. Interpret centrally. Present selectively. Reveal progressively.**
 
-Current architecture rule:
-
-> **Populate and use existing canonical homes before adding abstractions. Compatibility fields may remain for inherited reality, but new workflows must not reinforce duplicate truth.**
-
-## Current operating sequence
-
-1. Populate and use what already exists.
-2. Move information to its canonical home.
-3. Stop creating duplicate truth.
-4. Observe where the model genuinely fails.
-5. Only then migrate.
-
-The two largest possible missing abstractions remain **solution design** and **explicit commitment/change-control**, but neither is currently approved for schema expansion. They must be earned by repeated real operating failure that the present model cannot faithfully represent.
-
-## Canonical homes now enforced
-
-- Venues / sites → `locations` + `engagement_locations`
-- Real next actions / waiting / blockers → `work_items`
-- Requirements / constraints / unresolved truth → `engagement_facts`
-- Resource relevance / need → `engagement_resources`
-- Accepted operational scope → `fulfillment_plans` + `fulfillment_plan_lines`
-- Execution timing → `engagement_schedule_items`
-- Reusable process knowledge → `operating_playbook_steps`
-- Actual job process state → `engagement_step_states`
-- Contributor identity / capability → `team_members` + `team_member_capabilities`
-- Job assignment → `engagement_assignments` only when job-specific evidence exists
-- Capacity commitment → `resource_commitments` only when a hold/reservation/allocation actually exists
-- Actual deployment/use → `resource_usage`
-- Payments → `commercial_payments` only for actual transaction evidence beyond aggregate baselines
-- Direct costs → `engagement_cost_items`
-- Delivery learning → `engagement_closeouts`
-
-Compatibility fields such as `engagements.venue_name`, `next_action`, `next_action_at`, `waiting_on` and `blocked_reason` remain inherited fallback data. PR #21 changes the application write boundary so new Venue and Next Move input is written to canonical Location/Work records and projected back through the UI rather than reinforcing those fields.
-
-## Current translated reality
-
-- 30 active Goodshuffle-derived Engagements
-- 20 identified customer/contact Parties
-- 30 commercial documents
-- 208 commercial document lines
-- 30 fulfillment plans
-- 208 fulfillment plan lines
-- commercial and fulfillment sources reconcile 208-for-208
-- 132 Engagement-resource links after closing the final known fulfillment→Resource gap
-- 21 normalized locations / 28 inherited Engagement-location links; no current legacy venue-without-Location gap remains
-- 37 native schedule items promoted from existing fulfillment timing evidence
-- 7 persisted open work items
-- 7 matching `engagement_step_states`; every current persisted work item is linked to its represented Playbook step state
-- 11 active contributor identities
-- 13 confirmed capability tags; proficiency remains intentionally unknown where not evidenced
-- 90 source-artifact segments
-
-Original Goodshuffle binaries are not generally stored in Supabase Storage. Provenance does not imply binary recoverability.
-
-## Canonical population pass — 2026-09-12
-
-### Contributor reality
-`team_members` is now populated with the currently known Stage Presence roster supplied by the business: Greg Walker, Sean Stalker, Nancy, Bryan Mahanes, Eric Jennings, Kevin, Scott, Ben, David, Rico and Hank Futch.
-
-Only supported capability existence was added. Employment classification and proficiency were deliberately not inferred. Bryan and Eric remain represented people without fabricated capability detail.
-
-Current:
-- `team_members`: **11**
-- `team_member_capabilities`: **13**
-- `engagement_assignments`: **0**
-- `engagement_step_assignments`: **0**
-
-General company role is not job-specific assignment evidence.
-
-### Schedule truth
-37 `engagement_schedule_items` were promoted from existing fulfillment timing evidence.
-
-Rules used:
-- preserve explicit source date/timing text;
-- preserve `TBD` as `TBD`;
-- do not manufacture clock timestamps merely because source text contains a human-readable time;
-- retain source artifact/segment provenance;
-- attach canonical Location where already known;
-- use schedule types conservatively (`LOAD_IN`, `LOAD_OUT`, `PREP`, `PICKUP`, `RETURN`, `DELIVERY`, `OTHER`).
-
-The Recovery Queue's schedule-recovery lane fell from 21 candidates to 0 after the evidence moved to its canonical home.
-
-### Playbook state
-The seven real persisted work items already referenced Playbook steps. Seven matching `engagement_step_states` were therefore created and linked back to those work items.
-
-No historical checklist was invented. Missing step state still means **untracked / not asserted**, not incomplete.
-
-### Resource canonicalization
-One remaining fulfillment Resource had no corresponding `engagement_resources` link:
-- SP-000007 — Genie-Sarah Lillie
-- 5x10 Video Trailer Double
-- quantity 1
-
-That accepted fulfillment evidence is now represented as `CONFIGURED` Resource truth with the inherited requirement window and source provenance.
-
-Known fulfillment→Resource canonical gaps: **0**.
-
-## Recovery Queue
-
-Recovery is a derived decision-leverage layer, not a second truth database.
-
-Architecture:
-
-**existing evidence / unresolved truth / operating gaps → `recovery_queue_v` → review disposition → correct canonical home**
-
-Human disposition lives in `recovery_item_decisions`; the underlying truth continues to live in its owning domain.
-
-Initial activation before the population pass:
-- 54 active candidates
-- 12 NOW
-- 21 directly recoverable
-
-After moving recoverable evidence into existing canonical structures:
-- 33 active candidates
-- 6 NOW
-- 0 in the direct `RECOVER` lane
-
-This reduction is important evidence: much of the apparent incompleteness was an adoption/population problem, not a missing-schema problem.
-
-## Legacy action boundary
-
-There are 24 inherited `engagements.next_action` values without current open Work records. They were inspected rather than automatically migrated.
-
-Most are import placeholders such as:
-- `Review operational readiness`
-- `Review quote status and set follow-up`
-
-These are explicitly **not** promoted into `work_items`. A database blank or historical placeholder is not a business obligation.
-
-New workflows are moving to canonical Work while these inherited fields remain compatibility/history fallback only.
-
-## Frontend now
-
-Top-level operating surfaces:
-- **Today** — persisted Needs You + derived System Sees + delivery/sales/capacity/relationship context
-- **Work** — Opportunities / Upcoming Jobs / Past or Needs Resolution
-- **Recovery** — decision-leverage recovery/review queue; defaults to what matters now
-- **Economy** — company commercial/economic transparency + evidence coverage
-- **Resources** — capability/resource reference
-- **Playbook** — reusable lifecycle knowledge
-
-Engagement detail progressively exposes:
-- business story
-- selective movement
-- Engagement economy
-- quote intelligence
-- Job Map
-- deeper working details/evidence
-- learning closeout
-
-PR #21 introduces a compatibility presentation boundary that reads canonical Location/Work first and inherited Engagement fields only as fallback, so frontend continuity does not require duplicate write authority.
-
-## Economic transparency
-
-The economy remains four connected layers:
-
-**Engagement economics + company operating costs + asset economics + funds/accounts**
-
-Commercial flow:
-
-**price → revenue source → invoice → collection → balance owed → direct cost → contribution**
-
-Current imported rollup remains approximately:
-- open proposal value: ~$89.8k
-- supported committed revenue: ~$127.8k
-- observed collected: ~$56.3k
-- represented outstanding: ~$71.5k
-
-Current evidence boundaries remain intentional:
-- `commercial_payments`: **0** transaction rows — aggregate imported collection evidence is not rewritten as fake transactions
-- `engagement_cost_items`: **0** — customer-facing line prices are not assumed to be internal costs
-- `company_cost_items`: **0**
-- approved/draft economic rate profiles represented in live evidence: **0**
-- financial accounts/snapshots: **0**
-- resource economic snapshots: **0**
-
-Therefore no accounting-profit or cash-on-hand claim is earned.
-
-## Capacity truth
-
-Sequence remains:
-
-**configuration → requirement window → pressure → hold → reservation/allocation → actual usage**
-
-Current:
-- `engagement_resources`: **132**
-- `resource_commitments`: **0**
-- `resource_usage`: **0**
-
-Signed/configured work is not automatically a hold, reservation or actual deployment.
-
-## Assignment + closeout boundaries
-
-Current:
-- `engagement_assignments`: **0**
-- `engagement_step_assignments`: **0**
-- `engagement_closeouts`: **0**
-
-This is intentional until actual job-specific contributor responsibility and actual delivery/learning evidence arrive.
-
-For example, general contributor roles do not justify creating assignments, and a proposed Snyder wedding scope mentioning Hank Futch does not justify a confirmed job assignment while the Engagement remains uncommitted.
-
-## Selective Movement
-
-`engagement_movement_candidates_v` and `engagement_operating_focus_v` remain read-only deterministic reasoning.
-
-Ordering: **NOW → SOON → WATCH → LATER**, then materiality/consequence/economic context.
-
-**Needs You = persisted business work**  
-**System Sees = derived recommendation**  
-**Recovery = evidence/review opportunity, not automatic work**
-
-No recommendation autonomously creates a task, assignment, reservation, message or approval.
-
-## UNC economic guardrail
-
-The UNC season carries $102,000 observed committed value with a Sep 9 baseline of $51,000 observed collected / $51,000 observed remaining.
-
-Six component game documents contain literal `$0` while explicit evidence says per-game allocation is unknown. They remain economically unknown and are never interpreted as free work.
-
-## Current true evidence counts
-
-- Engagements: **30**
-- commercial lines: **208**
-- fulfillment lines: **208**
+Major frontend redesign remains secondary to Operational Core adoption.
+
+---
+
+## Operational Core direction
+
+Stage Presence has already described the normal job path sufficiently. The current build is no longer trying to rediscover a generic “perfect job.”
+
+The operating spine is now:
+
+**customer demand → scope → expected cost → pricing/quote → customer commitment → equipment/people/time commitment → fulfillment → actuals → payment → return/reset → closeout/learning**
+
+The immediate backend build sequence is:
+
+1. **Price Book** — reusable governed selling-price authority
+2. **Cost Book** — reusable governed internal/external cost assumptions
+3. **Estimate Runtime** — job-specific expected costs
+4. **Pricing Runtime** — scope + approved price policy + expected cost → commercial decision support
+5. **Commercial → Operations Bridge** — accepted scope creates the commitments/work actually supported by evidence
+6. **Fulfillment Runtime** — pull/load/deliver or pickup/setup/operate or install/strike/return/inspect/restock
+7. **Actuals** — actual equipment, labor, direct costs, payments and outcome
+8. **Closeout / Learning** — relationship, venue, crew, asset, pricing and process memory improve from delivered work
+
+This spine is part of the larger OS; it does not replace Warehouse, Relationships, Calendar, Knowledge, Capture/AI, Files, Communication or accounting handoff.
+
+---
+
+## Canonical homes
+
+- Engagement identity/lifecycle → `engagements`
+- People/organizations → `parties`
+- reusable Party relationships → `party_relationships`
+- Engagement participant roles → `engagement_parties`
+- venues/sites → `locations` + `engagement_locations`
+- requirements/constraints/unknown/conflicting truth → `engagement_facts`
+- next movement/waiting/blockers → `work_items`
+- Resource/capability relevance → `engagement_resources`
+- commercial scope/evidence → `commercial_documents` + `commercial_document_lines`
+- accepted/prepared fulfillment → `fulfillment_plans` + `fulfillment_plan_lines`
+- execution timing → `engagement_schedule_items`
+- contributor identity/capability → `team_members` + `team_member_capabilities`
+- job-specific crew assignment → `engagement_assignments`
+- reusable internal/external cost assumptions → `economic_rate_profiles`
+- reusable selling-price policy → `pricing_rules`
+- direct Engagement costs → `engagement_cost_items`
+- equipment hold/reservation/allocation → `resource_commitments`
+- actual equipment use → `resource_usage`
+- expected payment terms → `commercial_payment_schedule`
+- actual payment evidence → `commercial_payments`
+- reusable process knowledge → `operating_playbooks` + `operating_playbook_steps`
+- actual process-state claims → `engagement_step_states`
+- delivery learning → `engagement_closeouts`
+- original evidence/provenance → `source_artifacts` + `source_artifact_segments` + `events`
+
+Compatibility fields remain fallback/history rather than future write authority when a canonical domain exists.
+
+---
+
+## Live backend snapshot
+
+Current production reality after the Price Book + Cost Book foundation activation:
+
+- active Engagements: **30**
+- customer/contact Parties: **20**
+- active Resources: **102**
+- active team members: **11**
+- commercial documents: **30**
+- commercial document lines: **208**
+- fulfillment plans: **30**
+- fulfillment plan lines: **208**
 - Engagement-resource links: **132**
 - normalized Locations: **21**
-- Engagement-location links: **28** inherited links
-- schedule items: **37**
-- open work items: **7**
+- schedule items: **40**
+- persisted open Work items: **7**
 - Engagement step states: **7**
-- team members: **11**
-- capability tags: **13**
-- assignments: **0**
-- payment transactions: **0**
-- direct job cost items: **0**
-- resource commitments: **0**
-- resource usage: **0**
-- closeouts: **0**
-- Recovery active candidates: **33**
-- Recovery NOW candidates: **6**
-- Recovery direct-recover lane: **0**
+- Engagement assignments: **1**
+- Resource commitments: **0**
+- Resource usage records: **0**
+- Engagement direct-cost items: **0**
+- structured payment transactions: **0**
+- Engagement closeouts: **0**
 
-## Current boundaries
+Interpretation:
 
-Not currently claimed:
-- live Goodshuffle sync
-- QuickBooks/accounting sync
-- bank/account connection
-- complete historical payment-event reconstruction
-- audited direct-cost/company-cost completeness
-- accounting profit or tax basis
-- automatic asset depreciation or formal book value
+> **The backend contains substantial commercial/configuration knowledge, but normal Stage Presence execution still has almost no native commitment/actual records. Operational adoption remains the main constraint.**
+
+---
+
+## Price Book foundation — LIVE
+
+Canonical design: `docs/PRICE_COST_BOOK_FOUNDATION_V1.md`.
+
+`pricing_rules` is now the governed reusable selling-price home.
+
+### Pricing policy dimensions now supported
+
+- `price_position`
+  - `STANDARD`
+  - `ECONOMIC_FLOOR`
+  - `COMMERCIAL_FLOOR`
+  - `TARGET`
+  - `VALUE_REFERENCE`
+- `billing_basis`
+  - `FLAT`
+  - `PER_UNIT`
+  - `PER_HOUR`
+  - `PER_DAY`
+  - `PER_MILE`
+  - `PERCENT`
+  - `OTHER`
+- duration as `duration_value` + `duration_unit`
+  - hour / day / week / month / event
+- pricing scope now includes `ROLE` in addition to Resource/category/Engagement-type/general scope
+
+This deliberately separates charge basis from duration so Stage Presence can faithfully represent real structures such as:
+
+> **$80 per LED panel per day**
+
+rather than forcing that meaning into one ambiguous rate type.
+
+### Governance state
+
+Current live Price Book rules:
+- total pricing rules: **10**
+- `DRAFT`: **10**
+- `APPROVED`: **0**
+
+No current price has been silently promoted into company policy.
+
+Initial DRAFT candidates include:
+- 17x10 LED Trailer — $4,500 / 1 day reference candidate
+- 12x7 LED Trailer — $3,500 / 1 day reference candidate
+- 10x5 LED Trailer — $2,000 / event legacy candidate
+- 3.9mm LED Panels — $80 / unit / day reference candidate
+- Delivery & Pickup — $350 / event flat candidate
+- Load-in — $200 / event flat candidate
+- Content & Video Tech — $1,000 / event flat candidate
+- A1 sell rate — $750/day historical candidate
+- A2 sell rate — $500/day historical candidate
+- Project Manager sell rate — $1,000/day historical candidate
+
+These are evidence/review candidates only.
+
+LED Poster pricing was intentionally **not** promoted because the current `$500` reference does not establish whether it is per-panel, package, minimum or another commercial structure.
+
+### `price_book_v`
+
+Live governed Price Book/evidence contract.
+
+Current authority coverage across its 105 rows:
+- `DRAFT_CANDIDATE`: **10**
+- `CURRENT_REFERENCE_ONLY`: **30**
+- `HISTORICAL_ONLY`: **4**
+- `NO_PRICE_EVIDENCE`: **61**
+- `APPROVED_AUTHORITY`: **0**
+
+Historical zero-dollar lines are counted separately and are not treated as evidence that normal price is zero.
+
+The current approved-rule view remains backward-compatible; existing quote-readiness contracts still return all **30** Engagements after the migration.
+
+---
+
+## Cost Book foundation — LIVE
+
+`economic_rate_profiles` remains the governed reusable cost-assumption home.
+
+Current live reusable cost profiles:
+- total: **2**
+- `DRAFT`: **2**
+- `APPROVED`: **0**
+
+Represented DRAFT evidence:
+- Scott — **$80/hour** pay-rate candidate
+- Ben — **$80/hour** pay-rate candidate
+
+Neither is automatically applied to a job and neither is approved company cost policy.
+
+### `cost_book_v`
+
+Live cost-authority/coverage contract.
+
+Current active-team coverage:
+- `DRAFT_CANDIDATE`: **2**
+- `NO_RATE_EVIDENCE`: **9**
+- `APPROVED_AUTHORITY`: **0**
+
+The nine missing contributor rates remain explicit Unknowns rather than becoming zero-cost labor.
+
+Cost Book can also later represent Resource, vendor/Party, role, category and general assumptions across labor, assets, subcontract, logistics, travel, materials, fees, overhead and other domains.
+
+---
+
+## Engagement estimate foundation — LIVE
+
+`engagement_cost_items` already supports:
+- `ESTIMATE`
+- `COMMITTED`
+- `ACTUAL`
+- `CANCELLED`
+
+and can snapshot quantity, unit cost, applied rate, rate basis, contributor, Resource, vendor/counterparty and reusable rate profile.
+
+`engagement_estimate_position_v` now exposes those cost states separately for each Engagement.
+
+Current production result:
+- Engagement rows: **30**
+- `NO_COST_EVIDENCE`: **30**
+
+That is intentionally truthful. Customer-facing commercial lines are not assumed to be Stage Presence internal cost.
+
+The next backend petal is to start creating real Engagement-specific estimates from actual scope rather than invent another cost subsystem.
+
+---
+
+## Economic constitution
+
+The economy remains layered:
+
+**Price → Sale → Cost → Cash**
+
+These are not interchangeable.
+
+- **Price** — reusable or contextual selling guidance
+- **Sale** — what the customer actually agreed to
+- **Cost** — what fulfillment costs Stage Presence
+- **Cash** — what actually moved
+
+Additional guardrails:
+- Sale ≠ contribution
+- contribution ≠ company profit
+- document `amount_paid` evidence ≠ verified payment transaction ledger
+- historical price ≠ current pricing authority
+- reusable rate ≠ job-specific applied rate
+- estimate ≠ committed cost ≠ actual cost
+
+QuickBooks Desktop remains formal accounting / GL authority.
+
+Current imported commercial rollup remains useful evidence, but direct-cost and structured cash actuals are still materially incomplete.
+
+---
+
+## Things / Warehouse reality
+
+`resources` currently represents a broad capability/catalog universe and is **not yet a verified physical asset register**.
+
+Current important boundaries remain:
+- configured Resource ≠ reserved Resource
+- catalog/capability identity ≠ verified physical inventory
+- Goodshuffle quantity ≠ audited warehouse quantity
+- Goodshuffle price ≠ approved Price Book policy
+
+Current Resource actuals:
+- commitments: **0**
+- usage: **0**
+
+The Warehouse Sweep remains required to physically reconcile identity, quantity, ownership, condition, location and asset-level reality.
+
+Normal future warehouse runtime should progressively cover:
+
+**available → reserved → pull → loaded → deployed/picked-up → returned → inspected → maintenance issue if needed → restocked → available**
+
+Do not claim utilization until commitment/usage evidence exists.
+
+---
+
+## People / Crew reality
+
+Known roster remains represented:
+- Greg Walker
+- Sean Stalker
+- Nancy
+- Bryan Mahanes
+- Eric Jennings
+- Kevin
+- Scott
+- Ben
+- David
+- Rico
+- Hank Futch
+
+Identity/capability representation is much stronger than job-level labor reality.
+
+Current:
+- active team members: **11**
+- Engagement assignments: **1**
+- approved reusable contributor cost rates: **0**
+
+For real jobs the runtime still needs to establish:
+
+**person → job role → planned time → agreed job rate → expected labor cost → actual time → actual labor cost**
+
+Default/reusable rate, job-specific applied rate and actual cost remain separate.
+
+---
+
+## Relationships reality
+
+Current imported Party data remains shallow compared with Greg's actual relationship network.
+
+Important target semantics remain:
+- one reusable Person/Organization identity wherever possible
+- reusable person↔organization/vendor/partner/referrer relationships
+- job-specific role separately represented through `engagement_parties`
+- relationship history compounds across Engagements rather than recreating contacts per job
+
+The Relationship Sweep remains necessary for Greg's contacts, Goodshuffle history, planners, venues, vendors, partners, universities, hospitality and recurring accounts.
+
+---
+
+## Time / Calendar reality
+
+Job schedule truth exists in `engagement_schedule_items`; Work items carry action due dates; Resource commitments and crew assignments will add capacity timing as operational adoption grows.
+
+The company calendar should eventually be a read projection across timed canonical truth rather than one table owning every date in the company.
+
+Current schedule items: **40**.
+
+Do not infer crew availability or physical Resource availability merely from Engagement dates.
+
+---
+
+## Evidence / Capture / AI
+
+Chat-first interpretation remains a temporary validation bridge:
+
+**real business input → ChatGPT interpretation → Stage Presence OS structured update**
+
+Long-term target remains native secure Stage Presence capture with source retention, interpretation/matching, review candidates and exception-only human intervention.
+
+AI may propose structure or pricing/cost interpretation, but it does not become authority for:
+- accepted scope
+- approved pricing
+- pay/cost policy
+- Resource commitments
+- payment verification
+- signatures
+- deletion
+
+The agent reasons. The system remembers.
+
+---
+
+## Current non-claims
+
+Stage Presence OS does **not** currently claim:
+- approved company Price Book policy
 - approved internal cost-rate library
-- automated quote approval/sending
-- equipment holds/reservations/usage not evidenced in reality
-- job assignments not evidenced in reality
-- automatic crew scheduling
-- external client login
+- complete Warehouse/asset register
+- trustworthy equipment availability from reservation truth
+- trustworthy utilization history
+- complete crew scheduling
+- complete direct-cost history
+- complete payment transaction history
+- accounting profit or cash-on-hand
+- live QuickBooks sync
+- live Goodshuffle sync
 - mature native AI interpreter
-- a first-class solution-design aggregate
-- a first-class commitment/change-order aggregate
+- final role-specific frontend architecture
 
-## Current next-center test
+---
 
-Use the system against real Stage Presence work and ask:
+## Current next build
 
-1. Can existing structures faithfully hold the reality once it arrives?
-2. Does a canonical fact have one owner/home?
-3. Does the UI stay simple while reading that richer reality?
-4. Which repeated real failure, if any, cannot be represented without a new abstraction?
+The Price Book + Cost Book foundation is live and verified.
 
-Only after that evidence should solution design, commitment/change-control, or another schema expansion be designed.
+The next Operational Core build should be:
+
+### 1. Price Sweep
+Human-govern the highest-value DRAFT/reference/conflicting prices rather than bulk-approving the catalog.
+
+### 2. Cost Sweep
+Confirm contributor/vendor/material/logistics cost assumptions where they affect real decisions.
+
+### 3. Estimate Runtime
+Use current `engagement_cost_items` to construct real job-specific expected costs from scope, beginning with actual active Stage Presence work.
+
+### 4. Pricing Runtime
+Combine scope + approved/reviewable pricing + expected direct cost into transparent quote decision support while preserving human negotiation.
+
+### 5. Commercial → Operations Bridge
+Once scope is actually accepted, deliberately establish the Resource commitments, crew assignments, schedule, payment expectations and operational work that are supported by reality.
+
+The governing test remains:
+
+> **Can Stage Presence run a real job from customer request through pricing, commitment, fulfillment, payment, return/reset and closeout without reconstructing reality from Greg's memory?**
+
+Operational Core v1 succeeds when the answer becomes yes repeatedly, not when another dashboard exists.
