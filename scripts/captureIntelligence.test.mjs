@@ -34,7 +34,7 @@ test('confirmed crew, timing, committed resource and reported payment become sep
   const payment = result.proposals.find(p => p.kind === 'PAYMENT_REPORT')
   assert.ok(payment && payment.kind === 'PAYMENT_REPORT')
   assert.equal(payment.payload.amount, 2500)
-  assert.equal(result.unknowns.some(value => value.includes('verification')), true)
+  assert.equal(result.unknowns.some(value => value.code === 'PAYMENT_VERIFICATION'), true)
 })
 
 test('sales lead label is not inferred as field crew', () => {
@@ -53,13 +53,20 @@ test('reported balance without amount stays unresolved and never becomes verifie
   assert.ok(payment && payment.kind === 'PAYMENT_REPORT')
   assert.equal(payment.payload.amount, null)
   assert.equal(payment.authority, 'SUGGEST')
-  assert.equal(result.unknowns.some(value => value.includes('amount')), true)
-  assert.equal(result.unknowns.some(value => value.includes('verification')), true)
+  const amountUnknown = result.unknowns.find(value => value.code === 'PAYMENT_AMOUNT')
+  const verificationUnknown = result.unknowns.find(value => value.code === 'PAYMENT_VERIFICATION')
+  assert.ok(amountUnknown)
+  assert.ok(verificationUnknown)
+  assert.equal(amountUnknown.decisionLeverage, 'HIGH')
+  assert.equal(verificationUnknown.decisionLeverage, 'HIGH')
 })
 
-test('time without an Engagement date does not invent a date', () => {
+test('time without an Engagement date does not invent a date and emits a routable unknown', () => {
   const result = interpret('Load-in 10am.', null)
   const schedule = result.proposals.find(p => p.kind === 'SCHEDULE')
   assert.ok(schedule && schedule.kind === 'SCHEDULE')
   assert.equal(schedule.payload.startAt, null)
+  const dateUnknown = result.unknowns.find(value => value.code === 'SCHEDULE_DATE')
+  assert.ok(dateUnknown)
+  assert.equal(dateUnknown.category, 'LOGISTICS')
 })
