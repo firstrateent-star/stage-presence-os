@@ -61,6 +61,7 @@ export function buildDeliveryReadiness(row: WorkspaceRow): DeliveryReadiness {
   const resources = row.resources ?? []
 
   const committed = row.commercial_state === 'WON' || ['SIGNED', 'DEPOSIT_PENDING', 'CONFIRMED'].includes(row.commitment_state)
+  const placeAndTimeNormallyMatter = ['EVENT', 'LONG_TERM_RENTAL', 'INSTALLATION', 'SERVICE'].includes(row.engagement_type)
   const openWork = work.filter((item) => ['OPEN', 'WAITING', 'BLOCKED'].includes(String(item.status ?? '')))
   const confirmedAssignments = assignments.filter((item) => String(item.assignment_state ?? '') === 'CONFIRMED')
   const tentativeAssignments = assignments.filter((item) => ['POSSIBLE', 'REQUESTED'].includes(String(item.assignment_state ?? '')))
@@ -84,16 +85,16 @@ export function buildDeliveryReadiness(row: WorkspaceRow): DeliveryReadiness {
     {
       code: 'place',
       label: 'Venue / place',
-      tone: locations.length ? 'good' : committed ? 'missing' : 'neutral',
-      value: locations.length ? `${locations.length} location link${locations.length === 1 ? '' : 's'}` : 'Not represented',
-      detail: locations.length ? 'A canonical Location is linked to this Engagement.' : 'The system has no canonical place to coordinate against yet.',
+      tone: locations.length ? 'good' : committed && placeAndTimeNormallyMatter ? 'missing' : 'neutral',
+      value: locations.length ? `${locations.length} location link${locations.length === 1 ? '' : 's'}` : placeAndTimeNormallyMatter ? 'Not represented' : 'Not required by type alone',
+      detail: locations.length ? 'A canonical Location is linked to this Engagement.' : placeAndTimeNormallyMatter ? 'This kind of delivery normally needs a represented place before execution.' : 'This Engagement type does not automatically imply a venue requirement.',
     },
     {
       code: 'time',
       label: 'Execution timing',
-      tone: !schedule.length ? (committed ? 'missing' : 'neutral') : weakTiming.length ? 'watch' : 'good',
-      value: !schedule.length ? 'No schedule' : weakTiming.length ? `${schedule.length} items · ${weakTiming.length} TBD/unknown` : `${schedule.length} scheduled item${schedule.length === 1 ? '' : 's'}`,
-      detail: !schedule.length ? 'No native execution timing is represented.' : weakTiming.length ? 'Timing exists, but some clock detail is intentionally unresolved.' : 'Current schedule items have represented timing.',
+      tone: !schedule.length ? (committed && placeAndTimeNormallyMatter ? 'missing' : 'neutral') : weakTiming.length ? 'watch' : 'good',
+      value: !schedule.length ? (placeAndTimeNormallyMatter ? 'No schedule' : 'Not required by type alone') : weakTiming.length ? `${schedule.length} items · ${weakTiming.length} TBD/unknown` : `${schedule.length} scheduled item${schedule.length === 1 ? '' : 's'}`,
+      detail: !schedule.length ? (placeAndTimeNormallyMatter ? 'No native execution timing is represented.' : 'This Engagement type does not automatically imply a show/load-in schedule.') : weakTiming.length ? 'Timing exists, but some clock detail is intentionally unresolved.' : 'Current schedule items have represented timing.',
     },
     {
       code: 'people',
@@ -132,7 +133,7 @@ export function buildDeliveryReadiness(row: WorkspaceRow): DeliveryReadiness {
     return {
       posture: 'NEEDS_STRUCTURING',
       title: 'Committed, but execution truth is incomplete',
-      explanation: 'At least one core delivery dimension is not represented in its canonical home. This is a structuring gap, not proof that the job itself is unprepared.',
+      explanation: 'At least one core delivery dimension expected for this Engagement type is not represented in its canonical home. This is a structuring gap, not proof that the job itself is unprepared.',
       checks,
     }
   }
@@ -150,7 +151,7 @@ export function buildDeliveryReadiness(row: WorkspaceRow): DeliveryReadiness {
   return {
     posture: 'SUPPORTED',
     title: 'Current represented delivery picture is coherent',
-    explanation: 'The currently modeled scope, place, timing, people, capacity and work do not expose an obvious evidence gap. This is not a guarantee of onsite success; it is a statement about represented operating truth.',
+    explanation: 'The currently modeled scope, place, timing, people, capacity and work do not expose an obvious evidence gap under these rules. This is not a guarantee of onsite success; it is a statement about represented operating truth.',
     checks,
   }
 }
