@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { CaptureLearningPanel } from './CaptureLearningPanel'
 import { getRealityHealth, type RealityHealthRow, type RealityHealthSnapshot, type RealityHealthState } from '../lib/realityHealth'
 
 export function RealityHealthPanel() {
@@ -42,7 +43,12 @@ export function RealityHealthPanel() {
         <div className="grid gap-3 md:grid-cols-2">
           {snapshot.rows.map(row => <HealthCard key={row.domain} row={row} />)}
         </div>
-        <p className="mt-5 text-[10px] leading-5 text-zinc-700">Reality Health describes what the OS can currently support with evidence. “Not yet observed” never means the business activity did not happen; it means the OS does not yet hold enough structured evidence to claim it.</p>
+
+        <div className="mt-6 border-t border-zinc-900 pt-5">
+          <CaptureLearningPanel />
+        </div>
+
+        <p className="mt-5 text-[10px] leading-5 text-zinc-700">Reality Health describes what the OS can currently support with evidence. “Not yet observed” never means the business activity did not happen; it means the OS does not yet hold enough structured evidence to claim it. Human Capture review describes interaction with the interpreter, not final truth accuracy.</p>
       </div>
     </details>
   )
