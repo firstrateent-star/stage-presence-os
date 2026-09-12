@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { CollectionProvenancePanel } from '../components/CollectionProvenancePanel'
 import { EconomyRealityMap } from '../components/EconomyRealityMap'
 import { EconomyStructurePanel } from '../components/EconomyStructurePanel'
+import { RateGovernancePanel } from '../components/RateGovernancePanel'
 import { getEconomyOverview, listEngagementEconomies, type EconomyOverviewRow, type EngagementEconomyRow } from '../lib/economyRepository'
 import { dateLabel, moneyOrUnknown, presentEconomyOverview } from '../lib/economyPresentation'
 
@@ -87,6 +88,7 @@ export function EconomyScreen({ onOpen }: { onOpen: (id: string) => void }) {
       </section>
 
       <EconomyStructurePanel onChanged={() => void refresh()} />
+      <RateGovernancePanel />
 
       <details className="mt-10 rounded-2xl border border-zinc-900 bg-zinc-950/35">
         <summary className="cursor-pointer px-5 py-4 text-sm font-semibold text-zinc-500 hover:text-zinc-300">Historical / resolved Engagement economies · {history.length}</summary>
