@@ -1,3 +1,4 @@
+import { OperatingRealityPanel } from './OperatingRealityPanel'
 import { businessNextMovement, importedScopeFallback } from '../lib/businessPresentation'
 import { engagementDateLabel, type CapacityPressure } from '../lib/businessSignals'
 import type { EngagementFinancialFact } from '../lib/financialFacts'
@@ -76,6 +77,8 @@ export function EngagementBusinessStory({
         <div className="mt-2 text-lg font-semibold text-zinc-100">{nextMove}</div>
         <p className="mt-2 text-sm leading-6 text-zinc-500">Legacy import placeholders are intentionally ignored here. This should become more specific only when a real next movement is known.</p>
       </section>
+
+      <OperatingRealityPanel engagementId={engagement.id} />
     </section>
   )
 }
