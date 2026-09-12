@@ -92,10 +92,10 @@ export async function listCanonicalEngagements(): Promise<Engagement[]> {
       ...engagement,
       venue_name: venue?.name ?? engagement.venue_name,
       venue_address: venue?.address ?? engagement.venue_address,
-      next_action: nextWork?.title ?? engagement.next_action,
-      next_action_at: nextWork?.due_at ?? engagement.next_action_at,
-      waiting_on: nextWork?.waiting_on ?? engagement.waiting_on,
-      blocked_reason: nextWork?.status === 'BLOCKED' ? nextWork.why_now ?? engagement.blocked_reason : engagement.blocked_reason,
+      next_action: nextWork ? nextWork.title : engagement.next_action,
+      next_action_at: nextWork ? nextWork.due_at : engagement.next_action_at,
+      waiting_on: nextWork ? nextWork.waiting_on : engagement.waiting_on,
+      blocked_reason: nextWork ? (nextWork.status === 'BLOCKED' ? nextWork.why_now : null) : engagement.blocked_reason,
     }
   })
 }
