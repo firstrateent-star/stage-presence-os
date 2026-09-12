@@ -5,9 +5,9 @@ import { listEngagementRelationships, type EngagementRelationship } from './enga
 import { listEngagementFinancialFacts, type EngagementFinancialFact } from './financialFacts'
 import { listLearningReviewSignals, type LearningReviewSignal } from './learningCloseout'
 import { listEffectiveConfiguredResourceLinks } from './effectiveConfiguredLinks'
+import { listCanonicalEngagements, listCanonicalEngagementFrontends } from './canonicalPresentation'
 import {
   listDailyOperatingWork,
-  listEngagementFrontends,
   listOperatingFocus,
   listPlaybookCatalog,
   listRelationshipSummaries,
@@ -17,7 +17,7 @@ import {
   type PlaybookStepRow,
   type RelationshipSummaryRow,
 } from './operatingRepository'
-import { listAttentionFacts, listCustomerLinks, listEngagements, listRecentEvents, listResources, type ConfiguredResourceLink, type CustomerLink } from './repository'
+import { listAttentionFacts, listCustomerLinks, listRecentEvents, listResources, type ConfiguredResourceLink, type CustomerLink } from './repository'
 import type { Engagement, EngagementFact, LedgerEvent, Resource } from '../types/domain'
 
 export function useAppData(enabled = true) {
@@ -59,7 +59,7 @@ export function useAppData(enabled = true) {
         nextRelationshipSummaries,
         nextPlaybookSteps,
       ] = await Promise.all([
-        listEngagements(),
+        listCanonicalEngagements(),
         listResources(),
         listRecentEvents(),
         listCustomerLinks(),
@@ -68,7 +68,7 @@ export function useAppData(enabled = true) {
         listEngagementRelationships(),
         listEngagementFinancialFacts(),
         listLearningReviewSignals(),
-        listEngagementFrontends(),
+        listCanonicalEngagementFrontends(),
         listDailyOperatingWork(),
         listOperatingFocus(),
         listRelationshipSummaries(),

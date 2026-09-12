@@ -173,3 +173,23 @@ Reason: an LED trailer can be operationally configured or available without its 
 ## 2026-09-10 — Contribution is not promoted to profit
 Decision: continue presenting Engagement contribution where supported, but do not calculate or label company profit until direct-cost, company-cost, funds and any required accounting coverage is explicit enough to support the claim.
 Reason: a mathematically precise number built from incomplete economic coverage would be less truthful than an intentional unknown. The company Economy surface should expose evidence coverage beside value.
+
+## 2026-09-12 — Recovery is a derived review layer, not a second truth store
+Decision: derive recovery/review candidates from existing evidence, unresolved truth and operating gaps; persist only human disposition in `recovery_item_decisions`; resolve accepted truth into its owning canonical domain.
+Reason: Stage Presence needs a way to surface recoverable legacy reality and consequential unknowns without turning every database blank into work or creating another parallel job record. The Recovery Queue must reduce as canonical reality is populated.
+
+## 2026-09-12 — Populate existing architecture before adding abstractions
+Decision: make the current roster, capability, schedule, Work, Playbook-state, Resource, payment, cost, commitment, usage and closeout structures carry real business evidence before designing new domain objects.
+Reason: the first population pass reduced Recovery from 54 active candidates / 21 directly recoverable candidates to 33 active / 0 direct-recover candidates without adding a new business abstraction. This is evidence that much of the current gap is operational adoption and source promotion rather than schema deficiency.
+
+## 2026-09-12 — Compatibility fields are fallback, not future write authority
+Decision: existing Engagement compatibility fields may remain for inherited reality, but new Venue and Next Move workflows write to `locations` / `engagement_locations` and `work_items`. Current UI may project canonical values back into legacy-shaped presentation contracts during transition.
+Reason: continuing to write `engagements.venue_name`, `next_action`, `next_action_at`, `waiting_on` and `blocked_reason` would create dual truth and make later migration harder. One-way canonical write + compatibility read preserves continuity without reinforcing duplication.
+
+## 2026-09-12 — Legacy placeholder actions are not automatically Work
+Decision: do not bulk-promote inherited actions such as `Review operational readiness` or `Review quote status and set follow-up` into `work_items` merely because the root compatibility field is populated.
+Reason: inspection showed 24 such root actions without open Work; most are known import placeholders rather than evidence of a current human obligation. Business work must be earned by actual continuity/decision evidence.
+
+## 2026-09-12 — Possible Solution and Commitment aggregates remain hypotheses
+Decision: keep solution design and explicit commitment/change-control as candidate abstractions only. Do not implement them until repeated live work demonstrates that requirements/facts, commercial documents, fulfillment, Work, state and provenance cannot represent the necessary decision truth without recurring reconstruction or ambiguity.
+Reason: architecture should expand from observed failure, not conceptual elegance. Current priority is to use the model deeply enough to discover whether these abstractions are genuinely missing.
