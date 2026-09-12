@@ -118,7 +118,25 @@ export async function createScheduleItem(input: {
   const { data: userData } = await client.auth.getUser()
   const locationId = await primaryVenueLocationId(input.engagementId)
   const hasClock = Boolean(input.startAt)
-  const timeState = hasClock ? 'KNOWN' : input.startDate ? 'TBD' : 'UNKNOWN'
+  const startAt = input.startAt ?? null
+  const endAt = input.endAt ?? null
+  const startDate = hasClock ? null : input.startDate ?? null
+  const endDate = hasClock ? null : input.endDate ?? input.startDate ?? null
+  const timeState = hasClock ? 'KNOWN' : startDate ? 'TBD' : 'UNKNOWN'
+  const label = input.label.trim()
+
+  const { data: candidates, error: candidateError } = await client
+    .from('engagement_schedule_items')
+    .select('id,start_at,end_at,start_date,end_date')
+    .eq('engagement_id', input.engagementId)
+    .eq('schedule_type', input.scheduleType)
+    .eq('label', label)
+  if (candidateError) throw candidateError
+
+  const existing = (candidates ?? []).find((row) =>
+    row.start_at === startAt && row.end_at === endAt && row.start_date === startDate && row.end_date === endDate,
+  )
+  if (existing) return existing
 
   const { data, error } = await client
     .from('engagement_schedule_items')
@@ -126,11 +144,11 @@ export async function createScheduleItem(input: {
       engagement_id: input.engagementId,
       source_key: `manual-schedule:${input.engagementId}:${crypto.randomUUID()}`,
       schedule_type: input.scheduleType,
-      label: input.label.trim(),
-      start_at: input.startAt ?? null,
-      end_at: input.endAt ?? null,
-      start_date: hasClock ? null : input.startDate ?? null,
-      end_date: hasClock ? null : input.endDate ?? input.startDate ?? null,
+      label,
+      start_at: startAt,
+      end_at: endAt,
+      start_date: startDate,
+      end_date: endDate,
       time_state: timeState,
       location_id: locationId,
       notes: input.notes?.trim() || null,
@@ -153,20 +171,41 @@ export async function createAssignment(input: {
   briefingNotes?: string | null
 }) {
   const client = requireClient()
+  const { data: existingRows, error: existingError } = await client
+    .from('engagement_assignments')
+    .select('id')
+    .eq('engagement_id', input.engagementId)
+    .eq('team_member_id', input.teamMemberId)
+    .eq('role_code', input.roleCode)
+    .in('assignment_state', ['POSSIBLE', 'REQUESTED', 'CONFIRMED'])
+    .limit(1)
+  if (existingError) throw existingError
+
+  const values = {
+    role_label: input.roleLabel?.trim() || null,
+    assignment_state: input.assignmentState,
+    certainty_state: 'KNOWN',
+    scope_summary: input.scopeSummary?.trim() || null,
+    briefing_notes: input.briefingNotes?.trim() || null,
+    acknowledgement_state: 'UNSENT',
+    metadata: { source_type: 'MANUAL', capture_surface: 'engagement_operating_workspace' },
+  }
+
+  const existing = existingRows?.[0]
+  if (existing) {
+    const { data, error } = await client.from('engagement_assignments').update(values).eq('id', existing.id).select('id').single()
+    if (error) throw error
+    return data
+  }
+
   const { data, error } = await client
     .from('engagement_assignments')
     .insert({
       engagement_id: input.engagementId,
       team_member_id: input.teamMemberId,
-      source_key: `manual-assignment:${input.engagementId}:${input.teamMemberId}:${crypto.randomUUID()}`,
+      source_key: `manual-assignment:${input.engagementId}:${input.teamMemberId}:${input.roleCode}:${crypto.randomUUID()}`,
       role_code: input.roleCode,
-      role_label: input.roleLabel?.trim() || null,
-      assignment_state: input.assignmentState,
-      certainty_state: 'KNOWN',
-      scope_summary: input.scopeSummary?.trim() || null,
-      briefing_notes: input.briefingNotes?.trim() || null,
-      acknowledgement_state: 'UNSENT',
-      metadata: { source_type: 'MANUAL', capture_surface: 'engagement_operating_workspace' },
+      ...values,
     })
     .select('id')
     .single()
