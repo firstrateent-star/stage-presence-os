@@ -131,3 +131,22 @@ test('price and cost book foundation preserves governance and rental dimensional
   assert.match(contracts, /NO_COST_EVIDENCE/)
   assert.doesNotMatch(seeds, /'APPROVED'\s*,\s*'BASE_RATE'/i, 'evidence seeds must not silently become approved pricing authority')
 })
+
+test('estimate runtime reuses canonical cost items and makes missing cost decisions explicit', () => {
+  const migration = read('supabase/migrations/20260912233000_estimate_runtime_v1.sql')
+  const runtime = read('src/lib/estimateRuntime.ts')
+
+  for (const view of ['engagement_estimate_lines_v', 'engagement_scope_cost_coverage_v', 'engagement_estimate_position_v']) {
+    assert.match(migration, new RegExp(`create or replace view public\\.${view}[\\s\\S]*security_invoker\\s*=\\s*true`, 'i'))
+  }
+  assert.match(migration, /NEEDS_COST_DECISION/)
+  assert.match(migration, /DRAFT_RATE_AVAILABLE/)
+  assert.match(migration, /COSTING_NOT_STARTED/)
+  assert.match(migration, /PARTIAL_COST_COVERAGE/)
+  assert.match(runtime, /export async function createManualEstimate\b/)
+  assert.match(runtime, /export async function createEstimateFromRateProfile\b/)
+  assert.match(runtime, /export async function transitionCostItem\b/)
+  assert.match(runtime, /Explicitly allow the draft rate or approve it before applying it/)
+  assert.match(runtime, /rate_profile_status_at_application/)
+  assert.match(runtime, /calculation_method/)
+})
