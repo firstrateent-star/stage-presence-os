@@ -1,3 +1,4 @@
+import { ContextualCapturePanel } from './ContextualCapturePanel'
 import { JobDayPanel } from './JobDayPanel'
 import { OperatingRealityPanel } from './OperatingRealityPanel'
 import { businessNextMovement, importedScopeFallback } from '../lib/businessPresentation'
@@ -38,6 +39,12 @@ export function EngagementBusinessStory({
         <StoryCard label="Commercial" value={humanCommercialPosition(engagement)} subvalue={commercialValue ? `${money(commercialValue.amount)} · ${commercialValue.label}` : commercialValueFallback(engagement)} />
         <StoryCard label="Capacity" value={capacity.title} subvalue={capacity.detail} tone={capacity.tone} />
       </div>
+
+      <ContextualCapturePanel
+        engagementId={engagement.id}
+        engagementName={engagement.name}
+        eventDate={engagement.event_start_date}
+      />
 
       <div className="grid gap-4 lg:grid-cols-2">
         <section className="rounded-2xl border border-zinc-900 bg-zinc-950/70 p-5">
