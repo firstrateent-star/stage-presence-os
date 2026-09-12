@@ -1,0 +1,175 @@
+{
+  "snapshot_date": "2026-09-12",
+  "status_vocabulary": [
+    "KNOWN",
+    "PARTIAL",
+    "INFERRED",
+    "CONFLICTING",
+    "UNKNOWN",
+    "NOT_APPLICABLE",
+    "NEEDS_DECISION"
+  ],
+  "live_counts": {
+    "engagements_total": 31,
+    "engagements_active": 30,
+    "parties": 20,
+    "engagement_parties": 29,
+    "party_relationships": 0,
+    "locations": 21,
+    "engagement_locations": 28,
+    "resources": 102,
+    "engagement_resources": 131,
+    "resource_commitments": 0,
+    "resource_usage": 0,
+    "team_members": 0,
+    "team_member_capabilities": 0,
+    "engagement_assignments": 0,
+    "engagement_schedule_items": 0,
+    "commercial_documents": 30,
+    "commercial_document_lines": 208,
+    "commercial_payment_schedule": 0,
+    "commercial_payments": 0,
+    "fulfillment_plans": 30,
+    "fulfillment_plan_lines": 208,
+    "engagement_facts": 30,
+    "engagement_cost_items": 0,
+    "company_cost_items": 0,
+    "financial_accounts": 0,
+    "financial_account_snapshots": 0,
+    "economic_rate_profiles": 0,
+    "pricing_rules": 0,
+    "work_items": 7,
+    "engagement_step_states": 0,
+    "engagement_step_assignments": 0,
+    "engagement_outputs": 0,
+    "engagement_closeouts": 0,
+    "source_artifacts": 35,
+    "source_artifact_segments": 90,
+    "events": 379
+  },
+  "source_evidence": {
+    "goodshuffle_source_artifacts": 33,
+    "pull_sheet_segments": 30,
+    "pull_sheets_with_timing_language": 27,
+    "pull_sheets_with_people_role_language": 16,
+    "pull_sheets_with_location_logistics_language": 26,
+    "engagements_with_fulfillment_event_time_text": 25,
+    "fulfillment_lines_with_event_time_text": 43
+  },
+  "engagement_coverage": {
+    "active": 30,
+    "with_customer_request": 0,
+    "with_desired_outcome": 0,
+    "with_start_date": 30,
+    "with_end_date": 30,
+    "with_legacy_venue": 28,
+    "with_estimated_value": 9,
+    "with_inferred_default_resource_window": 27,
+    "lifecycle": {
+      "NEW_UNCOMMITTED": 1,
+      "PROPOSED_UNCOMMITTED": 14,
+      "WON_SIGNED": 15
+    }
+  },
+  "fact_certainty": {
+    "VERIFIED": 1,
+    "KNOWN": 20,
+    "UNKNOWN": 7,
+    "CONFLICTING": 2
+  },
+  "resource_coverage": {
+    "active_resources": 102,
+    "sourcing_represented": 67,
+    "sourcing_unknown": 35,
+    "quantity_unverified": 62,
+    "quantity_unknown": 40,
+    "quantity_verified": 0,
+    "price_verified_current": 36,
+    "price_unknown": 65,
+    "price_legacy_reference": 1
+  },
+  "capacity": {
+    "engagement_default_window_inferred_from_event": 27,
+    "engagement_default_window_unknown": 3,
+    "resource_specific_requirement_windows_known": 0,
+    "capacity_pressure_watch": 3,
+    "capacity_pressure_high": 0,
+    "resource_commitments": 0,
+    "resource_usage": 0
+  },
+  "economy_coverage": {
+    "direct_job_costs": {
+      "state": "UNKNOWN",
+      "represented": 0,
+      "expected_committed": 9
+    },
+    "collections": {
+      "state": "PARTIAL",
+      "represented": 4,
+      "expected_committed": 9
+    },
+    "company_operating_costs": {
+      "state": "UNKNOWN",
+      "represented": 0
+    },
+    "financial_accounts_funds": {
+      "state": "UNKNOWN",
+      "represented": 0
+    },
+    "asset_economics": {
+      "state": "PARTIAL",
+      "represented": 0,
+      "known_owned_resources": 66
+    },
+    "approved_cost_rates": {
+      "state": "NEEDS_DECISION",
+      "represented": 0
+    },
+    "approved_pricing_authority": {
+      "state": "NEEDS_DECISION",
+      "represented": 0
+    },
+    "commercial_line_history": {
+      "state": "KNOWN",
+      "represented": 208,
+      "expected": 208
+    },
+    "fulfillment_line_history": {
+      "state": "KNOWN",
+      "represented": 208,
+      "expected": 208
+    }
+  },
+  "domains": [
+    {"domain": "engagement_identity_history", "state": "KNOWN", "treatment": "preserve_and_continue_native_capture"},
+    {"domain": "commercial_history", "state": "KNOWN", "treatment": "preserve_as_evidence"},
+    {"domain": "fulfillment_history", "state": "KNOWN", "treatment": "preserve_as_scope_evidence"},
+    {"domain": "parties_client_links", "state": "PARTIAL", "treatment": "recover_relationship_graph_from_strong_evidence"},
+    {"domain": "customer_intent_desired_outcome", "state": "PARTIAL", "treatment": "reconstruct_candidates_and_confirm_when_relevant"},
+    {"domain": "requirements_constraints", "state": "PARTIAL", "treatment": "use_engagement_facts_and_preserve_certainty"},
+    {"domain": "locations_venue_memory", "state": "PARTIAL", "treatment": "continue_canonicalization"},
+    {"domain": "resources", "state": "PARTIAL", "treatment": "verify_by_decision_leverage"},
+    {"domain": "capacity", "state": "INFERRED", "treatment": "preserve_pressure_model_and_do_not_invent_reservations"},
+    {"domain": "people_roster", "state": "PARTIAL", "treatment": "recover_candidates_then_confirm"},
+    {"domain": "capabilities_qualifications", "state": "UNKNOWN", "treatment": "capture_organically_from_real_work_and_training"},
+    {"domain": "schedules", "state": "PARTIAL", "treatment": "extract_candidates_and_activate_for_live_work"},
+    {"domain": "assignments", "state": "UNKNOWN", "treatment": "capture_when_work_is_actually_assigned"},
+    {"domain": "direct_job_costs", "state": "UNKNOWN", "treatment": "recover_from_real_cost_evidence_and_capture_forward"},
+    {"domain": "collections", "state": "PARTIAL", "treatment": "reconcile_committed_work_then_capture_new_payments"},
+    {"domain": "pricing_authority", "state": "NEEDS_DECISION", "treatment": "promote_only_explicitly_approved_rules"},
+    {"domain": "cost_rate_assumptions", "state": "NEEDS_DECISION", "treatment": "establish_from_supported_economics"},
+    {"domain": "company_accounts_funds", "state": "UNKNOWN", "treatment": "represent_only_from_current_accounting_evidence"},
+    {"domain": "company_operating_costs", "state": "UNKNOWN", "treatment": "recover_from_accounting_vendor_evidence"},
+    {"domain": "asset_economics", "state": "PARTIAL", "treatment": "start_with_material_owned_assets"},
+    {"domain": "process_playbooks", "state": "KNOWN", "treatment": "activate_steps_only_when_useful"},
+    {"domain": "work_attention", "state": "PARTIAL", "treatment": "movement_logic_proposes_work_items_commit"},
+    {"domain": "closeout_learning", "state": "UNKNOWN", "treatment": "activate_lightweight_closeout_forward"},
+    {"domain": "generated_outputs", "state": "PARTIAL", "treatment": "generate_only_from_reliable_canonical_truth"}
+  ],
+  "priority_policy": {
+    "P0": "resolve_when_uncertainty_can_change_a_live_promise_delivery_collection_or_major_economic_decision",
+    "P1": "recover_once_when_reusable_across_many_future_decisions",
+    "P2": "capture_organically_during_normal_work",
+    "P3": "leave_unknown_until_decision_leverage_justifies_attention"
+  }
+}
