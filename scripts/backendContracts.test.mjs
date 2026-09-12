@@ -67,3 +67,49 @@ test('approved policy state remains explicit in canonical policy models', () => 
   assert.match(corpus, /economic_rate_profiles[\s\S]*DRAFT[\s\S]*APPROVED[\s\S]*RETIRED/i)
   assert.match(corpus, /pricing_rules[\s\S]*DRAFT[\s\S]*APPROVED[\s\S]*RETIRED/i)
 })
+
+test('typed application read contracts front the stable backend views', () => {
+  const contracts = read('src/lib/readContracts.ts')
+  for (const fn of [
+    'listEngagementSummaries',
+    'getEngagementSummary',
+    'listCapabilities',
+    'listRelationshipSummaries',
+    'getEconomyOverview',
+    'listRecoveryQueue',
+  ]) {
+    assert.match(contracts, new RegExp(`export async function ${fn}\\b`), `${fn} must remain a named application read contract`)
+  }
+  for (const view of [
+    'engagement_summary_v',
+    'capability_summary_v',
+    'relationship_summary_v',
+    'economy_overview_v',
+    'recovery_queue_v',
+  ]) {
+    assert.match(contracts, new RegExp(`\\.from\\(['\"]${view}['\"]\\)`), `${view} must be consumed behind the read-contract layer`)
+  }
+})
+
+test('frontend read contracts are authenticated SELECT-only surfaces', () => {
+  const migration = read('supabase/migrations/20260912193000_read_contract_grants_v1.sql')
+  for (const view of [
+    'engagement_summary_v',
+    'capability_summary_v',
+    'relationship_summary_v',
+    'economy_overview_v',
+    'recovery_queue_v',
+  ]) {
+    assert.match(migration, new RegExp(`revoke all on public\\.${view} from anon, authenticated`, 'i'))
+    assert.match(migration, new RegExp(`grant select on public\\.${view} to authenticated`, 'i'))
+  }
+})
+
+test('capability semantics distinguish physical capacity from commercial and service concepts', () => {
+  const migration = read('supabase/migrations/20260912191500_capability_kind_contract_v1.sql')
+  assert.match(migration, /PHYSICAL_CAPACITY/)
+  assert.match(migration, /SERVICE/)
+  assert.match(migration, /LOGISTICS/)
+  assert.match(migration, /COMMERCIAL_ADJUSTMENT/)
+  assert.match(migration, /capacity_relevant/)
+})
