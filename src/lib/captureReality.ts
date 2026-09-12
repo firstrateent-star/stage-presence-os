@@ -106,3 +106,60 @@ export async function preserveExistingEngagementCapture(input: {
 
   return { textArtifactId, sourceArtifactIds }
 }
+
+export async function routeCapturedUnknown(input: {
+  engagementId: string
+  label: string
+  detail: string
+  category?: FactCategory
+  sourceArtifactId: string | null
+  sourceCode?: string | null
+  decisionLeverage?: 'LOW' | 'MEDIUM' | 'HIGH'
+}) {
+  const client = requireClient()
+  const { data: userData, error: userError } = await client.auth.getUser()
+  if (userError) throw userError
+  const userId = userData.user?.id
+  if (!userId) throw new Error('You must be signed in to route an unknown.')
+
+  const label = input.label.trim()
+  const detail = input.detail.trim()
+  if (!label || !detail) throw new Error('Unknown label and detail are required.')
+
+  const existingQuery = client
+    .from('engagement_facts')
+    .select('id')
+    .eq('engagement_id', input.engagementId)
+    .eq('label', label)
+    .eq('value_text', detail)
+    .eq('certainty_state', 'UNKNOWN')
+    .limit(1)
+  if (input.sourceArtifactId) existingQuery.eq('source_artifact_id', input.sourceArtifactId)
+  const { data: existing, error: existingError } = await existingQuery
+  if (existingError) throw existingError
+  if (existing?.[0]) return existing[0]
+
+  const { data, error } = await client
+    .from('engagement_facts')
+    .insert({
+      engagement_id: input.engagementId,
+      category: input.category ?? 'OTHER',
+      kind: 'OBSERVATION',
+      label,
+      value_text: detail,
+      certainty_state: 'UNKNOWN',
+      confidence: null,
+      source_type: 'CAPTURE_INTELLIGENCE',
+      source_artifact_id: input.sourceArtifactId,
+      notes: [
+        'Interpreter-detected unknown explicitly promoted by a human reviewer.',
+        input.sourceCode ? `Capture unknown code: ${input.sourceCode}.` : null,
+        input.decisionLeverage ? `Decision leverage at capture: ${input.decisionLeverage}.` : null,
+      ].filter(Boolean).join(' '),
+      created_by: userId,
+    })
+    .select('id')
+    .single()
+  if (error) throw error
+  return data
+}
