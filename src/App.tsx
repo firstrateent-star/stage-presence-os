@@ -16,6 +16,7 @@ import { LoginScreen } from './screens/LoginScreen'
 import { RecoveryScreen } from './screens/RecoveryScreen'
 import { CapabilityV2, EconomyV2, RelationshipsV2 } from './screens/OperatingSurfaceV2'
 import { ExploreHub, HumanToday, HumanWork, SystemHub, WorkStory } from './screens/HumanInterfaceV2'
+import { GregMode } from './screens/GregMode'
 import { buildBusinessSignals } from './lib/businessSignals'
 import { supabase } from './lib/supabase'
 import { isBackendConfigured } from './lib/config'
@@ -78,6 +79,7 @@ export default function App() {
   const surface = useOperatingSurface(isBackendConfigured && accessState === 'authorized')
   const selectedEngagement = legacy.engagements.find((item) => item.id === selectedId)
   const selectedSummary = surface.engagements.find((item) => item.id === selectedId)
+  const ownerMode = role === 'ADMIN'
   const businessSignals = useMemo(
     () => buildBusinessSignals(legacy.engagements, legacy.customerLinks, legacy.configuredLinks, legacy.attentionFacts, legacy.engagementRelationships, legacy.financialFacts),
     [legacy.engagements, legacy.customerLinks, legacy.configuredLinks, legacy.attentionFacts, legacy.engagementRelationships, legacy.financialFacts],
@@ -186,7 +188,7 @@ export default function App() {
   const error = isBackendConfigured ? surface.error : legacy.error
 
   return (
-    <AppShell current={screen} onNavigate={navigate} onSignOut={() => void signOut()} accountLabel={role ?? undefined}>
+    <AppShell current={screen} onNavigate={navigate} onSignOut={() => void signOut()} accountLabel={role ?? undefined} ownerMode={ownerMode}>
       {legacy.demoMode && <div className="mb-5 rounded-xl border border-sky-900/60 bg-sky-950/20 px-4 py-3 text-xs leading-5 text-sky-300">DEMO MODE — no backend is connected.</div>}
       {error && <div className="mb-5 rounded-xl border border-red-900/60 bg-red-950/20 px-4 py-3 text-sm text-red-300">{error}</div>}
 
@@ -194,12 +196,14 @@ export default function App() {
         <div className="py-24 text-center text-sm text-zinc-700">Loading operating reality…</div>
       ) : !isBackendConfigured ? (
         <div className="rounded-2xl border border-zinc-900 p-8 text-sm text-zinc-500">Connect the Stage Presence backend to use the operating surface.</div>
+      ) : screen === 'today' && ownerMode ? (
+        <GregMode engagements={surface.engagements} relationships={surface.relationships} economy={surface.economy} recovery={surface.recovery} onOpenWork={openEngagement} onCapture={() => navigate('new')} onAllWork={() => navigate('engagements')} onSystem={() => navigate('system')} />
       ) : screen === 'today' ? (
         <HumanToday engagements={surface.engagements} recovery={surface.recovery} role={role} onOpen={openEngagement} onCapture={() => navigate('new')} />
       ) : screen === 'engagements' ? (
         <HumanWork engagements={surface.engagements} onOpen={openEngagement} />
       ) : screen === 'new' ? (
-        <NewEngagementScreen onCancel={() => navigate('today')} onCreated={() => { void refreshAll(); navigate('engagements') }} />
+        <NewEngagementScreen onCancel={() => navigate('today')} onCreated={() => { void refreshAll(); navigate('today') }} />
       ) : screen === 'explore' ? (
         <ExploreHub relationships={surface.relationships} capabilities={surface.capabilities} economy={surface.economy} onOpenRelationships={() => navigate('relationships')} onOpenCapability={() => navigate('resources')} onOpenEconomy={() => navigate('economy')} />
       ) : screen === 'system' ? (
@@ -214,7 +218,7 @@ export default function App() {
         <RecoveryScreen onOpenEngagement={openEngagement} />
       ) : selectedEngagement ? (
         <div className="space-y-6">
-          <button type="button" onClick={() => navigate('engagements')} className="text-sm text-zinc-600 hover:text-zinc-300">← Work</button>
+          <button type="button" onClick={() => navigate(ownerMode ? 'today' : 'engagements')} className="text-sm text-zinc-600 hover:text-zinc-300">← {ownerMode ? 'Today' : 'Work'}</button>
 
           <WorkStory
             engagement={selectedEngagement}

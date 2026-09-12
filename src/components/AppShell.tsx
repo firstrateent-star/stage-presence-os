@@ -7,20 +7,19 @@ export function AppShell({
   onNavigate,
   onSignOut,
   accountLabel,
+  ownerMode = false,
   children,
 }: {
   current: ScreenName
   onNavigate: (screen: ScreenName) => void
   onSignOut?: () => void
   accountLabel?: string
+  ownerMode?: boolean
   children: ReactNode
 }) {
-  const primary = [
-    ['today', 'Today'],
-    ['engagements', 'Work'],
-    ['new', 'Capture'],
-    ['explore', 'Explore'],
-  ] as const
+  const primary = ownerMode
+    ? ([['today', 'Today'], ['new', 'Capture']] as const)
+    : ([['today', 'Today'], ['engagements', 'Work'], ['new', 'Capture'], ['explore', 'Explore']] as const)
 
   const workActive = current === 'engagements' || current === 'detail'
   const exploreActive = ['explore', 'relationships', 'resources', 'economy'].includes(current)
@@ -34,7 +33,7 @@ export function AppShell({
             <div className="grid h-9 w-9 place-items-center rounded-xl border border-amber-900/50 bg-amber-950/20 text-sm font-bold text-amber-400">SP</div>
             <div>
               <div className="text-[10px] font-semibold uppercase tracking-[0.24em] text-amber-500">Stage Presence</div>
-              <div className="text-sm font-medium text-zinc-300">Operating System</div>
+              <div className="text-sm font-medium text-zinc-300">{ownerMode ? 'Owner View' : 'Operating System'}</div>
             </div>
           </button>
 
@@ -56,6 +55,7 @@ export function AppShell({
           </nav>
 
           <div className="mt-auto border-t border-zinc-900 pt-4">
+            {ownerMode && <button type="button" onClick={() => onNavigate('engagements')} className={`w-full rounded-xl px-3 py-2.5 text-left text-sm font-medium ${workActive ? 'bg-zinc-900 text-zinc-100' : 'text-zinc-700 hover:text-zinc-400'}`}>All work</button>}
             <button type="button" onClick={() => onNavigate('system')} className={`w-full rounded-xl px-3 py-2.5 text-left text-sm font-medium ${systemActive ? 'bg-zinc-900 text-zinc-100' : 'text-zinc-700 hover:text-zinc-400'}`}>System</button>
             {onSignOut && <button type="button" onClick={onSignOut} className="mt-1 w-full rounded-xl px-3 py-2.5 text-left text-sm font-medium text-zinc-800 hover:text-zinc-500">Sign out</button>}
           </div>
@@ -65,11 +65,12 @@ export function AppShell({
       <main className="mx-auto max-w-[1320px] px-4 pb-28 pt-6 sm:px-6 lg:ml-52 lg:px-8 lg:pb-12">{children}</main>
 
       <nav className="fixed inset-x-0 bottom-0 z-30 border-t border-zinc-800 bg-[#090909]/95 px-2 pb-[max(.65rem,env(safe-area-inset-bottom))] pt-2 backdrop-blur-xl lg:hidden">
-        <div className="grid grid-cols-4 gap-1">
+        <div className={`grid gap-1 ${ownerMode ? 'grid-cols-3' : 'grid-cols-4'}`}>
           {primary.map(([value, label]) => {
             const active = value === 'engagements' ? workActive : value === 'explore' ? exploreActive : current === value
             return <button key={value} type="button" onClick={() => onNavigate(value)} className={`rounded-xl px-1 py-2.5 text-[10px] font-semibold ${active ? 'bg-zinc-900 text-zinc-100' : 'text-zinc-600'}`}>{label}</button>
           })}
+          {ownerMode && <button type="button" onClick={() => onNavigate('engagements')} className={`rounded-xl px-1 py-2.5 text-[10px] font-semibold ${workActive ? 'bg-zinc-900 text-zinc-100' : 'text-zinc-700'}`}>All work</button>}
         </div>
       </nav>
     </div>
