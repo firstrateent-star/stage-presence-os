@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { RealityHealthPanel } from '../components/RealityHealthPanel'
 import {
   listRecoveryQueue,
   setRecoveryDecision,
@@ -99,6 +100,8 @@ export function RecoveryScreen({ onOpenEngagement }: { onOpenEngagement: (id: st
           </div>
         </div>
       </header>
+
+      <RealityHealthPanel />
 
       {error && <div className="mb-5 rounded-xl border border-red-900/60 bg-red-950/20 px-4 py-3 text-sm text-red-300">{error}</div>}
 
