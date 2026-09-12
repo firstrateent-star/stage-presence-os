@@ -115,16 +115,19 @@ test('capability semantics distinguish physical capacity from commercial and ser
 })
 
 test('price and cost book foundation preserves governance and rental dimensionality', () => {
-  const migration = read('supabase/migrations/20260912221500_price_cost_book_foundation_v1.sql')
+  const dimensions = read('supabase/migrations/20260912221500_price_book_dimensions_v1.sql')
+  const seeds = read('supabase/migrations/20260912221600_price_cost_book_draft_seeds_v1.sql')
+  const contracts = read('supabase/migrations/20260912221700_price_cost_book_read_contracts_v1.sql')
+
   for (const token of ['price_position', 'billing_basis', 'duration_value', 'duration_unit', 'role_code']) {
-    assert.match(migration, new RegExp(token), `${token} must remain explicit in pricing policy`)
+    assert.match(dimensions, new RegExp(token), `${token} must remain explicit in pricing policy`)
   }
-  assert.match(migration, /PER_UNIT[\s\S]*1, 'DAY'/i, 'per-unit per-day rental pricing must be representable')
-  assert.match(migration, /create or replace view public\.price_book_v[\s\S]*security_invoker\s*=\s*true/i)
-  assert.match(migration, /create or replace view public\.cost_book_v[\s\S]*security_invoker\s*=\s*true/i)
-  assert.match(migration, /create or replace view public\.engagement_estimate_position_v[\s\S]*security_invoker\s*=\s*true/i)
-  assert.match(migration, /DRAFT_CANDIDATE/)
-  assert.match(migration, /NO_RATE_EVIDENCE/)
-  assert.match(migration, /NO_COST_EVIDENCE/)
-  assert.doesNotMatch(migration, /'APPROVED'\s*,\s*'BASE_RATE'/i, 'evidence seeds must not silently become approved pricing authority')
+  assert.match(seeds, /PER_UNIT[\s\S]*1, 'DAY'/i, 'per-unit per-day rental pricing must be representable')
+  assert.match(contracts, /create or replace view public\.price_book_v[\s\S]*security_invoker\s*=\s*true/i)
+  assert.match(contracts, /create or replace view public\.cost_book_v[\s\S]*security_invoker\s*=\s*true/i)
+  assert.match(contracts, /create or replace view public\.engagement_estimate_position_v[\s\S]*security_invoker\s*=\s*true/i)
+  assert.match(contracts, /DRAFT_CANDIDATE/)
+  assert.match(contracts, /NO_RATE_EVIDENCE/)
+  assert.match(contracts, /NO_COST_EVIDENCE/)
+  assert.doesNotMatch(seeds, /'APPROVED'\s*,\s*'BASE_RATE'/i, 'evidence seeds must not silently become approved pricing authority')
 })
