@@ -47,12 +47,12 @@ The operating spine is now:
 
 **customer demand → scope → expected cost → pricing/quote → customer commitment → equipment/people/time commitment → fulfillment → actuals → payment → return/reset → closeout/learning**
 
-The immediate backend build sequence is:
+Current backend sequence:
 
-1. **Price Book** — reusable governed selling-price authority
-2. **Cost Book** — reusable governed internal/external cost assumptions
-3. **Estimate Runtime** — job-specific expected costs
-4. **Pricing Runtime** — scope + approved price policy + expected cost → commercial decision support
+1. **Price Book** — reusable governed selling-price authority — **foundation live**
+2. **Cost Book** — reusable governed internal/external cost assumptions — **foundation live**
+3. **Estimate Runtime** — job-specific expected costs — **runtime live**
+4. **Pricing Runtime** — scope + approved/reviewable price policy + expected cost → commercial decision support — **next**
 5. **Commercial → Operations Bridge** — accepted scope creates the commitments/work actually supported by evidence
 6. **Fulfillment Runtime** — pull/load/deliver or pickup/setup/operate or install/strike/return/inspect/restock
 7. **Actuals** — actual equipment, labor, direct costs, payments and outcome
@@ -79,7 +79,7 @@ This spine is part of the larger OS; it does not replace Warehouse, Relationship
 - job-specific crew assignment → `engagement_assignments`
 - reusable internal/external cost assumptions → `economic_rate_profiles`
 - reusable selling-price policy → `pricing_rules`
-- direct Engagement costs → `engagement_cost_items`
+- direct Engagement costs, including estimate→commit→actual progression → `engagement_cost_items`
 - equipment hold/reservation/allocation → `resource_commitments`
 - actual equipment use → `resource_usage`
 - expected payment terms → `commercial_payment_schedule`
@@ -95,7 +95,7 @@ Compatibility fields remain fallback/history rather than future write authority 
 
 ## Live backend snapshot
 
-Current production reality after the Price Book + Cost Book foundation activation:
+Current production reality after Price Book + Cost Book + Estimate Runtime activation:
 
 - active Engagements: **30**
 - customer/contact Parties: **20**
@@ -119,7 +119,7 @@ Current production reality after the Price Book + Cost Book foundation activatio
 
 Interpretation:
 
-> **The backend contains substantial commercial/configuration knowledge, but normal Stage Presence execution still has almost no native commitment/actual records. Operational adoption remains the main constraint.**
+> **The backend contains substantial commercial/configuration knowledge and can now represent governed pricing/costing plus job estimates, but native commitment/actual records remain sparse. Operational adoption on real work is now the main constraint.**
 
 ---
 
@@ -127,9 +127,9 @@ Interpretation:
 
 Canonical design: `docs/PRICE_COST_BOOK_FOUNDATION_V1.md`.
 
-`pricing_rules` is now the governed reusable selling-price home.
+`pricing_rules` is the governed reusable selling-price home.
 
-### Pricing policy dimensions now supported
+### Pricing policy dimensions supported
 
 - `price_position`
   - `STANDARD`
@@ -147,7 +147,7 @@ Canonical design: `docs/PRICE_COST_BOOK_FOUNDATION_V1.md`.
   - `OTHER`
 - duration as `duration_value` + `duration_unit`
   - hour / day / week / month / event
-- pricing scope now includes `ROLE` in addition to Resource/category/Engagement-type/general scope
+- pricing scope includes `ROLE` in addition to Resource/category/Engagement-type/general scope
 
 This deliberately separates charge basis from duration so Stage Presence can faithfully represent real structures such as:
 
@@ -193,8 +193,6 @@ Current authority coverage across its 105 rows:
 
 Historical zero-dollar lines are counted separately and are not treated as evidence that normal price is zero.
 
-The current approved-rule view remains backward-compatible; existing quote-readiness contracts still return all **30** Engagements after the migration.
-
 ---
 
 ## Cost Book foundation — LIVE
@@ -214,8 +212,6 @@ Neither is automatically applied to a job and neither is approved company cost p
 
 ### `cost_book_v`
 
-Live cost-authority/coverage contract.
-
 Current active-team coverage:
 - `DRAFT_CANDIDATE`: **2**
 - `NO_RATE_EVIDENCE`: **9**
@@ -223,29 +219,90 @@ Current active-team coverage:
 
 The nine missing contributor rates remain explicit Unknowns rather than becoming zero-cost labor.
 
-Cost Book can also later represent Resource, vendor/Party, role, category and general assumptions across labor, assets, subcontract, logistics, travel, materials, fees, overhead and other domains.
+Cost Book can also represent Resource, vendor/Party, role, category and general assumptions across labor, assets, subcontract, logistics, travel, materials, fees, overhead and other domains.
 
 ---
 
-## Engagement estimate foundation — LIVE
+## Engagement Estimate Runtime — LIVE
 
-`engagement_cost_items` already supports:
-- `ESTIMATE`
-- `COMMITTED`
-- `ACTUAL`
-- `CANCELLED`
+Canonical design: `docs/ESTIMATE_RUNTIME_V1.md`.
 
-and can snapshot quantity, unit cost, applied rate, rate basis, contributor, Resource, vendor/counterparty and reusable rate profile.
+A second estimate object was deliberately **not** created.
 
-`engagement_estimate_position_v` now exposes those cost states separately for each Engagement.
+`engagement_cost_items` remains the one direct-cost ledger through:
 
-Current production result:
+**ESTIMATE → COMMITTED → ACTUAL → CANCELLED**
+
+It can snapshot:
+- quantity
+- unit cost
+- amount
+- applied reusable rate
+- rate basis
+- contributor
+- Resource
+- vendor/counterparty
+- fulfillment line
+- commercial line
+- assignment
+- certainty
+- provenance
+
+### Runtime read contracts
+
+`engagement_estimate_lines_v`
+- readable job-cost lines enriched with Resource, contributor, vendor, Cost Book profile and rate-authority context.
+
+`engagement_scope_cost_coverage_v`
+- compares currently represented fulfillment scope with cost evidence and rate availability.
+- missing cost remains a decision gap, not `$0`.
+
+`engagement_estimate_position_v`
+- rolls estimate / committed / actual cost separately.
+- exposes cost buckets for labor, subcontract, equipment, materials/purchases, logistics/travel and other direct cost.
+- exposes certainty coverage and scope-cost coverage.
+
+### Application command boundary
+
+`src/lib/estimateRuntime.ts` now provides:
+- `createManualEstimate()`
+- `createEstimateFromRateProfile()`
+- `transitionCostItem()`
+- typed Price Book / Cost Book / estimate read functions
+
+Guardrails:
+- quantity × unit-cost arithmetic is calculated and contradictory supplied totals are rejected;
+- DRAFT Cost Book rates require explicit opt-in before application;
+- retired/out-of-effect rates cannot silently become new estimates;
+- applied rates are snapshotted so future Cost Book changes do not rewrite old job economics;
+- cancelled cost items are not silently reactivated.
+
+### Current production coverage
+
+Current production result before entering real estimates:
 - Engagement rows: **30**
-- `NO_COST_EVIDENCE`: **30**
+- represented fulfillment scope lines: **208**
+- Engagements in `COSTING_NOT_STARTED`: **30**
+- cost-decision gaps: **208**
+  - Resource-linked `NEEDS_COST_DECISION`: **128**
+  - non-resource/manual `NEEDS_MANUAL_COST_DECISION`: **80**
+- live direct-cost items: **0**
 
-That is intentionally truthful. Customer-facing commercial lines are not assumed to be Stage Presence internal cost.
+This does **not** mean Stage Presence must retroactively cost all 208 inherited lines. It means the OS can now expose the gap and new/active work can be costed deliberately.
 
-The next backend petal is to start creating real Engagement-specific estimates from actual scope rather than invent another cost subsystem.
+### Rollback-only proof
+
+A transaction-only test on `SP-000023 — St. John Neumann Catholic School Charity` temporarily added one $125 estimated cost linked to one of its two fulfillment lines.
+
+Inside the transaction the runtime correctly reported:
+- estimate items: **1**
+- estimated direct cost: **$125**
+- scope lines: **2**
+- scope lines with cost: **1**
+- remaining cost gaps: **1**
+- estimate coverage: `PARTIAL_COST_COVERAGE`
+
+The transaction rolled back and verification confirmed **0 test rows** remained.
 
 ---
 
@@ -271,8 +328,6 @@ Additional guardrails:
 - estimate ≠ committed cost ≠ actual cost
 
 QuickBooks Desktop remains formal accounting / GL authority.
-
-Current imported commercial rollup remains useful evidence, but direct-cost and structured cash actuals are still materially incomplete.
 
 ---
 
@@ -398,24 +453,28 @@ Stage Presence OS does **not** currently claim:
 
 ## Current next build
 
-The Price Book + Cost Book foundation is live and verified.
+Price Book, Cost Book and Estimate Runtime foundations are now live and verified.
 
-The next Operational Core build should be:
+The next Operational Core progression should be:
 
-### 1. Price Sweep
-Human-govern the highest-value DRAFT/reference/conflicting prices rather than bulk-approving the catalog.
+### 1. Cost and Price Sweeps on decision-relevant items
+Human-govern the highest-value DRAFT/reference/conflicting rates where they affect actual upcoming work. Do not bulk-clean the catalog.
 
-### 2. Cost Sweep
-Confirm contributor/vendor/material/logistics cost assumptions where they affect real decisions.
+### 2. Real pilot estimate
+Use an active Stage Presence Engagement to create actual expected direct-cost lines across the relevant buckets. This proves real operating behavior rather than synthetic completeness.
 
-### 3. Estimate Runtime
-Use current `engagement_cost_items` to construct real job-specific expected costs from scope, beginning with actual active Stage Presence work.
+### 3. Pricing Runtime
+Combine:
 
-### 4. Pricing Runtime
-Combine scope + approved/reviewable pricing + expected direct cost into transparent quote decision support while preserving human negotiation.
+**represented scope + Price Book evidence/authority + expected direct cost + commercial context**
 
-### 5. Commercial → Operations Bridge
+into transparent quote decision support while preserving human negotiation.
+
+### 4. Commercial → Operations Bridge
 Once scope is actually accepted, deliberately establish the Resource commitments, crew assignments, schedule, payment expectations and operational work that are supported by reality.
+
+### 5. Fulfillment + actuals
+Progress the same records through delivery, return/reset, actual labor/equipment/direct costs, payment and closeout so each completed job improves future pricing and operations.
 
 The governing test remains:
 
