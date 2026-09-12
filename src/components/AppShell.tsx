@@ -21,7 +21,7 @@ export function AppShell({
     ['relationships', 'Relationships', 'Relations'],
     ['recovery', 'Recovery', 'Recovery'],
     ['economy', 'Economy', 'Economy'],
-    ['resources', 'Resources', 'Resources'],
+    ['resources', 'Capability', 'Capability'],
     ['playbook', 'Playbook', 'Playbook'],
   ] as const
 
