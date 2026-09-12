@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react'
 
-export type ScreenName = 'today' | 'engagements' | 'recovery' | 'economy' | 'resources' | 'playbook' | 'new' | 'detail'
+export type ScreenName = 'today' | 'engagements' | 'relationships' | 'recovery' | 'economy' | 'resources' | 'playbook' | 'new' | 'detail'
 
 export function AppShell({
   current,
@@ -16,12 +16,13 @@ export function AppShell({
   children: ReactNode
 }) {
   const nav = [
-    ['today', 'Today'],
-    ['engagements', 'Work'],
-    ['recovery', 'Recovery'],
-    ['economy', 'Economy'],
-    ['resources', 'Resources'],
-    ['playbook', 'Playbook'],
+    ['today', 'Today', 'Today'],
+    ['engagements', 'Work', 'Work'],
+    ['relationships', 'Relationships', 'Relations'],
+    ['recovery', 'Recovery', 'Recovery'],
+    ['economy', 'Economy', 'Economy'],
+    ['resources', 'Resources', 'Resources'],
+    ['playbook', 'Playbook', 'Playbook'],
   ] as const
 
   return (
@@ -52,16 +53,16 @@ export function AppShell({
 
       <main className="mx-auto max-w-6xl px-4 pb-28 pt-6 sm:px-6">{children}</main>
 
-      <nav className="fixed inset-x-0 bottom-0 z-20 border-t border-zinc-800 bg-zinc-950/95 px-2 pb-[max(0.65rem,env(safe-area-inset-bottom))] pt-2 backdrop-blur sm:hidden">
-        <div className="grid grid-cols-6 gap-1">
-          {nav.map(([value, label]) => (
+      <nav className="fixed inset-x-0 bottom-0 z-20 border-t border-zinc-800 bg-zinc-950/95 px-1 pb-[max(0.65rem,env(safe-area-inset-bottom))] pt-2 backdrop-blur sm:hidden">
+        <div className="grid grid-cols-7 gap-0.5">
+          {nav.map(([value, _desktopLabel, mobileLabel]) => (
             <button
               key={value}
               type="button"
               onClick={() => onNavigate(value)}
-              className={`rounded-xl px-1 py-3 text-[9px] font-semibold ${current === value ? 'bg-zinc-800 text-zinc-100' : 'text-zinc-500'}`}
+              className={`rounded-xl px-0.5 py-3 text-[8px] font-semibold ${current === value ? 'bg-zinc-800 text-zinc-100' : 'text-zinc-500'}`}
             >
-              {label}
+              {mobileLabel}
             </button>
           ))}
         </div>
@@ -69,14 +70,14 @@ export function AppShell({
 
       <aside className="fixed left-6 top-28 hidden w-40 sm:block">
         <div className="space-y-1">
-          {nav.map(([value, label]) => (
+          {nav.map(([value, desktopLabel]) => (
             <button
               key={value}
               type="button"
               onClick={() => onNavigate(value)}
               className={`w-full rounded-xl px-3 py-2 text-left text-sm font-medium ${current === value ? 'bg-zinc-900 text-zinc-100' : 'text-zinc-500 hover:text-zinc-200'}`}
             >
-              {label}
+              {desktopLabel}
             </button>
           ))}
         </div>
