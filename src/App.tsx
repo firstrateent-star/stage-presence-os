@@ -14,6 +14,7 @@ import { EconomyScreen } from './screens/EconomyScreen'
 import { OperatingTodayScreen } from './screens/OperatingTodayScreen'
 import { OperatingWorkScreen } from './screens/OperatingWorkScreen'
 import { PlaybookScreen } from './screens/PlaybookScreen'
+import { RecoveryScreen } from './screens/RecoveryScreen'
 import { ResourcesScreen } from './screens/ResourcesScreen'
 import { EngagementDetailScreen } from './screens/EngagementDetailScreen'
 import { NewEngagementScreen } from './screens/NewEngagementScreen'
@@ -39,7 +40,7 @@ function readRoute(): RouteState {
     return id ? { screen: 'detail', selectedId: id } : { screen: 'engagements', selectedId: null }
   }
 
-  if (route === 'engagements' || route === 'economy' || route === 'resources' || route === 'playbook' || route === 'new' || route === 'today') {
+  if (route === 'engagements' || route === 'recovery' || route === 'economy' || route === 'resources' || route === 'playbook' || route === 'new' || route === 'today') {
     return { screen: route, selectedId: null }
   }
 
@@ -202,6 +203,8 @@ export default function App() {
         )
       ) : screen === 'engagements' ? (
         isBackendConfigured ? <OperatingWorkScreen rows={data.operatingEngagements} onOpen={openEngagement} /> : <EngagementsScreen engagements={data.engagements} onOpen={openEngagement} />
+      ) : screen === 'recovery' ? (
+        isBackendConfigured ? <RecoveryScreen onOpenEngagement={openEngagement} /> : <div className="sm:ml-48 rounded-2xl border border-zinc-900 p-6 text-zinc-600">Connect the Stage Presence backend to view Recovery.</div>
       ) : screen === 'economy' ? (
         isBackendConfigured ? <EconomyScreen onOpen={openEngagement} /> : <div className="sm:ml-48 rounded-2xl border border-zinc-900 p-6 text-zinc-600">Connect the Stage Presence backend to view the operating economy.</div>
       ) : screen === 'resources' ? (

@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react'
 
-export type ScreenName = 'today' | 'engagements' | 'economy' | 'resources' | 'playbook' | 'new' | 'detail'
+export type ScreenName = 'today' | 'engagements' | 'recovery' | 'economy' | 'resources' | 'playbook' | 'new' | 'detail'
 
 export function AppShell({
   current,
@@ -18,6 +18,7 @@ export function AppShell({
   const nav = [
     ['today', 'Today'],
     ['engagements', 'Work'],
+    ['recovery', 'Recovery'],
     ['economy', 'Economy'],
     ['resources', 'Resources'],
     ['playbook', 'Playbook'],
@@ -52,13 +53,13 @@ export function AppShell({
       <main className="mx-auto max-w-6xl px-4 pb-28 pt-6 sm:px-6">{children}</main>
 
       <nav className="fixed inset-x-0 bottom-0 z-20 border-t border-zinc-800 bg-zinc-950/95 px-2 pb-[max(0.65rem,env(safe-area-inset-bottom))] pt-2 backdrop-blur sm:hidden">
-        <div className="grid grid-cols-5 gap-1">
+        <div className="grid grid-cols-6 gap-1">
           {nav.map(([value, label]) => (
             <button
               key={value}
               type="button"
               onClick={() => onNavigate(value)}
-              className={`rounded-xl px-1 py-3 text-[10px] font-semibold ${current === value ? 'bg-zinc-800 text-zinc-100' : 'text-zinc-500'}`}
+              className={`rounded-xl px-1 py-3 text-[9px] font-semibold ${current === value ? 'bg-zinc-800 text-zinc-100' : 'text-zinc-500'}`}
             >
               {label}
             </button>
