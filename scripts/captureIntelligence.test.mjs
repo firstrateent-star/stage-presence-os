@@ -1,6 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { interpretCapture } from '../src/lib/captureIntelligence.ts'
+import { buildCaptureReviewMetadata } from '../src/lib/captureReviewModel.ts'
 
 const teamMembers = [
   { id: 'scott', username: 'scott', display_name: 'Scott', member_type: 'CONTRACTOR', primary_role: 'LED_TECH', capabilities: [] },
@@ -10,14 +11,8 @@ const teamMembers = [
 
 const resourceCandidates = [
   {
-    link_id: 'link-17x10',
-    resource_id: 'resource-17x10',
-    relationship: 'CONFIGURED',
-    quantity: 1,
-    required_from_date: '2026-09-19',
-    required_through_date: '2026-09-19',
-    requirement_window_state: 'KNOWN',
-    planned_sourcing_model: 'OWNED',
+    link_id: 'link-17x10', resource_id: 'resource-17x10', relationship: 'CONFIGURED', quantity: 1,
+    required_from_date: '2026-09-19', required_through_date: '2026-09-19', requirement_window_state: 'KNOWN', planned_sourcing_model: 'OWNED',
     resource: { id: 'resource-17x10', name: '17×10 LED Trailer', category: 'VIDEO', quantity: 1, quantity_state: 'UNVERIFIED' },
   },
 ]
@@ -69,4 +64,36 @@ test('time without an Engagement date does not invent a date and emits a routabl
   const dateUnknown = result.unknowns.find(value => value.code === 'SCHEDULE_DATE')
   assert.ok(dateUnknown)
   assert.equal(dateUnknown.category, 'LOGISTICS')
+})
+
+test('unreviewed is not treated as rejected in Capture review evidence', () => {
+  const interpretation = interpret('Scott and Ben confirmed Saturday. Load-in 9am. Taking the 17x10 trailer.')
+  const scott = interpretation.proposals.find(p => p.kind === 'CREW_CONFIRMATION' && p.payload.teamMemberId === 'scott')
+  const ben = interpretation.proposals.find(p => p.kind === 'CREW_CONFIRMATION' && p.payload.teamMemberId === 'ben')
+  assert.ok(scott && ben)
+  const metadata = buildCaptureReviewMetadata({
+    interpretation,
+    proposalDecisions: { [scott.id]: 'APPROVE', [ben.id]: 'REJECT' },
+    unknownDecisions: {},
+    rejectionNotes: { [ben.id]: 'Ben was discussed but is not confirmed.' },
+  })
+  assert.equal(metadata.counts.approved, 1)
+  assert.equal(metadata.counts.rejected, 1)
+  assert.equal(metadata.counts.unreviewed, interpretation.proposals.filter(p => p.kind !== 'PAYMENT_REPORT').length - 2)
+  assert.equal(metadata.proposals.find(row => row.id === ben.id)?.rejection_note, 'Ben was discussed but is not confirmed.')
+})
+
+test('payment proposal is held non-actionable and unknown review preserves track/defer distinction', () => {
+  const interpretation = interpret('Balance paid yesterday.')
+  const amountUnknown = interpretation.unknowns.find(value => value.code === 'PAYMENT_AMOUNT')
+  const verificationUnknown = interpretation.unknowns.find(value => value.code === 'PAYMENT_VERIFICATION')
+  assert.ok(amountUnknown && verificationUnknown)
+  const metadata = buildCaptureReviewMetadata({
+    interpretation,
+    proposalDecisions: {},
+    unknownDecisions: { [amountUnknown.id]: 'TRACK', [verificationUnknown.id]: 'DEFER' },
+  })
+  assert.equal(metadata.counts.held_non_actionable, 1)
+  assert.equal(metadata.counts.unknown_tracked, 1)
+  assert.equal(metadata.counts.unknown_deferred, 1)
 })
