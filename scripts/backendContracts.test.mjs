@@ -92,7 +92,7 @@ test('typed application read contracts front the stable backend views', () => {
 })
 
 test('frontend read contracts are authenticated SELECT-only surfaces', () => {
-  const migration = read('supabase/migrations/20260912193000_read_contract_grants_v1.sql')
+  const migration = read('supabase/migrations/20260912194000_read_contract_grants_v1.sql')
   for (const view of [
     'engagement_summary_v',
     'capability_summary_v',
