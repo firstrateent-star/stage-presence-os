@@ -113,3 +113,18 @@ test('capability semantics distinguish physical capacity from commercial and ser
   assert.match(migration, /COMMERCIAL_ADJUSTMENT/)
   assert.match(migration, /capacity_relevant/)
 })
+
+test('price and cost book foundation preserves governance and rental dimensionality', () => {
+  const migration = read('supabase/migrations/20260912221500_price_cost_book_foundation_v1.sql')
+  for (const token of ['price_position', 'billing_basis', 'duration_value', 'duration_unit', 'role_code']) {
+    assert.match(migration, new RegExp(token), `${token} must remain explicit in pricing policy`)
+  }
+  assert.match(migration, /PER_UNIT[\s\S]*1, 'DAY'/i, 'per-unit per-day rental pricing must be representable')
+  assert.match(migration, /create or replace view public\.price_book_v[\s\S]*security_invoker\s*=\s*true/i)
+  assert.match(migration, /create or replace view public\.cost_book_v[\s\S]*security_invoker\s*=\s*true/i)
+  assert.match(migration, /create or replace view public\.engagement_estimate_position_v[\s\S]*security_invoker\s*=\s*true/i)
+  assert.match(migration, /DRAFT_CANDIDATE/)
+  assert.match(migration, /NO_RATE_EVIDENCE/)
+  assert.match(migration, /NO_COST_EVIDENCE/)
+  assert.doesNotMatch(migration, /'APPROVED'\s*,\s*'BASE_RATE'/i, 'evidence seeds must not silently become approved pricing authority')
+})
