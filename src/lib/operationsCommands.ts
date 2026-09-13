@@ -63,8 +63,8 @@ export async function createTentativeHoldFromRequirement(engagementResourceId: s
   return data
 }
 
-export async function confirmTentativeReservation(commitmentId: string, allowUnverifiedCapacity = false) {
-  return confirmResourceReservation({ commitmentId, allowUnverifiedCapacity })
+export async function confirmTentativeReservation(commitmentId: string, _quickOverrideRequested = false) {
+  return confirmResourceReservation({ commitmentId, allowUnverifiedCapacity: false, allowCapacityConflict: false })
 }
 
 export async function assignCrewFromCommand(input: { engagementId: string; teamMemberId: string; roleCode: AssignmentRole; scheduledStart?: string | null; scheduledEnd?: string | null; confirmNow?: boolean }) {
