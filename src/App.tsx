@@ -10,6 +10,7 @@ import { EngagementEconomyPanel } from './components/EngagementEconomyPanel'
 import { JobMapPanel } from './components/JobMapPanel'
 import { LearningCloseoutSlot } from './components/LearningCloseoutSlot'
 import { MovementFocusPanel } from './components/MovementFocusPanel'
+import { WarehouseVerificationPanel } from './components/WarehouseVerificationPanel'
 import { EngagementDetailScreen } from './screens/EngagementDetailScreen'
 import { NewEngagementScreen } from './screens/NewEngagementScreen'
 import { LoginScreen } from './screens/LoginScreen'
@@ -211,7 +212,10 @@ export default function App() {
       ) : screen === 'relationships' ? (
         <RelationshipsV2 relationships={surface.relationships} />
       ) : screen === 'resources' ? (
-        <CapabilityV2 capabilities={surface.capabilities} />
+        <div className="space-y-8">
+          <WarehouseVerificationPanel />
+          <CapabilityV2 capabilities={surface.capabilities} />
+        </div>
       ) : screen === 'economy' ? (
         <EconomyV2 economy={surface.economy} />
       ) : screen === 'recovery' ? (
