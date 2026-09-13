@@ -28,10 +28,24 @@ export interface CapacityPosition {
   capacity_state: string
 }
 
+export interface InventoryLocation {
+  id: string
+  name: string
+  location_type: string
+  city: string | null
+  region: string | null
+}
+
 export async function listCapacityPositions(): Promise<CapacityPosition[]> {
   const { data, error } = await client().from('resource_capacity_position_v').select('*').eq('sourcing_model', 'OWNED').order('category').order('resource_name')
   if (error) throw error
   return (data ?? []) as CapacityPosition[]
+}
+
+export async function listInventoryLocations(): Promise<InventoryLocation[]> {
+  const { data, error } = await client().from('locations').select('id,name,location_type,city,region').eq('active', true).order('name')
+  if (error) throw error
+  return (data ?? []) as InventoryLocation[]
 }
 
 export async function verifyInventory(input: {
