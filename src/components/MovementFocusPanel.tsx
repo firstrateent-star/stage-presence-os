@@ -1,12 +1,14 @@
 import { useEffect, useMemo, useState } from 'react'
 import { DeliveryReadinessPanel } from './DeliveryReadinessPanel'
 import { JobWorkspacePanel } from './JobWorkspacePanel'
+import { OperationsCommandPanel } from './OperationsCommandPanel'
 import { listEngagementMovementCandidates, type MovementCandidateRow } from '../lib/operatingRepository'
 
 export function MovementFocusPanel({ engagementId }: { engagementId: string }) {
   const [rows, setRows] = useState<MovementCandidateRow[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [workspaceRevision, setWorkspaceRevision] = useState(0)
 
   useEffect(() => {
     let active = true
@@ -17,7 +19,7 @@ export function MovementFocusPanel({ engagementId }: { engagementId: string }) {
       .catch((err) => { if (active) setError(err instanceof Error ? err.message : 'Unable to load movement signals.') })
       .finally(() => { if (active) setLoading(false) })
     return () => { active = false }
-  }, [engagementId])
+  }, [engagementId, workspaceRevision])
 
   const { uncovered, covered } = useMemo(() => {
     const sorted = [...rows].sort((a, b) => urgencyRank(a.urgency) - urgencyRank(b.urgency) || b.priority_score - a.priority_score)
@@ -29,8 +31,11 @@ export function MovementFocusPanel({ engagementId }: { engagementId: string }) {
 
   return (
     <>
-      <JobWorkspacePanel engagementId={engagementId} />
-      <DeliveryReadinessPanel engagementId={engagementId} />
+      <JobWorkspacePanel key={`${engagementId}:${workspaceRevision}`} engagementId={engagementId} />
+      <div className="mt-5">
+        <OperationsCommandPanel engagementId={engagementId} onChanged={() => setWorkspaceRevision((value) => value + 1)} />
+      </div>
+      <DeliveryReadinessPanel key={`delivery:${workspaceRevision}`} engagementId={engagementId} />
 
       <section className="mt-8 rounded-2xl border border-zinc-900 bg-zinc-950/45 p-5">
         <div className="flex flex-wrap items-start justify-between gap-3">
