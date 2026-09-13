@@ -1,6 +1,7 @@
 import { supabase } from './supabase'
 import { applyRequirementWindowCandidate } from './resourceRequirementRuntime'
-import { confirmResourceReservation, createCrewAssignment, createPaymentScheduleTerm, type AssignmentRole, type PaymentTermType } from './commercialOperationsBridge'
+import { createCrewAssignment, createPaymentScheduleTerm, type AssignmentRole, type PaymentTermType } from './commercialOperationsBridge'
+import { confirmReservationAgainstVerifiedCapacity } from './inventoryCapacityRuntime'
 import { initializeWarehouseFulfillment, transitionWarehouseFulfillment, type ReturnConditionState, type WarehouseState } from './warehouseFulfillmentRuntime'
 
 function requireClient() {
@@ -64,7 +65,7 @@ export async function createTentativeHoldFromRequirement(engagementResourceId: s
 }
 
 export async function confirmTentativeReservation(commitmentId: string, _quickOverrideRequested = false) {
-  return confirmResourceReservation({ commitmentId, allowUnverifiedCapacity: false, allowCapacityConflict: false })
+  return confirmReservationAgainstVerifiedCapacity(commitmentId)
 }
 
 export async function assignCrewFromCommand(input: { engagementId: string; teamMemberId: string; roleCode: AssignmentRole; scheduledStart?: string | null; scheduledEnd?: string | null; confirmNow?: boolean }) {
