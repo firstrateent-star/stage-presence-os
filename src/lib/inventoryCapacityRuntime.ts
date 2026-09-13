@@ -43,7 +43,7 @@ export async function listCapacityPositions(): Promise<CapacityPosition[]> {
 }
 
 export async function listInventoryLocations(): Promise<InventoryLocation[]> {
-  const { data, error } = await client().from('locations').select('id,name,location_type,city,region').eq('active', true).order('name')
+  const { data, error } = await client().from('locations').select('id,name,location_type,city,region').eq('active', true).in('location_type', ['WAREHOUSE', 'OFFICE', 'OTHER']).order('name')
   if (error) throw error
   return (data ?? []) as InventoryLocation[]
 }

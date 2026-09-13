@@ -23,6 +23,13 @@ test('verification keeps physical total distinct from serviceable capacity', () 
   assert.match(runtime, /quantity_state: 'VERIFIED'/)
 })
 
+test('inventory verification only offers storage-context locations', () => {
+  assert.match(runtime, /'WAREHOUSE'/)
+  assert.match(runtime, /'OFFICE'/)
+  assert.match(runtime, /'OTHER'/)
+  assert.doesNotMatch(runtime, /\['VENUE'/)
+})
+
 test('high-value warehouse sweep is prioritized without hiding the long tail', () => {
   for (const name of ['17x10 LED Trailer', '12x7 LED Trailer', '10x5 LED Trailer', '3.9mm LED Panels', 'LED Poster Panels']) {
     assert.match(panel, new RegExp(name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')))
