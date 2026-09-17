@@ -122,7 +122,7 @@ export function CaptureIntelligencePanel({ engagementId, engagementName, eventDa
               <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-amber-600">Unknown / unresolved</div>
               <p className="mt-1 text-[10px] leading-4 text-amber-200/45">Track writes an UNKNOWN Engagement Fact. Defer records the human decision without creating Work, urgency, ownership or a deadline.</p>
               <div className="mt-3 space-y-2">{interpretation.unknowns.map(item => (
-                <UnknownCard key={item.id} unknown={item} decision={unknownDecisions[item.id] ?? 'UNREVIEWED'} onDecision={(decision) => setUnknownDecisions(current => ({ ...current, [unknown.id]: decision }))} />
+                <UnknownCard key={item.id} unknown={item} decision={unknownDecisions[item.id] ?? 'UNREVIEWED'} onDecision={(decision) => setUnknownDecisions(current => ({ ...current, [item.id]: decision }))} />
               ))}</div>
             </div>
           )}
@@ -153,7 +153,7 @@ function ProposalCard({ proposal, decision, rejectionNote, onDecision, onRejecti
       <div className="flex gap-1"><Badge text={proposal.authority} /><Badge text={proposal.confidence} /></div>
     </div>
     <p className="mt-1 text-xs leading-5 text-zinc-600">{proposal.detail}</p>
-    <div className="mt-2 text-[10px] text-zinc-700">Canonical route: {canonicalRoute(proposal)}{payment ? ' · held non-actionable in v0.1' : ' · explicit review required'}</div>
+    <div className="mt-2 text-[10px] text-zinc-700">Canonical route: {canonicalRoute(proposal)}{payment ? ' · held non-actionable in v0.2' : ' · explicit review required'}</div>
     {!payment && <div className="mt-3 flex gap-2">
       <DecisionButton active={decision === 'APPROVE'} onClick={() => onDecision(decision === 'APPROVE' ? 'UNREVIEWED' : 'APPROVE')} label="Approve" />
       <DecisionButton active={decision === 'REJECT'} onClick={() => onDecision(decision === 'REJECT' ? 'UNREVIEWED' : 'REJECT')} label="Reject" tone="reject" />
