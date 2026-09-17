@@ -1,4 +1,4 @@
-# Current State — 2026-09-12
+# Current State — 2026-09-17
 
 ## Canonical system
 - Private repo: `firstrateent-star/stage-presence-os`
@@ -418,6 +418,28 @@ Chat-first interpretation remains a temporary validation bridge:
 **real business input → ChatGPT interpretation → Stage Presence OS structured update**
 
 Long-term target remains native secure Stage Presence capture with source retention, interpretation/matching, review candidates and exception-only human intervention.
+
+### Capture Intelligence v0.2 — earned completion projection
+
+A real source artifact on `SP-000026 — Music Farm` reported: **“we finished this job.”** The source was preserved and matched to the correct Engagement, but `DETERMINISTIC_V0_1` produced no proposal because completion semantics were outside its narrow vocabulary.
+
+The earned v0.2 repair extends the existing interpreter rather than creating a new outcome subsystem:
+
+**explicit reported completion → reviewed `CLOSEOUT` proposal → existing `engagement_closeouts` canonical home**
+
+The proposal is deliberately conservative:
+- `closeout_kind = DELIVERY`
+- `actual_outcome = UNKNOWN`
+- `solution_changed = null`
+- `recurrence_signal = UNKNOWN`
+- authority = `REVERSIBLE`
+- explicit human review remains required
+- originating `source_artifact_id` is preserved on the closeout
+- an existing closeout is never overwritten from Capture
+
+Completion evidence does **not** imply crew completion, equipment usage, payment, direct cost, commercial reconciliation, or successful/as-expected delivery. Those remain separate canonical truths.
+
+Canonical implementation note: `docs/CAPTURE_INTELLIGENCE_V0_2.md`.
 
 AI may propose structure or pricing/cost interpretation, but it does not become authority for:
 - accepted scope

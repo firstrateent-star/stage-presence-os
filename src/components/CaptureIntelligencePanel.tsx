@@ -5,6 +5,7 @@ import { buildCaptureReviewMetadata, type ProposalReviewDecision, type UnknownRe
 import { recordCaptureReview } from '../lib/captureReviewTrace'
 import { createAssignment, createScheduleItem, listTeamMemberOptions } from '../lib/operationsReality'
 import { listCommitmentCandidates, saveResourceCommitment } from '../lib/resourceCommitments'
+import { getEngagementCloseout, saveEngagementCloseout } from '../lib/learningCloseout'
 
 export function CaptureIntelligencePanel({ engagementId, engagementName, eventDate, rawText, onApplied }: {
   engagementId: string
@@ -94,7 +95,7 @@ export function CaptureIntelligencePanel({ engagementId, engagementName, eventDa
     <section className="mt-5 rounded-2xl border border-sky-950/70 bg-sky-950/10 p-4">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <div className="text-[10px] font-semibold uppercase tracking-[0.16em] text-sky-500">Capture Intelligence v0.1</div>
+          <div className="text-[10px] font-semibold uppercase tracking-[0.16em] text-sky-500">Capture Intelligence v0.2</div>
           <div className="mt-1 text-sm font-semibold text-zinc-200">Interpret before asserting</div>
           <p className="mt-1 max-w-xl text-xs leading-5 text-zinc-600">Text is interpreted into proposals for {engagementName}. Review is explicit: approve, reject, track, defer, or leave unreviewed. Canonical truth changes only after approval.</p>
         </div>
@@ -103,7 +104,7 @@ export function CaptureIntelligencePanel({ engagementId, engagementName, eventDa
 
       {interpretation && (
         <div className="mt-4 space-y-3">
-          <div className="rounded-xl border border-zinc-900 bg-zinc-950/50 px-3 py-2 text-[10px] leading-5 text-zinc-600">Interpreter: deterministic v0.1. Review decisions are learning evidence, not business truth. Unreviewed is intentionally different from rejected.</div>
+          <div className="rounded-xl border border-zinc-900 bg-zinc-950/50 px-3 py-2 text-[10px] leading-5 text-zinc-600">Interpreter: deterministic v0.2. Review decisions are learning evidence, not business truth. Unreviewed is intentionally different from rejected.</div>
 
           {interpretation.proposals.length ? interpretation.proposals.map(proposal => (
             <ProposalCard
@@ -152,7 +153,7 @@ function ProposalCard({ proposal, decision, rejectionNote, onDecision, onRejecti
       <div className="flex gap-1"><Badge text={proposal.authority} /><Badge text={proposal.confidence} /></div>
     </div>
     <p className="mt-1 text-xs leading-5 text-zinc-600">{proposal.detail}</p>
-    <div className="mt-2 text-[10px] text-zinc-700">Canonical route: {canonicalRoute(proposal)}{payment ? ' · held non-actionable in v0.1' : ' · explicit review required'}</div>
+    <div className="mt-2 text-[10px] text-zinc-700">Canonical route: {canonicalRoute(proposal)}{payment ? ' · held non-actionable in v0.2' : ' · explicit review required'}</div>
     {!payment && <div className="mt-3 flex gap-2">
       <DecisionButton active={decision === 'APPROVE'} onClick={() => onDecision(decision === 'APPROVE' ? 'UNREVIEWED' : 'APPROVE')} label="Approve" />
       <DecisionButton active={decision === 'REJECT'} onClick={() => onDecision(decision === 'REJECT' ? 'UNREVIEWED' : 'REJECT')} label="Reject" tone="reject" />
@@ -174,9 +175,20 @@ function UnknownCard({ unknown, decision, onDecision }: { unknown: CaptureUnknow
 }
 
 async function applyProposal(proposal: CaptureProposal, engagementId: string, sourceArtifactId: string | null) {
-  if (proposal.kind === 'CREW_CONFIRMATION') return createAssignment({ engagementId, teamMemberId: proposal.payload.teamMemberId, roleCode: proposal.payload.roleCode, assignmentState: proposal.payload.assignmentState, sourceArtifactId, captureSurface: 'capture_intelligence_v0_1' })
-  if (proposal.kind === 'SCHEDULE') return createScheduleItem({ engagementId, scheduleType: proposal.payload.scheduleType, label: proposal.payload.label, startAt: proposal.payload.startAt ? new Date(proposal.payload.startAt).toISOString() : null, startDate: proposal.payload.startDate, sourceArtifactId, captureSurface: 'capture_intelligence_v0_1' })
-  if (proposal.kind === 'RESOURCE_RESERVATION') return saveResourceCommitment({ engagementId, engagementResourceLinkId: proposal.payload.engagementResourceLinkId, commitmentType: proposal.payload.commitmentType, commitmentState: proposal.payload.commitmentState, sourceArtifactId, captureSurface: 'capture_intelligence_v0_1' })
+  if (proposal.kind === 'CREW_CONFIRMATION') return createAssignment({ engagementId, teamMemberId: proposal.payload.teamMemberId, roleCode: proposal.payload.roleCode, assignmentState: proposal.payload.assignmentState, sourceArtifactId, captureSurface: 'capture_intelligence_v0_2' })
+  if (proposal.kind === 'SCHEDULE') return createScheduleItem({ engagementId, scheduleType: proposal.payload.scheduleType, label: proposal.payload.label, startAt: proposal.payload.startAt ? new Date(proposal.payload.startAt).toISOString() : null, startDate: proposal.payload.startDate, sourceArtifactId, captureSurface: 'capture_intelligence_v0_2' })
+  if (proposal.kind === 'RESOURCE_RESERVATION') return saveResourceCommitment({ engagementId, engagementResourceLinkId: proposal.payload.engagementResourceLinkId, commitmentType: proposal.payload.commitmentType, commitmentState: proposal.payload.commitmentState, sourceArtifactId, captureSurface: 'capture_intelligence_v0_2' })
+  if (proposal.kind === 'CLOSEOUT') {
+    const existing = await getEngagementCloseout(engagementId)
+    if (existing) throw new Error('This Engagement already has a learning closeout. Review or update the existing closeout instead of overwriting it from Capture.')
+    return saveEngagementCloseout(engagementId, {
+      closeout_kind: proposal.payload.closeoutKind,
+      actual_outcome: proposal.payload.actualOutcome,
+      solution_changed: proposal.payload.solutionChanged,
+      recurrence_signal: proposal.payload.recurrenceSignal,
+      sourceArtifactId,
+    })
+  }
   return null
 }
 
@@ -184,6 +196,7 @@ function canonicalRoute(proposal: CaptureProposal) {
   if (proposal.kind === 'CREW_CONFIRMATION') return 'engagement_assignments'
   if (proposal.kind === 'SCHEDULE') return 'engagement_schedule_items'
   if (proposal.kind === 'RESOURCE_RESERVATION') return 'resource_commitments'
+  if (proposal.kind === 'CLOSEOUT') return 'engagement_closeouts'
   return 'commercial payment verification / Economy'
 }
 

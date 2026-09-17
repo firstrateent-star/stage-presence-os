@@ -3,7 +3,7 @@ import type { CommitmentCandidate } from './resourceCommitments'
 
 export type CaptureAuthority = 'OBSERVE' | 'SUGGEST' | 'REVERSIBLE' | 'CONSEQUENTIAL'
 export type CaptureConfidence = 'HIGH' | 'MEDIUM' | 'LOW'
-export type CaptureProposalKind = 'CREW_CONFIRMATION' | 'SCHEDULE' | 'RESOURCE_RESERVATION' | 'PAYMENT_REPORT'
+export type CaptureProposalKind = 'CREW_CONFIRMATION' | 'SCHEDULE' | 'RESOURCE_RESERVATION' | 'PAYMENT_REPORT' | 'CLOSEOUT'
 
 export interface CaptureUnknown {
   id: string
@@ -55,9 +55,24 @@ export type CaptureProposal =
       requiresHumanReview: true
       payload: { amount: number | null; paymentDateText: string | null }
     }
+  | {
+      id: string
+      kind: 'CLOSEOUT'
+      title: string
+      detail: string
+      authority: 'REVERSIBLE'
+      confidence: CaptureConfidence
+      requiresHumanReview: true
+      payload: {
+        closeoutKind: 'DELIVERY'
+        actualOutcome: 'UNKNOWN'
+        solutionChanged: null
+        recurrenceSignal: 'UNKNOWN'
+      }
+    }
 
 export interface CaptureInterpretation {
-  interpreter: 'DETERMINISTIC_V0_1'
+  interpreter: 'DETERMINISTIC_V0_2'
   proposals: CaptureProposal[]
   unknowns: CaptureUnknown[]
   notes: string[]
@@ -77,7 +92,7 @@ export function interpretCapture(input: {
 
   if (!raw) {
     unknowns.push({ id: 'unknown:no-text', code: 'NO_TEXT', label: 'Capture text missing', detail: 'No text was supplied for interpretation.', category: 'OTHER', decisionLeverage: 'LOW' })
-    return { interpreter: 'DETERMINISTIC_V0_1', proposals, unknowns, notes }
+    return { interpreter: 'DETERMINISTIC_V0_2', proposals, unknowns, notes }
   }
 
   const confirmationLanguage = /\b(confirm(?:ed)?|booked|locked\s+in|definitely\s+working)\b/i.test(raw)
@@ -155,9 +170,34 @@ export function interpretCapture(input: {
     })
   }
 
+  const completion = extractCompletion(raw)
+  if (completion) proposals.push(completion)
+
   if (!proposals.length) notes.push('No governed operating command was confidently recognized. Preserve the text as source evidence or use manual structured Capture.')
 
-  return { interpreter: 'DETERMINISTIC_V0_1', proposals, unknowns: uniqueUnknowns(unknowns), notes }
+  return { interpreter: 'DETERMINISTIC_V0_2', proposals, unknowns: uniqueUnknowns(unknowns), notes }
+}
+
+function extractCompletion(raw: string): CaptureProposal | null {
+  const reportedComplete = /\b(?:we\s+(?:finished|completed|wrapped(?:\s+up)?)\s+(?:this|the)\s+job|(?:this|the)\s+job\s+(?:is|was)\s+(?:finished|complete|completed|done)|job\s+(?:is|was)\s+(?:finished|complete|completed|done))\b/i.test(raw)
+  const futureOrConditional = /\b(?:will|going\s+to|should|need\s+to|when\s+we|once\s+we)\b[^.]{0,40}\b(?:finish|complete|wrap(?:\s+up)?)\b/i.test(raw)
+  if (!reportedComplete || futureOrConditional) return null
+
+  return {
+    id: 'closeout:delivery-reported',
+    kind: 'CLOSEOUT',
+    title: 'Delivery reportedly complete',
+    detail: 'The source reports that the job finished. Propose a DELIVERY closeout while leaving outcome quality, onsite changes and recurrence UNKNOWN. This does not prove crew completion, equipment usage, payment, cost or commercial closure.',
+    authority: 'REVERSIBLE',
+    confidence: 'HIGH',
+    requiresHumanReview: true,
+    payload: {
+      closeoutKind: 'DELIVERY',
+      actualOutcome: 'UNKNOWN',
+      solutionChanged: null,
+      recurrenceSignal: 'UNKNOWN',
+    },
+  }
 }
 
 function extractSchedule(raw: string, eventDate: string | null): { proposal: CaptureProposal; unknown: CaptureUnknown | null } | null {

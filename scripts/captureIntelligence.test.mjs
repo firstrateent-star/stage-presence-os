@@ -66,6 +66,33 @@ test('time without an Engagement date does not invent a date and emits a routabl
   assert.equal(dateUnknown.category, 'LOGISTICS')
 })
 
+test('reported job completion becomes a reviewed DELIVERY closeout without inventing outcome quality', () => {
+  const interpretation = interpret('we finished this job')
+  const closeout = interpretation.proposals.find(p => p.kind === 'CLOSEOUT')
+  assert.ok(closeout && closeout.kind === 'CLOSEOUT')
+  assert.equal(closeout.authority, 'REVERSIBLE')
+  assert.equal(closeout.requiresHumanReview, true)
+  assert.equal(closeout.payload.closeoutKind, 'DELIVERY')
+  assert.equal(closeout.payload.actualOutcome, 'UNKNOWN')
+  assert.equal(closeout.payload.solutionChanged, null)
+  assert.equal(closeout.payload.recurrenceSignal, 'UNKNOWN')
+
+  const metadata = buildCaptureReviewMetadata({
+    interpretation,
+    proposalDecisions: { [closeout.id]: 'APPROVE' },
+    unknownDecisions: {},
+  })
+  assert.equal(metadata.counts.approved, 1)
+  assert.equal(metadata.proposals.find(row => row.id === closeout.id)?.decision, 'APPROVE')
+})
+
+test('future or conditional completion language does not create a closeout', () => {
+  for (const text of ['When we finish this job, review it.', 'We will finish this job tomorrow.', 'We need to complete the job first.']) {
+    const result = interpret(text)
+    assert.equal(result.proposals.some(p => p.kind === 'CLOSEOUT'), false, text)
+  }
+})
+
 test('unreviewed is not treated as rejected in Capture review evidence', () => {
   const interpretation = interpret('Scott and Ben confirmed Saturday. Load-in 9am. Taking the 17x10 trailer.')
   const scott = interpretation.proposals.find(p => p.kind === 'CREW_CONFIRMATION' && p.payload.teamMemberId === 'scott')

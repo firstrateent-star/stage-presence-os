@@ -24,6 +24,7 @@ export interface EngagementCloseout {
   venue_learning: string | null
   next_time: string | null
   recurrence_signal: RecurrenceSignal
+  source_artifact_id: string | null
   created_by: string | null
   created_at: string
   updated_at: string
@@ -75,6 +76,7 @@ export interface SaveCloseoutInput {
   venue_learning?: string | null
   next_time?: string | null
   recurrence_signal: RecurrenceSignal
+  sourceArtifactId?: string | null
 }
 
 export async function saveEngagementCloseout(engagementId: string, input: SaveCloseoutInput): Promise<EngagementCloseout> {
@@ -82,11 +84,13 @@ export async function saveEngagementCloseout(engagementId: string, input: SaveCl
   const { data: userData, error: userError } = await client.auth.getUser()
   if (userError) throw userError
 
+  const { sourceArtifactId, ...closeoutInput } = input
   const { data, error } = await client
     .from('engagement_closeouts')
     .upsert({
       engagement_id: engagementId,
-      ...input,
+      ...closeoutInput,
+      ...(sourceArtifactId !== undefined ? { source_artifact_id: sourceArtifactId } : {}),
       created_by: userData.user?.id ?? null,
     }, { onConflict: 'engagement_id' })
     .select('*')
