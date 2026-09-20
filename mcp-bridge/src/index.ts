@@ -1,167 +1,239 @@
+import { McpServer } from "@modelcontextprotocol/server";
+import { createMcpHandler } from "agents/mcp/server";
+import { z } from "zod";
+
 export interface Env {
-  SUPABASE_URL: string
-  SUPABASE_SERVICE_ROLE_KEY: string
-  BRIDGE_TOKEN: string
+  SUPABASE_URL: string;
+  SUPABASE_SERVICE_ROLE_KEY: string;
+  BRIDGE_TOKEN: string;
 }
 
 function sanitizeTerm(raw: string): string {
-  return String(raw || '').replace(/[,()*]/g, ' ').trim().slice(0, 120)
+  return String(raw || "").replace(/[,()*]/g, " ").trim().slice(0, 120);
 }
 
 async function pgrest(env: Env, path: string, params: Record<string, string>): Promise<any> {
-  const url = new URL(env.SUPABASE_URL + '/rest/v1/' + path)
-  for (const [key, value] of Object.entries(params)) url.searchParams.set(key, value)
+  const url = new URL(env.SUPABASE_URL + "/rest/v1/" + path);
+  for (const [key, value] of Object.entries(params)) url.searchParams.set(key, value);
+
   const res = await fetch(url.toString(), {
     headers: {
       apikey: env.SUPABASE_SERVICE_ROLE_KEY,
-      Authorization: 'Bearer ' + env.SUPABASE_SERVICE_ROLE_KEY,
-      Accept: 'application/json',
+      Authorization: "Bearer " + env.SUPABASE_SERVICE_ROLE_KEY,
+      Accept: "application/json",
     },
-  })
-  if (!res.ok) throw new Error(`Supabase read failed (${res.status}): ${await res.text()}`)
-  return res.json()
+  });
+
+  if (!res.ok) {
+    const body = await res.text();
+    throw new Error(`Supabase read failed (${res.status}): ${body.slice(0, 500)}`);
+  }
+
+  return res.json();
 }
 
 /* Single mutation path used by the one write tool below. Always a fixed upsert-by-source_key
    shape against public.work_items — never arbitrary SQL, never touches any row it didn't just
    create/re-affirm via that source_key. */
 async function pgrestUpsert(env: Env, path: string, onConflict: string, body: unknown): Promise<any> {
-  const url = new URL(env.SUPABASE_URL + '/rest/v1/' + path)
-  url.searchParams.set('on_conflict', onConflict)
+  const url = new URL(env.SUPABASE_URL + "/rest/v1/" + path);
+  url.searchParams.set("on_conflict", onConflict);
+
   const res = await fetch(url.toString(), {
-    method: 'POST',
+    method: "POST",
     headers: {
       apikey: env.SUPABASE_SERVICE_ROLE_KEY,
-      Authorization: 'Bearer ' + env.SUPABASE_SERVICE_ROLE_KEY,
-      'Content-Type': 'application/json',
-      Accept: 'application/json',
-      Prefer: 'resolution=merge-duplicates,return=representation',
+      Authorization: "Bearer " + env.SUPABASE_SERVICE_ROLE_KEY,
+      "Content-Type": "application/json",
+      Accept: "application/json",
+      Prefer: "resolution=merge-duplicates,return=representation",
     },
     body: JSON.stringify(body),
-  })
-  if (!res.ok) throw new Error(`Supabase write failed (${res.status}): ${await res.text()}`)
-  return res.json()
+  });
+
+  if (!res.ok) {
+    const body2 = await res.text();
+    throw new Error(`Supabase write failed (${res.status}): ${body2.slice(0, 500)}`);
+  }
+
+  return res.json();
 }
 
-/* ============================== the 8 narrow read capabilities ============================== */
-/* Every function below issues a fixed, parameterized PostgREST call against an existing canonical
-   view or table. Nothing here accepts or builds arbitrary SQL, and nothing writes. */
+/* ============================== fixed read capabilities ============================== */
 
 async function findContact(env: Env, args: { query: string }) {
-  const term = sanitizeTerm(args.query)
-  if (!term) return []
-  return pgrest(env, 'parties', {
-    select: 'id,party_type,name,organization_name,email,phone',
+  const term = sanitizeTerm(args.query);
+  if (!term) return [];
+
+  return pgrest(env, "parties", {
+    select: "id,party_type,name,organization_name,email,phone",
     or: `(name.ilike.*${term}*,organization_name.ilike.*${term}*,email.ilike.*${term}*,phone.ilike.*${term}*)`,
-    limit: '20',
-  })
+    limit: "20",
+  });
 }
 
 async function findEngagement(env: Env, args: { query: string }) {
-  const term = sanitizeTerm(args.query)
-  if (!term) return []
-  return pgrest(env, 'engagement_summary_v', {
-    select: 'id,engagement_number,name,engagement_type,customer_request,event_start_date,commercial_state,commitment_state,operational_state,attention_state,venue,primary_customer,next_work',
+  const term = sanitizeTerm(args.query);
+  if (!term) return [];
+
+  return pgrest(env, "engagement_summary_v", {
+    select:
+      "id,engagement_number,name,engagement_type,customer_request,event_start_date,commercial_state,commitment_state,operational_state,attention_state,venue,primary_customer,next_work",
     or: `(name.ilike.*${term}*,engagement_number.ilike.*${term}*,customer_request.ilike.*${term}*,venue->>name.ilike.*${term}*,primary_customer->>name.ilike.*${term}*,primary_customer->>organization_name.ilike.*${term}*)`,
-    limit: '20',
-    order: 'updated_at.desc',
-  })
+    limit: "20",
+    order: "updated_at.desc",
+  });
 }
 
-async function getPricing(env: Env, args: { item?: string; category?: string; roleCode?: string; scopeType?: string }) {
+async function getPricing(
+  env: Env,
+  args: { item?: string; category?: string; roleCode?: string; scopeType?: string },
+) {
   const params: Record<string, string> = {
-    select: 'pricing_rule_id,entry_kind,name,scope_label,resource_name,rate_type,billing_basis,duration_value,duration_unit,amount,currency,status,authority_state,effective_from,effective_through',
-    order: 'authority_state,resource_name',
-  }
+    select:
+      "pricing_rule_id,entry_kind,name,scope_label,resource_name,rate_type,billing_basis,duration_value,duration_unit,amount,currency,status,authority_state,effective_from,effective_through",
+    order: "authority_state,resource_name",
+  };
+
   if (args.item) {
-    const term = sanitizeTerm(args.item)
-    params.or = `(resource_name.ilike.*${term}*,scope_label.ilike.*${term}*,name.ilike.*${term}*)`
+    const term = sanitizeTerm(args.item);
+    params.or = `(resource_name.ilike.*${term}*,scope_label.ilike.*${term}*,name.ilike.*${term}*)`;
   }
-  if (args.category) params.category = `eq.${args.category}`
-  if (args.roleCode) params.role_code = `eq.${args.roleCode}`
-  if (args.scopeType) params.scope_type = `eq.${args.scopeType}`
-  return pgrest(env, 'price_book_v', params)
+  if (args.category) params.category = `eq.${args.category}`;
+  if (args.roleCode) params.role_code = `eq.${args.roleCode}`;
+  if (args.scopeType) params.scope_type = `eq.${args.scopeType}`;
+
+  return pgrest(env, "price_book_v", params);
 }
 
 async function loadEngagementByNumber(env: Env, engagementNumber: string) {
-  const rows = await pgrest(env, 'engagements', {
+  const rows = await pgrest(env, "engagements", {
     select: [
-      'id,engagement_number,name,engagement_type,commercial_state,commitment_state,operational_state,attention_state,event_start_date,customer_request',
-      'engagement_parties(role,is_primary,parties(name,organization_name,email,phone))',
-      'engagement_resources(quantity,relationship,resources(name))',
-      'engagement_facts(label,certainty_state)',
-      'engagement_assignments(role_code,assignment_state,team_members(display_name))',
-      'engagement_schedule_items(schedule_type,label,start_at,start_date,time_state)',
-    ].join(','),
+      "id,engagement_number,name,engagement_type,commercial_state,commitment_state,operational_state,attention_state,event_start_date,customer_request",
+      "engagement_parties(role,is_primary,parties(name,organization_name,email,phone))",
+      "engagement_resources(quantity,relationship,resources(name))",
+      "engagement_facts(label,certainty_state)",
+      "engagement_assignments(role_code,assignment_state,team_members(display_name))",
+      "engagement_schedule_items(schedule_type,label,start_at,start_date,time_state)",
+    ].join(","),
     engagement_number: `eq.${engagementNumber}`,
-    limit: '1',
-  })
-  return rows?.[0] ?? null
+    limit: "1",
+  });
+
+  return rows?.[0] ?? null;
 }
 
 async function generateLeadSummary(env: Env, args: { engagementNumber: string }) {
-  const e = await loadEngagementByNumber(env, args.engagementNumber)
-  if (!e) return { found: false, engagementNumber: args.engagementNumber }
-  const primary = (e.engagement_parties || []).find((p: any) => p.is_primary) || (e.engagement_parties || [])[0]
-  const customerName = primary?.parties?.organization_name || primary?.parties?.name || 'Unknown customer'
-  const openFacts = (e.engagement_facts || []).filter((f: any) => ['UNKNOWN', 'REQUESTED', 'CONFLICTING'].includes(f.certainty_state)).map((f: any) => f.label)
-  const resourceNames = (e.engagement_resources || []).map((r: any) => r.resources?.name).filter(Boolean)
+  const e = await loadEngagementByNumber(env, args.engagementNumber);
+  if (!e) return { found: false, engagementNumber: args.engagementNumber };
+
+  const primary =
+    (e.engagement_parties || []).find((p: any) => p.is_primary) ||
+    (e.engagement_parties || [])[0];
+  const customerName =
+    primary?.parties?.organization_name || primary?.parties?.name || "Unknown customer";
+  const openFacts = (e.engagement_facts || [])
+    .filter((f: any) =>
+      ["UNKNOWN", "REQUESTED", "CONFLICTING"].includes(f.certainty_state),
+    )
+    .map((f: any) => f.label);
+  const resourceNames = (e.engagement_resources || [])
+    .map((r: any) => r.resources?.name)
+    .filter(Boolean);
+
   const lines = [
     `${e.name} (${e.engagement_number})`,
     `Customer: ${customerName}`,
     `Type: ${e.engagement_type} · Commercial: ${e.commercial_state} · Commitment: ${e.commitment_state}`,
-    e.event_start_date ? `Date: ${e.event_start_date}` : 'Date: unknown',
-    e.customer_request ? `Request: ${e.customer_request}` : 'Request: not recorded',
-    resourceNames.length ? `Resources: ${resourceNames.join(', ')}` : 'Resources: none linked yet',
-    openFacts.length ? `Open unknowns: ${openFacts.join('; ')}` : 'Open unknowns: none recorded',
-  ]
-  return { found: true, engagement: e, text: lines.join('\n') }
+    e.event_start_date ? `Date: ${e.event_start_date}` : "Date: unknown",
+    e.customer_request ? `Request: ${e.customer_request}` : "Request: not recorded",
+    resourceNames.length
+      ? `Resources: ${resourceNames.join(", ")}`
+      : "Resources: none linked yet",
+    openFacts.length
+      ? `Open unknowns: ${openFacts.join("; ")}`
+      : "Open unknowns: none recorded",
+  ];
+
+  return { found: true, engagement: e, text: lines.join("\n") };
 }
 
 async function generateJobSheet(env: Env, args: { engagementNumber: string }) {
-  const e = await loadEngagementByNumber(env, args.engagementNumber)
-  if (!e) return { found: false, engagementNumber: args.engagementNumber }
-  const contacts = (e.engagement_parties || []).map((p: any) => `- ${p.role}: ${p.parties?.name ?? 'unknown'}${p.parties?.phone ? ' · ' + p.parties.phone : ''}`)
-  const resources = (e.engagement_resources || []).map((r: any) => `- ${r.resources?.name ?? 'unknown resource'} (${r.relationship}${r.quantity ? ' × ' + r.quantity : ''})`)
-  const schedule = (e.engagement_schedule_items || []).map((s: any) => `- ${s.schedule_type} — ${s.label} — ${s.start_at || s.start_date || 'TBD'} (${s.time_state})`)
+  const e = await loadEngagementByNumber(env, args.engagementNumber);
+  if (!e) return { found: false, engagementNumber: args.engagementNumber };
+
+  const contacts = (e.engagement_parties || []).map(
+    (p: any) =>
+      `- ${p.role}: ${p.parties?.name ?? "unknown"}${p.parties?.phone ? " · " + p.parties.phone : ""}`,
+  );
+  const resources = (e.engagement_resources || []).map(
+    (r: any) =>
+      `- ${r.resources?.name ?? "unknown resource"} (${r.relationship}${r.quantity ? " × " + r.quantity : ""})`,
+  );
+  const schedule = (e.engagement_schedule_items || []).map(
+    (s: any) =>
+      `- ${s.schedule_type} — ${s.label} — ${s.start_at || s.start_date || "TBD"} (${s.time_state})`,
+  );
+
   const lines = [
     `JOB SHEET — ${e.name} (${e.engagement_number})`,
-    e.event_start_date ? `Date: ${e.event_start_date}` : 'Date: TBD',
-    '',
-    'Contacts:', ...(contacts.length ? contacts : ['- none recorded']),
-    '',
-    'Resources:', ...(resources.length ? resources : ['- none recorded']),
-    '',
-    'Schedule:', ...(schedule.length ? schedule : ['- not scheduled']),
-  ]
-  return { found: true, engagement: e, text: lines.join('\n') }
+    e.event_start_date ? `Date: ${e.event_start_date}` : "Date: TBD",
+    "",
+    "Contacts:",
+    ...(contacts.length ? contacts : ["- none recorded"]),
+    "",
+    "Resources:",
+    ...(resources.length ? resources : ["- none recorded"]),
+    "",
+    "Schedule:",
+    ...(schedule.length ? schedule : ["- not scheduled"]),
+  ];
+
+  return { found: true, engagement: e, text: lines.join("\n") };
 }
 
 async function searchStagePresence(env: Env, args: { query: string }) {
-  const [engagements, contacts] = await Promise.all([findEngagement(env, args), findContact(env, args)])
+  const [engagements, contacts] = await Promise.all([
+    findEngagement(env, args),
+    findContact(env, args),
+  ]);
+
   return {
-    engagements: engagements.map((e: any) => ({ kind: 'ENGAGEMENT', id: e.id, number: e.engagement_number, label: e.name })),
-    contacts: contacts.map((c: any) => ({ kind: 'CONTACT', id: c.id, label: c.name, subtitle: c.organization_name || c.email || c.phone || null })),
-  }
+    engagements: engagements.map((e: any) => ({
+      kind: "ENGAGEMENT",
+      id: e.id,
+      number: e.engagement_number,
+      label: e.name,
+    })),
+    contacts: contacts.map((c: any) => ({
+      kind: "CONTACT",
+      id: c.id,
+      label: c.name,
+      subtitle: c.organization_name || c.email || c.phone || null,
+    })),
+  };
 }
 
 async function getAttentionItems(env: Env) {
-  return pgrest(env, 'engagement_summary_v', {
-    select: 'id,engagement_number,name,attention_state,commercial_state,commitment_state,open_work_count,primary_customer,venue,next_work,event_start_date',
-    or: '(attention_state.neq.NORMAL,open_work_count.gt.0)',
-    order: 'attention_state.desc,event_start_date.asc',
-    limit: '25',
-  })
+  return pgrest(env, "engagement_summary_v", {
+    select:
+      "id,engagement_number,name,attention_state,commercial_state,commitment_state,open_work_count,primary_customer,venue,next_work,event_start_date",
+    or: "(attention_state.neq.NORMAL,open_work_count.gt.0)",
+    order: "attention_state.desc,event_start_date.asc",
+    limit: "25",
+  });
 }
 
 async function getUpcomingEngagements(env: Env, args: { limit?: number }) {
-  const today = new Date().toISOString().slice(0, 10)
-  return pgrest(env, 'engagement_summary_v', {
-    select: 'id,engagement_number,name,event_start_date,commercial_state,commitment_state,operational_state,attention_state,primary_customer,venue,next_work',
+  const today = new Date().toISOString().slice(0, 10);
+
+  return pgrest(env, "engagement_summary_v", {
+    select:
+      "id,engagement_number,name,event_start_date,commercial_state,commitment_state,operational_state,attention_state,primary_customer,venue,next_work",
     event_start_date: `gte.${today}`,
-    order: 'event_start_date.asc',
+    order: "event_start_date.asc",
     limit: String(args.limit && args.limit > 0 && args.limit <= 50 ? args.limit : 15),
-  })
+  });
 }
 
 /* ============================== the one write capability: set_next_action ==============================
@@ -171,116 +243,131 @@ async function getUpcomingEngagements(env: Env, args: { limit?: number }) {
    Only ever INSERTs (or re-affirms its own prior insert via source_key on retry). Never touches
    any other existing work_items row, never cancels/completes/reprioritizes anything. */
 
-const ACTION_TYPES = ['CALL', 'EMAIL', 'TEXT', 'CREATE_QUOTE', 'REVISE_QUOTE', 'APPROVAL', 'CAPACITY', 'CREW', 'PAYMENT', 'VENUE', 'PREP', 'DELIVERY', 'FOLLOW_UP', 'REVIEW', 'OTHER']
-const PRIORITIES = ['NOW', 'SOON', 'NORMAL', 'LOW']
+const ACTION_TYPES = [
+  "CALL", "EMAIL", "TEXT", "CREATE_QUOTE", "REVISE_QUOTE", "APPROVAL", "CAPACITY",
+  "CREW", "PAYMENT", "VENUE", "PREP", "DELIVERY", "FOLLOW_UP", "REVIEW", "OTHER",
+] as const;
+const PRIORITIES = ["NOW", "SOON", "NORMAL", "LOW"] as const;
 
 interface SetNextActionArgs {
-  engagementNumber: string
-  title: string
-  actionType: string
-  priority: string
-  dueDate?: string
-  whyNow?: string
-  instructions?: string
-  successCondition?: string
-  confirmed: boolean
-  idempotencyKey: string
+  engagementNumber: string;
+  title: string;
+  actionType: string;
+  priority: string;
+  dueDate?: string;
+  whyNow?: string;
+  instructions?: string;
+  successCondition?: string;
+  confirmed: boolean;
+  idempotencyKey: string;
 }
 
 async function resolveEngagementId(env: Env, engagementNumber: string) {
-  const rows = await pgrest(env, 'engagements', {
-    select: 'id,engagement_number',
+  const rows = await pgrest(env, "engagements", {
+    select: "id,engagement_number",
     engagement_number: `eq.${engagementNumber}`,
-    limit: '1',
-  })
-  return rows?.[0] ?? null
+    limit: "1",
+  });
+  return rows?.[0] ?? null;
 }
 
 async function setNextAction(env: Env, args: SetNextActionArgs) {
   const notSaved = (reason: string, extra: Record<string, unknown> = {}) => ({
     saved: false,
-    verificationState: 'NOT_SAVED',
+    verificationState: "NOT_SAVED",
     engagementNumber: args.engagementNumber ?? null,
     reason,
     ...extra,
-  })
+  });
 
   if (args.confirmed !== true) {
-    return notSaved('Refused: confirmed must be literally true. This tool only writes after explicit human approval — propose the change and wait for Approve/Edit/Cancel first.')
+    return notSaved(
+      "Refused: confirmed must be literally true. This tool only writes after explicit human approval — propose the change and wait for Approve/Edit/Cancel first.",
+    );
   }
-  if (!args.idempotencyKey) return notSaved('idempotencyKey is required.')
-  if (!args.engagementNumber) return notSaved('engagementNumber is required.')
-  const title = String(args.title || '').trim()
-  if (!title) return notSaved('title is required.')
-  if (!ACTION_TYPES.includes(args.actionType)) return notSaved(`Invalid actionType: ${args.actionType}. Must be one of ${ACTION_TYPES.join(', ')}.`)
-  if (!PRIORITIES.includes(args.priority)) return notSaved(`Invalid priority: ${args.priority}. Must be one of ${PRIORITIES.join(', ')}.`)
+  if (!args.idempotencyKey) return notSaved("idempotencyKey is required.");
+  if (!args.engagementNumber) return notSaved("engagementNumber is required.");
+  const title = String(args.title || "").trim();
+  if (!title) return notSaved("title is required.");
 
-  let engagement: { id: string; engagement_number: string } | null
+  let engagement: { id: string; engagement_number: string } | null;
   try {
-    engagement = await resolveEngagementId(env, args.engagementNumber)
-  } catch (err: any) {
-    return notSaved(`Could not look up engagement: ${err?.message || err}`)
+    engagement = await resolveEngagementId(env, args.engagementNumber);
+  } catch (error) {
+    return notSaved(`Could not look up engagement: ${error instanceof Error ? error.message : error}`);
   }
-  if (!engagement) return notSaved(`No engagement found with number ${args.engagementNumber}. Nothing was written.`)
+  if (!engagement) return notSaved(`No engagement found with number ${args.engagementNumber}. Nothing was written.`);
 
-  const sourceKey = `mcp:set_next_action:${args.idempotencyKey}`
+  const sourceKey = `mcp:set_next_action:${args.idempotencyKey}`;
   const payload = {
     engagement_id: engagement.id,
     source_key: sourceKey,
     title,
     action_type: args.actionType,
-    status: 'OPEN',
+    status: "OPEN",
     priority: args.priority,
     due_date: args.dueDate ?? null,
     why_now: args.whyNow ?? null,
     instructions: args.instructions ?? null,
     success_condition: args.successCondition ?? null,
-    certainty_state: 'KNOWN',
-    origin: 'MANUAL',
-    visibility: 'INTERNAL',
-    metadata: { canonical_role: 'MCP_PROPOSED_ACTION', capture_surface: 'stage_presence_cockpit_artifact' },
-  }
+    certainty_state: "KNOWN",
+    origin: "MANUAL",
+    visibility: "INTERNAL",
+    metadata: { canonical_role: "MCP_PROPOSED_ACTION", capture_surface: "stage_presence_cockpit_artifact" },
+  };
 
-  let inserted: any
+  let inserted: any;
   try {
-    const rows = await pgrestUpsert(env, 'work_items', 'source_key', payload)
-    inserted = Array.isArray(rows) ? rows[0] : rows
-  } catch (err: any) {
-    return notSaved(`Write failed: ${err?.message || err}`, { engagementNumber: engagement.engagement_number })
+    const rows = await pgrestUpsert(env, "work_items", "source_key", payload);
+    inserted = Array.isArray(rows) ? rows[0] : rows;
+  } catch (error) {
+    return notSaved(`Write failed: ${error instanceof Error ? error.message : error}`, {
+      engagementNumber: engagement.engagement_number,
+    });
   }
-  if (!inserted?.id) return notSaved('Write returned no record.', { engagementNumber: engagement.engagement_number })
+  if (!inserted?.id) {
+    return notSaved("Write returned no record.", { engagementNumber: engagement.engagement_number });
+  }
 
   // Canonical re-read: never trust the write response alone.
-  let verified: any = null
+  let verified: any = null;
   try {
-    const rows = await pgrest(env, 'work_items', {
-      select: 'id,engagement_id,source_key,title,action_type,status,priority,due_date,why_now,instructions,success_condition',
+    const rows = await pgrest(env, "work_items", {
+      select: "id,engagement_id,source_key,title,action_type,status,priority,due_date,why_now,instructions,success_condition",
       id: `eq.${inserted.id}`,
-      limit: '1',
-    })
-    verified = rows?.[0] ?? null
-  } catch (err: any) {
-    return notSaved(`Canonical re-read failed: ${err?.message || err}`, { engagementNumber: engagement.engagement_number, workItemId: inserted.id })
+      limit: "1",
+    });
+    verified = rows?.[0] ?? null;
+  } catch (error) {
+    return notSaved(`Canonical re-read failed: ${error instanceof Error ? error.message : error}`, {
+      engagementNumber: engagement.engagement_number,
+      workItemId: inserted.id,
+    });
   }
-  if (!verified) return notSaved('Canonical re-read did not find the record after write.', { engagementNumber: engagement.engagement_number, workItemId: inserted.id })
+  if (!verified) {
+    return notSaved("Canonical re-read did not find the record after write.", {
+      engagementNumber: engagement.engagement_number,
+      workItemId: inserted.id,
+    });
+  }
 
-  let currentNextWork: any = null
+  let currentNextWork: any = null;
   try {
-    const rows = await pgrest(env, 'engagement_summary_v', {
-      select: 'id,engagement_number,next_work',
+    const rows = await pgrest(env, "engagement_summary_v", {
+      select: "id,engagement_number,next_work",
       id: `eq.${engagement.id}`,
-      limit: '1',
-    })
-    currentNextWork = rows?.[0]?.next_work ?? null
+      limit: "1",
+    });
+    currentNextWork = rows?.[0]?.next_work ?? null;
   } catch {
-    currentNextWork = null
+    currentNextWork = null;
   }
 
-  const becameNextWork = !!currentNextWork && currentNextWork.id === verified.id
+  const becameNextWork = !!currentNextWork && currentNextWork.id === verified.id;
 
   return {
     saved: true,
-    verificationState: 'VERIFIED_SAVED',
+    verificationState: "VERIFIED_SAVED",
     engagementNumber: engagement.engagement_number,
     workItemId: verified.id,
     title: verified.title,
@@ -289,170 +376,244 @@ async function setNextAction(env: Env, args: SetNextActionArgs) {
     dueDate: verified.due_date,
     canonicalStatus: verified.status,
     currentNextWork,
-    note: becameNextWork ? null : 'SAVED AS OPEN WORK — CURRENT NEXT WORK UNCHANGED',
-  }
+    note: becameNextWork ? null : "SAVED AS OPEN WORK — CURRENT NEXT WORK UNCHANGED",
+  };
 }
 
-/* ============================== MCP tool registry ============================== */
-
-interface McpTool {
-  name: string
-  description: string
-  inputSchema: Record<string, unknown>
-  annotations?: { title?: string; readOnlyHint?: boolean; destructiveHint?: boolean; idempotentHint?: boolean }
-  run: (env: Env, args: any) => Promise<any>
+function asToolResult(data: unknown) {
+  return {
+    content: [{ type: "text" as const, text: JSON.stringify(data, null, 2) }],
+  };
 }
 
-const TOOLS: McpTool[] = [
-  {
-    name: 'find_contact',
-    description: 'Search real Stage Presence Parties by name, organization, email, or phone. Read-only.',
-    inputSchema: { type: 'object', properties: { query: { type: 'string' } }, required: ['query'] },
-    run: findContact,
-  },
-  {
-    name: 'find_engagement',
-    description: 'Search real Stage Presence Engagements by name, number, customer, or venue. Read-only.',
-    inputSchema: { type: 'object', properties: { query: { type: 'string' } }, required: ['query'] },
-    run: findEngagement,
-  },
-  {
-    name: 'get_pricing',
-    description: 'Read the real, current Price Book, with authority_state (APPROVED_AUTHORITY / DRAFT_CANDIDATE / etc). Optionally filter by item name, category, roleCode, or scopeType. Read-only.',
-    inputSchema: { type: 'object', properties: { item: { type: 'string' }, category: { type: 'string' }, roleCode: { type: 'string' }, scopeType: { type: 'string' } } },
-    run: getPricing,
-  },
-  {
-    name: 'generate_lead_summary',
-    description: 'Produce a plain-text summary of a real Engagement by its engagement number (e.g. SP-000014). Read-only.',
-    inputSchema: { type: 'object', properties: { engagementNumber: { type: 'string' } }, required: ['engagementNumber'] },
-    run: generateLeadSummary,
-  },
-  {
-    name: 'generate_job_sheet',
-    description: 'Produce a plain-text job sheet (venue, contacts, resources, schedule) for a real Engagement by its engagement number. Read-only.',
-    inputSchema: { type: 'object', properties: { engagementNumber: { type: 'string' } }, required: ['engagementNumber'] },
-    run: generateJobSheet,
-  },
-  {
-    name: 'search_stage_presence',
-    description: 'Search across real Engagements and Contacts for a free-text query. Read-only.',
-    inputSchema: { type: 'object', properties: { query: { type: 'string' } }, required: ['query'] },
-    run: searchStagePresence,
-  },
-  {
-    name: 'get_attention_items',
-    description: "Return the real Engagements that currently need attention (attention_state != NORMAL or have open work). This is Stage Presence's actual current 'needs attention' state, not a snapshot. Read-only.",
-    inputSchema: { type: 'object', properties: {} },
-    run: getAttentionItems,
-  },
-  {
-    name: 'get_upcoming_engagements',
-    description: 'Return real Engagements with an event date today or later, soonest first. Read-only.',
-    inputSchema: { type: 'object', properties: { limit: { type: 'number' } } },
-    run: getUpcomingEngagements,
-  },
-  {
-    name: 'set_next_action',
-    description:
-      'Write ONE new OPEN work item (next action) on a real engagement — ONLY after the human has explicitly approved the exact proposed change (confirmed=true). Never modifies, cancels, completes, or reprioritizes any existing work item. Idempotent: retries with the same idempotencyKey re-affirm the same row instead of duplicating it. Always re-reads the canonical row after writing and only reports success if that re-read confirms it.',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        engagementNumber: { type: 'string', description: 'Real engagement number, e.g. SP-000014' },
-        title: { type: 'string' },
-        actionType: { type: 'string', enum: ACTION_TYPES },
-        priority: { type: 'string', enum: PRIORITIES },
-        dueDate: { type: 'string', description: 'Optional ISO date (YYYY-MM-DD)' },
-        whyNow: { type: 'string' },
-        instructions: { type: 'string' },
-        successCondition: { type: 'string' },
-        confirmed: { type: 'boolean', description: 'Must be literally true. Set only after the human clicked Approve on the exact proposed change.' },
-        idempotencyKey: { type: 'string', description: 'A unique key for this proposed mutation; retries with the same key never create a duplicate.' },
+function asToolError(error: unknown) {
+  const message = error instanceof Error ? error.message : String(error);
+  return {
+    content: [
+      {
+        type: "text" as const,
+        text: `Stage Presence data is currently unavailable. (${message})`,
       },
-      required: ['engagementNumber', 'title', 'actionType', 'priority', 'confirmed', 'idempotencyKey'],
+    ],
+    isError: true,
+  };
+}
+
+function createServer(env: Env) {
+  const server = new McpServer({
+    name: "stage-presence-mcp-bridge",
+    version: "0.2.0",
+  });
+
+  server.registerTool(
+    "find_contact",
+    {
+      description:
+        "Search real Stage Presence Parties by name, organization, email, or phone. Read-only.",
+      inputSchema: z.object({ query: z.string() }),
     },
-    annotations: { title: 'Set Next Action', readOnlyHint: false, destructiveHint: false, idempotentHint: true },
-    run: setNextAction,
-  },
-]
+    async ({ query }) => {
+      try {
+        return asToolResult(await findContact(env, { query }));
+      } catch (error) {
+        return asToolError(error);
+      }
+    },
+  );
 
-const TOOLS_BY_NAME = new Map(TOOLS.map((t) => [t.name, t]))
+  server.registerTool(
+    "find_engagement",
+    {
+      description:
+        "Search real Stage Presence Engagements by name, number, customer, or venue. Read-only.",
+      inputSchema: z.object({ query: z.string() }),
+    },
+    async ({ query }) => {
+      try {
+        return asToolResult(await findEngagement(env, { query }));
+      } catch (error) {
+        return asToolError(error);
+      }
+    },
+  );
 
-/* ============================== JSON-RPC / MCP protocol plumbing ============================== */
+  server.registerTool(
+    "get_pricing",
+    {
+      description:
+        "Read the real current Price Book with explicit authority state. Read-only.",
+      inputSchema: z.object({
+        item: z.string().optional(),
+        category: z.string().optional(),
+        roleCode: z.string().optional(),
+        scopeType: z.string().optional(),
+      }),
+    },
+    async (args) => {
+      try {
+        return asToolResult(await getPricing(env, args));
+      } catch (error) {
+        return asToolError(error);
+      }
+    },
+  );
 
-function jsonRpcResult(id: unknown, result: unknown) {
-  return { jsonrpc: '2.0', id, result }
+  server.registerTool(
+    "generate_lead_summary",
+    {
+      description:
+        "Produce a summary of a real Engagement by engagement number. Read-only.",
+      inputSchema: z.object({ engagementNumber: z.string() }),
+    },
+    async ({ engagementNumber }) => {
+      try {
+        return asToolResult(await generateLeadSummary(env, { engagementNumber }));
+      } catch (error) {
+        return asToolError(error);
+      }
+    },
+  );
+
+  server.registerTool(
+    "generate_job_sheet",
+    {
+      description:
+        "Produce a job sheet for a real Engagement by engagement number. Read-only.",
+      inputSchema: z.object({ engagementNumber: z.string() }),
+    },
+    async ({ engagementNumber }) => {
+      try {
+        return asToolResult(await generateJobSheet(env, { engagementNumber }));
+      } catch (error) {
+        return asToolError(error);
+      }
+    },
+  );
+
+  server.registerTool(
+    "search_stage_presence",
+    {
+      description:
+        "Search across real Stage Presence Engagements and Contacts. Read-only.",
+      inputSchema: z.object({ query: z.string() }),
+    },
+    async ({ query }) => {
+      try {
+        return asToolResult(await searchStagePresence(env, { query }));
+      } catch (error) {
+        return asToolError(error);
+      }
+    },
+  );
+
+  server.registerTool(
+    "get_attention_items",
+    {
+      description:
+        "Return real Stage Presence Engagements that currently need attention. Read-only.",
+      inputSchema: z.object({}),
+    },
+    async () => {
+      try {
+        return asToolResult(await getAttentionItems(env));
+      } catch (error) {
+        return asToolError(error);
+      }
+    },
+  );
+
+  server.registerTool(
+    "get_upcoming_engagements",
+    {
+      description:
+        "Return real future Stage Presence Engagements, soonest first. Read-only.",
+      inputSchema: z.object({
+        limit: z.number().int().positive().max(50).optional(),
+      }),
+    },
+    async ({ limit }) => {
+      try {
+        return asToolResult(await getUpcomingEngagements(env, { limit }));
+      } catch (error) {
+        return asToolError(error);
+      }
+    },
+  );
+
+  server.registerTool(
+    "set_next_action",
+    {
+      description:
+        "Write ONE new OPEN work item (next action) on a real engagement — ONLY after the human has explicitly approved the exact proposed change (confirmed=true). Never modifies, cancels, completes, or reprioritizes any existing work item. Idempotent: retries with the same idempotencyKey re-affirm the same row instead of duplicating it. Always re-reads the canonical row after writing and only reports success if that re-read confirms it.",
+      inputSchema: z.object({
+        engagementNumber: z.string().describe("Real engagement number, e.g. SP-000014"),
+        title: z.string(),
+        actionType: z.enum(ACTION_TYPES),
+        priority: z.enum(PRIORITIES),
+        dueDate: z.string().optional().describe("Optional ISO date (YYYY-MM-DD)"),
+        whyNow: z.string().optional(),
+        instructions: z.string().optional(),
+        successCondition: z.string().optional(),
+        confirmed: z.literal(true).describe("Must be literally true. Set only after the human clicked Approve on the exact proposed change."),
+        idempotencyKey: z.string().describe("A unique key for this proposed mutation; retries with the same key never create a duplicate."),
+      }),
+      annotations: {
+        title: "Set Next Action",
+        readOnlyHint: false,
+        destructiveHint: false,
+        idempotentHint: true,
+      },
+    },
+    async (args) => {
+      try {
+        return asToolResult(await setNextAction(env, args));
+      } catch (error) {
+        return asToolError(error);
+      }
+    },
+  );
+
+  return server;
 }
-function jsonRpcError(id: unknown, code: number, message: string) {
-  return { jsonrpc: '2.0', id, error: { code, message } }
-}
 
-async function handleRpc(env: Env, body: any) {
-  const { id, method, params } = body || {}
-  if (method === 'initialize') {
-    return jsonRpcResult(id, {
-      protocolVersion: params?.protocolVersion || '2026-06-18',
-      capabilities: { tools: { listChanged: false } },
-      serverInfo: { name: 'stage-presence-mcp-bridge', version: '0.1.0' },
-    })
-  }
-  if (method === 'notifications/initialized' || method === 'ping') {
-    return jsonRpcResult(id, {})
-  }
-  if (method === 'tools/list') {
-    return jsonRpcResult(id, {
-      tools: TOOLS.map((t) => ({
-        name: t.name,
-        description: t.description,
-        inputSchema: t.inputSchema,
-        ...(t.annotations ? { annotations: t.annotations } : {}),
-      })),
-    })
-  }
-  if (method === 'tools/call') {
-    const toolName = params?.name
-    const tool = TOOLS_BY_NAME.get(toolName)
-    if (!tool) return jsonRpcResult(id, { content: [{ type: 'text', text: `Unknown tool: ${toolName}` }], isError: true })
-    try {
-      const data = await tool.run(env, params?.arguments || {})
-      return jsonRpcResult(id, { content: [{ type: 'text', text: JSON.stringify(data, null, 2) }], isError: false })
-    } catch (err: any) {
-      return jsonRpcResult(id, { content: [{ type: 'text', text: `Stage Presence data is currently unavailable. (${err?.message || err})` }], isError: true })
-    }
-  }
-  return jsonRpcError(id, -32601, `Method not found: ${method}`)
+function unauthorized() {
+  // This bridge uses a static API key, not OAuth. Do not advertise a
+  // WWW-Authenticate challenge or MCP clients may incorrectly start OAuth.
+  return new Response("Unauthorized", { status: 401 });
 }
 
 export default {
-  async fetch(request: Request, env: Env): Promise<Response> {
-    const url = new URL(request.url)
+  async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
+    const url = new URL(request.url);
 
-    if (request.method === 'GET' && url.pathname === '/') {
-      return Response.json({ name: 'stage-presence-mcp-bridge', status: 'ok', tools: TOOLS.map((t) => t.name) })
+    if (request.method === "GET" && url.pathname === "/") {
+      return Response.json({
+        name: "stage-presence-mcp-bridge",
+        status: "ok",
+        protocol: "streamable-http",
+        endpoint: "/mcp",
+        authentication: "x-api-key",
+      });
     }
 
-    if (request.method !== 'POST') {
-      return new Response('Method not allowed', { status: 405 })
+    if (url.pathname !== "/mcp") {
+      return new Response("Not found", { status: 404 });
     }
 
-    const auth = request.headers.get('authorization') || ''
-    if (!env.BRIDGE_TOKEN || auth !== `Bearer ${env.BRIDGE_TOKEN}`) {
-      return new Response('Unauthorized', { status: 401 })
+    const apiKey = request.headers.get("x-api-key") || "";
+    const auth = request.headers.get("authorization") || "";
+    const tokenMatches =
+      apiKey === env.BRIDGE_TOKEN || auth === `Bearer ${env.BRIDGE_TOKEN}`;
+
+    if (!env.BRIDGE_TOKEN || !tokenMatches) {
+      return unauthorized();
     }
 
-    let body: any
-    try {
-      body = await request.json()
-    } catch {
-      return Response.json(jsonRpcError(null, -32700, 'Parse error'), { status: 400 })
-    }
+    const handler = createMcpHandler(() => createServer(env), {
+      route: "/mcp",
+      legacy: "stateless",
+    });
 
-    try {
-      const response = await handleRpc(env, body)
-      return Response.json(response)
-    } catch (err: any) {
-      return Response.json(jsonRpcError(body?.id ?? null, -32603, err?.message || 'Internal error'), { status: 500 })
-    }
+    return handler(request, env, ctx);
   },
-}
+} satisfies ExportedHandler<Env>;
