@@ -9,6 +9,86 @@ export type TransactionType = 'RENTAL' | 'SALE' | 'SERVICE' | 'INSTALLATION' | '
 export type CommercialLineType = 'RESOURCE' | 'SERVICE' | 'LABOR' | 'LOGISTICS' | 'DISCOUNT' | 'FEE' | 'CUSTOM' | 'OTHER'
 export type PricingAuthorityState = 'APPROVED_AUTHORITY' | 'DRAFT_CANDIDATE' | 'MANUAL_PRICE' | 'HISTORICAL_EVIDENCE' | 'OTHER'
 
+export interface PricingRule {
+  id: string
+  code: string
+  name: string
+  status: 'DRAFT' | 'APPROVED' | 'RETIRED'
+  rule_kind: string
+  scope_type: string
+  category: string | null
+  rate_type: string
+  amount: number | null
+  percentage: number | null
+  billing_basis: string | null
+  role_code: string | null
+  requires_approval: boolean
+  notes: string | null
+}
+
+export async function listPricingRules(): Promise<PricingRule[]> {
+  const client = requireClient()
+  const { data, error } = await client
+    .from('pricing_rules')
+    .select('id,code,name,status,rule_kind,scope_type,category,rate_type,amount,percentage,billing_basis,role_code,requires_approval,notes')
+    .order('status')
+    .order('name')
+  if (error) throw error
+  return (data ?? []) as PricingRule[]
+}
+
+export async function updatePricingRuleFields(id: string, patch: { name: string; amount: number | null; percentage: number | null; notes?: string | null }) {
+  const client = requireClient()
+  const { error } = await client
+    .from('pricing_rules')
+    .update({
+      name: patch.name.trim(),
+      amount: patch.amount,
+      percentage: patch.percentage,
+      notes: patch.notes?.trim() || null,
+    })
+    .eq('id', id)
+  if (error) throw error
+}
+
+export async function approvePricingRule(id: string) {
+  const client = requireClient()
+  const { data: userData, error: userError } = await client.auth.getUser()
+  if (userError) throw userError
+  const userId = userData.user?.id
+  if (!userId) throw new Error('Sign in again before approving pricing.')
+  const { error } = await client
+    .from('pricing_rules')
+    .update({ status: 'APPROVED', approved_by: userId, approved_at: new Date().toISOString() })
+    .eq('id', id)
+  if (error) throw error
+}
+
+export async function retirePricingRule(id: string) {
+  const client = requireClient()
+  const { error } = await client.from('pricing_rules').update({ status: 'RETIRED' }).eq('id', id)
+  if (error) throw error
+}
+
+export async function createManualPricingRule(input: { name: string; amount: number }) {
+  const client = requireClient()
+  const slug = input.name.toLowerCase().replace(/[^a-z0-9]+/g, '.').replace(/^\.|\.$/g, '').slice(0, 48) || 'custom'
+  const { error } = await client.from('pricing_rules').insert({
+    code: `manual.${slug}.${Date.now()}`,
+    name: input.name.trim(),
+    status: 'DRAFT',
+    rule_kind: 'BASE_RATE',
+    scope_type: 'GENERAL',
+    rate_type: 'FLAT',
+    amount: input.amount,
+    currency: 'USD',
+    requires_approval: true,
+    billing_basis: 'FLAT',
+    rationale: 'Created from Greg pricing control',
+  })
+  if (error) throw error
+}
+
 export interface EngagementPricingPosition {
   engagement_id: string
   engagement_number: string

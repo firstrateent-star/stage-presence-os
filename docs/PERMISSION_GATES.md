@@ -34,6 +34,10 @@ Before activation, resolve and document:
 
 Until this gate is approved, Quick Capture remains useful: it preserves photo/text evidence privately and creates a canonical Engagement without manufacturing interpretation.
 
+### Scoped resolution — Claude-in-Artifact cockpit (2026-09-20)
+
+Greg approved moving forward specifically for a Claude-powered Artifact cockpit calling the Stage Presence Capability Registry (`src/lib/capabilityRegistry.ts`), not a server-side paid third-party API integration. See `docs/DECISIONS.md` (2026-09-20) for how each of the nine items above resolves for that specific form — several (provider/project ownership, cost/budget, secrets) are structurally inapplicable because there is no separate API key or metered usage; the rest (data boundary, output authority, promotion authority, confidence handling, matching, logging/retention) are satisfied by the Capability Registry's read-only surface and `requiresHumanReview` enforcement. A future server-side paid AI integration is a different case and still requires this gate's full, unscoped resolution.
+
 ## Other future gates
 - adding Greg, Nancy, Operations, or other internal accounts / changing access roles
 - widening private source Storage from images to documents/spreadsheets through an actual intake surface

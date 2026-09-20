@@ -1,26 +1,17 @@
 import { useEffect, useMemo, useRef, useState, type ChangeEvent } from 'react'
 import type { EconomyOverview, EngagementSummary, RecoveryQueueItem, RelationshipSummary } from '../lib/readContracts'
 import { createEngagement, uploadSourcePhoto, type UploadedSourceArtifact } from '../lib/repository'
+import {
+  listPricingRules,
+  updatePricingRuleFields,
+  approvePricingRule,
+  retirePricingRule,
+  createManualPricingRule,
+  type PricingRule,
+} from '../lib/pricingRuntime'
 import { supabase } from '../lib/supabase'
 
 type GregTab = 'home' | 'leads' | 'pricing' | 'jobs'
-
-type PricingRule = {
-  id: string
-  code: string
-  name: string
-  status: 'DRAFT' | 'APPROVED' | 'RETIRED'
-  rule_kind: string
-  scope_type: string
-  category: string | null
-  rate_type: string
-  amount: number | null
-  percentage: number | null
-  billing_basis: string | null
-  role_code: string | null
-  requires_approval: boolean
-  notes: string | null
-}
 
 function money(value: number | null | undefined) {
   if (value == null || Number.isNaN(Number(value))) return '—'
@@ -237,13 +228,11 @@ export function GregMode({
     if (!supabase) return
     setPricingLoading(true)
     setPricingMessage(null)
-    const { data, error } = await supabase
-      .from('pricing_rules')
-      .select('id,code,name,status,rule_kind,scope_type,category,rate_type,amount,percentage,billing_basis,role_code,requires_approval,notes')
-      .order('status')
-      .order('name')
-    if (error) setPricingMessage(error.message)
-    else setPricing((data ?? []) as PricingRule[])
+    try {
+      setPricing(await listPricingRules())
+    } catch (error) {
+      setPricingMessage(error instanceof Error ? error.message : String(error))
+    }
     setPricingLoading(false)
   }
 
@@ -339,40 +328,40 @@ export function GregMode({
   async function savePricing(rule: PricingRule) {
     if (!supabase) return
     setPricingMessage(null)
-    const { error } = await supabase
-      .from('pricing_rules')
-      .update({
-        name: rule.name.trim(),
+    try {
+      await updatePricingRuleFields(rule.id, {
+        name: rule.name,
         amount: rule.rate_type === 'PERCENT' ? null : Number(rule.amount ?? 0),
         percentage: rule.rate_type === 'PERCENT' ? Number(rule.percentage ?? 0) : null,
-        notes: rule.notes?.trim() || null,
+        notes: rule.notes,
       })
-      .eq('id', rule.id)
-    setPricingMessage(error ? error.message : `${rule.name} updated.`)
-    if (!error) await loadPricing()
+      setPricingMessage(`${rule.name} updated.`)
+      await loadPricing()
+    } catch (error) {
+      setPricingMessage(error instanceof Error ? error.message : String(error))
+    }
   }
 
   async function approvePricing(rule: PricingRule) {
     if (!supabase) return
-    const { data: userData } = await supabase.auth.getUser()
-    const userId = userData.user?.id
-    if (!userId) {
-      setPricingMessage('Sign in again before approving pricing.')
-      return
+    try {
+      await approvePricingRule(rule.id)
+      setPricingMessage(`${rule.name} approved for quoting.`)
+      await loadPricing()
+    } catch (error) {
+      setPricingMessage(error instanceof Error ? error.message : String(error))
     }
-    const { error } = await supabase
-      .from('pricing_rules')
-      .update({ status: 'APPROVED', approved_by: userId, approved_at: new Date().toISOString() })
-      .eq('id', rule.id)
-    setPricingMessage(error ? error.message : `${rule.name} approved for quoting.`)
-    if (!error) await loadPricing()
   }
 
   async function retirePricing(rule: PricingRule) {
     if (!supabase) return
-    const { error } = await supabase.from('pricing_rules').update({ status: 'RETIRED' }).eq('id', rule.id)
-    setPricingMessage(error ? error.message : `${rule.name} retired.`)
-    if (!error) await loadPricing()
+    try {
+      await retirePricingRule(rule.id)
+      setPricingMessage(`${rule.name} retired.`)
+      await loadPricing()
+    } catch (error) {
+      setPricingMessage(error instanceof Error ? error.message : String(error))
+    }
   }
 
   async function addPricing() {
@@ -382,26 +371,14 @@ export function GregMode({
       setPricingMessage('Enter a name and a valid price.')
       return
     }
-    const slug = newPriceName.toLowerCase().replace(/[^a-z0-9]+/g, '.').replace(/^\.|\.$/g, '').slice(0, 48) || 'custom'
-    const { error } = await supabase.from('pricing_rules').insert({
-      code: `manual.${slug}.${Date.now()}`,
-      name: newPriceName.trim(),
-      status: 'DRAFT',
-      rule_kind: 'BASE_RATE',
-      scope_type: 'GENERAL',
-      rate_type: 'FLAT',
-      amount,
-      currency: 'USD',
-      requires_approval: true,
-      billing_basis: 'FLAT',
-      rationale: 'Created from Greg pricing control',
-    })
-    if (error) setPricingMessage(error.message)
-    else {
+    try {
+      await createManualPricingRule({ name: newPriceName, amount })
       setNewPriceName('')
       setNewPriceAmount('')
       setPricingMessage('New pricing rule saved as a draft.')
       await loadPricing()
+    } catch (error) {
+      setPricingMessage(error instanceof Error ? error.message : String(error))
     }
   }
 

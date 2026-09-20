@@ -452,6 +452,27 @@ AI may propose structure or pricing/cost interpretation, but it does not become 
 
 The agent reasons. The system remembers.
 
+### Stage Presence Capability Registry — v0 (2026-09-20)
+
+`src/lib/capabilityRegistry.ts` is the fixed, named action surface for any AI operating layer (a future Greg-facing Artifact cockpit, the chat operating desk, or later automation). It adds no new canonical writes or abstractions: every entry either wraps an existing `src/lib` runtime function or performs a read-only query against an existing table/view, reusing the same OBSERVE / SUGGEST / REVERSIBLE / CONSEQUENTIAL authority vocabulary already established by Capture Intelligence.
+
+Registry surface (`CAPABILITY_REGISTRY`):
+- `find_contact`, `find_engagement`, `search_stage_presence` — read-only, literal substring search; never silently merges ambiguous matches.
+- `create_lead`, `update_lead`, `set_next_action` — reuse `repository.createEngagement/updateEngagement` and `canonicalWrites.saveCanonicalNextMove`. There is still no separate Lead entity.
+- `get_pricing` — read-only against `price_book_v`; always carries `authority_state` so a DRAFT/reference price is never presented as approved.
+- `build_quote_draft`, `save_quote_draft` — reuse `pricingRuntime.createDraftQuote/addManualQuoteLine/addQuoteLineFromPriceRule`.
+- `create_job`, `update_job` — reframed onto `updateEngagement({ operational_state })`; there is still no separate Job entity.
+- `add_resource_requirement` — reuses `repository.linkResource`.
+- `assign_team_member` — reuses `operationsCommands.assignCrewFromCommand`.
+- `generate_lead_summary`, `generate_job_sheet` — new read-only text formatters over existing read contracts.
+- `generate_email` — new read-only draft-text formatter. Produces a subject/body draft only; Stage Presence OS has no outbound-send capability and this must never acquire one without clearing the separate, still-unapproved communications gate in `docs/PERMISSION_GATES.md`.
+
+Every `CONSEQUENTIAL` entry declares `requiresHumanReview: true`, enforced structurally by `scripts/capabilityRegistry.contract.test.mjs`. This is the layer an AI cockpit is expected to call instead of writing SQL directly — the same discipline `scripts/backendContracts.test.mjs` already enforces on the human UI.
+
+While implementing this, `src/screens/GregMode.tsx`'s pricing-rule edit/approve/retire/create actions (added in the prior "Greg Command Center v1" work) were found writing to `pricing_rules` directly, which was already failing that UI-discipline contract test. These were extracted into `pricingRuntime.updatePricingRuleFields/approvePricingRule/retirePricingRule/createManualPricingRule`; see `docs/DECISIONS.md`.
+
+No Artifact cockpit has been built yet. No AI (Claude or otherwise) has been wired into this registry — it is the capability surface an AI layer would call once that is built, per the scoped gate decision in `docs/DECISIONS.md` (2026-09-20).
+
 ---
 
 ## Current non-claims
