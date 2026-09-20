@@ -177,6 +177,198 @@ async function getUpcomingEngagements(supabase: ScopedSupabase, limit = 15) {
   return data ?? []
 }
 
+/* ============================== the one write capability: set_next_action ==============================
+   Uses the already-authenticated, RLS-scoped `supabase` client injected by withSupabase({ auth: 'user' })
+   above — no service-role key, no raw SQL, no RLS bypass. Mirrors src/lib/canonicalWrites.ts's real
+   public.work_items schema exactly (see database/20260909_reality_commercial_operations_kernel.sql and
+   database/20260909_frontend_operating_primitives.sql) — no invented columns.
+   Only ever INSERTs a new row (or, on an idempotent replay with an identical payload, returns the row it
+   already wrote). Never touches any other existing work_items row, never cancels/completes/reprioritizes
+   anything. A retry with the SAME idempotencyKey but a DIFFERENT payload is refused (NOT_SAVED) rather than
+   silently overwriting the prior proposal — an idempotency key identifies one proposed mutation, not a
+   mutable slot. */
+
+const ACTION_TYPES = [
+  'CALL', 'EMAIL', 'TEXT', 'CREATE_QUOTE', 'REVISE_QUOTE', 'APPROVAL', 'CAPACITY',
+  'CREW', 'PAYMENT', 'VENUE', 'PREP', 'DELIVERY', 'FOLLOW_UP', 'REVIEW', 'OTHER',
+] as const
+const PRIORITIES = ['NOW', 'SOON', 'NORMAL', 'LOW'] as const
+
+const WORK_ITEM_FIELDS =
+  'id,engagement_id,source_key,title,action_type,status,priority,due_date,why_now,instructions,success_condition'
+
+interface SetNextActionArgs {
+  engagementNumber: string
+  title: string
+  actionType: string
+  priority: string
+  dueDate?: string
+  whyNow?: string
+  instructions?: string
+  successCondition?: string
+  confirmed: boolean
+  idempotencyKey: string
+}
+
+function requestedPayloadMatches(existing: any, requested: Record<string, unknown>) {
+  return (
+    existing.engagement_id === requested.engagement_id &&
+    existing.title === requested.title &&
+    existing.action_type === requested.action_type &&
+    existing.priority === requested.priority &&
+    (existing.due_date ?? null) === (requested.due_date ?? null) &&
+    (existing.why_now ?? null) === (requested.why_now ?? null) &&
+    (existing.instructions ?? null) === (requested.instructions ?? null) &&
+    (existing.success_condition ?? null) === (requested.success_condition ?? null)
+  )
+}
+
+async function setNextAction(supabase: ScopedSupabase, args: SetNextActionArgs) {
+  const notSaved = (reason: string, extra: Record<string, unknown> = {}) => ({
+    saved: false,
+    verificationState: 'NOT_SAVED',
+    engagementNumber: args.engagementNumber ?? null,
+    reason,
+    ...extra,
+  })
+
+  if (args.confirmed !== true) {
+    return notSaved(
+      'Refused: confirmed must be literally true. This tool only writes after explicit human approval — propose the change and wait for Approve/Edit/Cancel first.',
+    )
+  }
+  if (!args.idempotencyKey) return notSaved('idempotencyKey is required.')
+  if (!args.engagementNumber) return notSaved('engagementNumber is required.')
+  const title = String(args.title || '').trim()
+  if (!title) return notSaved('title is required.')
+  if (!(ACTION_TYPES as readonly string[]).includes(args.actionType)) {
+    return notSaved(`Invalid actionType: ${args.actionType}. Must be one of ${ACTION_TYPES.join(', ')}.`)
+  }
+  if (!(PRIORITIES as readonly string[]).includes(args.priority)) {
+    return notSaved(`Invalid priority: ${args.priority}. Must be one of ${PRIORITIES.join(', ')}.`)
+  }
+
+  const { data: engagement, error: engagementError } = await supabase
+    .from('engagements')
+    .select('id,engagement_number')
+    .eq('engagement_number', args.engagementNumber)
+    .maybeSingle()
+  if (engagementError) return notSaved(`Could not look up engagement: ${engagementError.message}`)
+  if (!engagement) return notSaved(`No engagement found with number ${args.engagementNumber}. Nothing was written.`)
+
+  const sourceKey = `mcp:set_next_action:${args.idempotencyKey}`
+  const requestedPayload = {
+    engagement_id: engagement.id,
+    title,
+    action_type: args.actionType,
+    priority: args.priority,
+    due_date: args.dueDate ?? null,
+    why_now: args.whyNow ?? null,
+    instructions: args.instructions ?? null,
+    success_condition: args.successCondition ?? null,
+  }
+
+  const { data: existing, error: existingError } = await supabase
+    .from('work_items')
+    .select(WORK_ITEM_FIELDS)
+    .eq('source_key', sourceKey)
+    .maybeSingle()
+  if (existingError) {
+    return notSaved(`Could not check for a prior write with this idempotencyKey: ${existingError.message}`, {
+      engagementNumber: engagement.engagement_number,
+    })
+  }
+
+  let workItemId: string
+
+  if (existing) {
+    if (!requestedPayloadMatches(existing, requestedPayload)) {
+      return notSaved(
+        'This idempotencyKey was already used for a different proposed change. Use a new idempotencyKey for a new or edited proposal — this tool never silently overwrites a prior write.',
+        { engagementNumber: engagement.engagement_number, workItemId: existing.id },
+      )
+    }
+    workItemId = existing.id
+  } else {
+    const { data: inserted, error: insertError } = await supabase
+      .from('work_items')
+      .insert({
+        ...requestedPayload,
+        source_key: sourceKey,
+        status: 'OPEN',
+        certainty_state: 'KNOWN',
+        origin: 'MANUAL',
+        visibility: 'INTERNAL',
+        metadata: { canonical_role: 'MCP_PROPOSED_ACTION', capture_surface: 'stage_presence_cockpit_artifact' },
+      })
+      .select(WORK_ITEM_FIELDS)
+      .single()
+
+    if (insertError) {
+      // A unique violation on source_key means a concurrent call already inserted it — re-check
+      // rather than fail blind, so a genuine retry still resolves instead of erroring.
+      const { data: raceRow, error: raceError } = await supabase
+        .from('work_items')
+        .select(WORK_ITEM_FIELDS)
+        .eq('source_key', sourceKey)
+        .maybeSingle()
+      if (raceError || !raceRow) {
+        return notSaved(`Write failed: ${insertError.message}`, { engagementNumber: engagement.engagement_number })
+      }
+      if (!requestedPayloadMatches(raceRow, requestedPayload)) {
+        return notSaved(
+          'This idempotencyKey was already used for a different proposed change. Use a new idempotencyKey for a new or edited proposal — this tool never silently overwrites a prior write.',
+          { engagementNumber: engagement.engagement_number, workItemId: raceRow.id },
+        )
+      }
+      workItemId = raceRow.id
+    } else {
+      workItemId = inserted.id
+    }
+  }
+
+  // Canonical re-read: never trust the write (or the pre-check) response alone.
+  const { data: verified, error: verifyError } = await supabase
+    .from('work_items')
+    .select(WORK_ITEM_FIELDS)
+    .eq('id', workItemId)
+    .maybeSingle()
+  if (verifyError) {
+    return notSaved(`Canonical re-read failed: ${verifyError.message}`, {
+      engagementNumber: engagement.engagement_number,
+      workItemId,
+    })
+  }
+  if (!verified) {
+    return notSaved('Canonical re-read did not find the record after write.', {
+      engagementNumber: engagement.engagement_number,
+      workItemId,
+    })
+  }
+
+  const { data: summaryRow } = await supabase
+    .from('engagement_summary_v')
+    .select('id,engagement_number,next_work')
+    .eq('id', engagement.id)
+    .maybeSingle()
+  const currentNextWork = summaryRow?.next_work ?? null
+  const becameNextWork = !!currentNextWork && currentNextWork.id === verified.id
+
+  return {
+    saved: true,
+    verificationState: 'VERIFIED_SAVED',
+    engagementNumber: engagement.engagement_number,
+    workItemId: verified.id,
+    title: verified.title,
+    actionType: verified.action_type,
+    priority: verified.priority,
+    dueDate: verified.due_date,
+    canonicalStatus: verified.status,
+    currentNextWork,
+    note: becameNextWork ? null : 'SAVED AS OPEN WORK — CURRENT NEXT WORK UNCHANGED',
+  }
+}
+
 Deno.serve(
   pipeline(
     [withOAuthProtectedResource(), withSupabase({ auth: 'user' })],
@@ -265,6 +457,27 @@ Deno.serve(
           annotations: { readOnlyHint: true },
         }, async ({ limit }) => {
           try { return toolResult(await getUpcomingEngagements(supabase, limit)) }
+          catch (error) { return toolError(error) }
+        })
+
+        server.registerTool('set_next_action', {
+          description:
+            'Write ONE new OPEN work item (next action) on a real engagement — ONLY after the human has explicitly approved the exact proposed change (confirmed=true). Never modifies, cancels, completes, or reprioritizes any existing work item. Idempotent: retries with the same idempotencyKey AND the same payload return the already-saved record instead of duplicating it; the same idempotencyKey with a different payload is refused (NOT_SAVED). Always re-reads the canonical row after writing and only reports success if that re-read confirms it.',
+          inputSchema: z.object({
+            engagementNumber: z.string().describe('Real engagement number, e.g. SP-000014'),
+            title: z.string(),
+            actionType: z.enum(ACTION_TYPES),
+            priority: z.enum(PRIORITIES),
+            dueDate: z.string().optional().describe('Optional ISO date (YYYY-MM-DD)'),
+            whyNow: z.string().optional(),
+            instructions: z.string().optional(),
+            successCondition: z.string().optional(),
+            confirmed: z.literal(true).describe('Must be literally true. Set only after the human clicked Approve on the exact proposed change.'),
+            idempotencyKey: z.string().describe('A unique key for this proposed mutation; a retry with the same key and the same payload is a no-op, a different payload is refused.'),
+          }),
+          annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true },
+        }, async (args) => {
+          try { return toolResult(await setNextAction(supabase, args)) }
           catch (error) { return toolError(error) }
         })
 
