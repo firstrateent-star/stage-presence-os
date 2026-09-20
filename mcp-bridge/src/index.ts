@@ -22,6 +22,27 @@ async function pgrest(env: Env, path: string, params: Record<string, string>): P
   return res.json()
 }
 
+/* Single mutation path used by the one write tool below. Always a fixed upsert-by-source_key
+   shape against public.work_items — never arbitrary SQL, never touches any row it didn't just
+   create/re-affirm via that source_key. */
+async function pgrestUpsert(env: Env, path: string, onConflict: string, body: unknown): Promise<any> {
+  const url = new URL(env.SUPABASE_URL + '/rest/v1/' + path)
+  url.searchParams.set('on_conflict', onConflict)
+  const res = await fetch(url.toString(), {
+    method: 'POST',
+    headers: {
+      apikey: env.SUPABASE_SERVICE_ROLE_KEY,
+      Authorization: 'Bearer ' + env.SUPABASE_SERVICE_ROLE_KEY,
+      'Content-Type': 'application/json',
+      Accept: 'application/json',
+      Prefer: 'resolution=merge-duplicates,return=representation',
+    },
+    body: JSON.stringify(body),
+  })
+  if (!res.ok) throw new Error(`Supabase write failed (${res.status}): ${await res.text()}`)
+  return res.json()
+}
+
 /* ============================== the 8 narrow read capabilities ============================== */
 /* Every function below issues a fixed, parameterized PostgREST call against an existing canonical
    view or table. Nothing here accepts or builds arbitrary SQL, and nothing writes. */
@@ -143,9 +164,146 @@ async function getUpcomingEngagements(env: Env, args: { limit?: number }) {
   })
 }
 
+/* ============================== the one write capability: set_next_action ==============================
+   Mirrors src/lib/canonicalWrites.ts's real public.work_items schema exactly (see
+   database/20260909_reality_commercial_operations_kernel.sql and
+   database/20260909_frontend_operating_primitives.sql) — no invented columns.
+   Only ever INSERTs (or re-affirms its own prior insert via source_key on retry). Never touches
+   any other existing work_items row, never cancels/completes/reprioritizes anything. */
+
+const ACTION_TYPES = ['CALL', 'EMAIL', 'TEXT', 'CREATE_QUOTE', 'REVISE_QUOTE', 'APPROVAL', 'CAPACITY', 'CREW', 'PAYMENT', 'VENUE', 'PREP', 'DELIVERY', 'FOLLOW_UP', 'REVIEW', 'OTHER']
+const PRIORITIES = ['NOW', 'SOON', 'NORMAL', 'LOW']
+
+interface SetNextActionArgs {
+  engagementNumber: string
+  title: string
+  actionType: string
+  priority: string
+  dueDate?: string
+  whyNow?: string
+  instructions?: string
+  successCondition?: string
+  confirmed: boolean
+  idempotencyKey: string
+}
+
+async function resolveEngagementId(env: Env, engagementNumber: string) {
+  const rows = await pgrest(env, 'engagements', {
+    select: 'id,engagement_number',
+    engagement_number: `eq.${engagementNumber}`,
+    limit: '1',
+  })
+  return rows?.[0] ?? null
+}
+
+async function setNextAction(env: Env, args: SetNextActionArgs) {
+  const notSaved = (reason: string, extra: Record<string, unknown> = {}) => ({
+    saved: false,
+    verificationState: 'NOT_SAVED',
+    engagementNumber: args.engagementNumber ?? null,
+    reason,
+    ...extra,
+  })
+
+  if (args.confirmed !== true) {
+    return notSaved('Refused: confirmed must be literally true. This tool only writes after explicit human approval — propose the change and wait for Approve/Edit/Cancel first.')
+  }
+  if (!args.idempotencyKey) return notSaved('idempotencyKey is required.')
+  if (!args.engagementNumber) return notSaved('engagementNumber is required.')
+  const title = String(args.title || '').trim()
+  if (!title) return notSaved('title is required.')
+  if (!ACTION_TYPES.includes(args.actionType)) return notSaved(`Invalid actionType: ${args.actionType}. Must be one of ${ACTION_TYPES.join(', ')}.`)
+  if (!PRIORITIES.includes(args.priority)) return notSaved(`Invalid priority: ${args.priority}. Must be one of ${PRIORITIES.join(', ')}.`)
+
+  let engagement: { id: string; engagement_number: string } | null
+  try {
+    engagement = await resolveEngagementId(env, args.engagementNumber)
+  } catch (err: any) {
+    return notSaved(`Could not look up engagement: ${err?.message || err}`)
+  }
+  if (!engagement) return notSaved(`No engagement found with number ${args.engagementNumber}. Nothing was written.`)
+
+  const sourceKey = `mcp:set_next_action:${args.idempotencyKey}`
+  const payload = {
+    engagement_id: engagement.id,
+    source_key: sourceKey,
+    title,
+    action_type: args.actionType,
+    status: 'OPEN',
+    priority: args.priority,
+    due_date: args.dueDate ?? null,
+    why_now: args.whyNow ?? null,
+    instructions: args.instructions ?? null,
+    success_condition: args.successCondition ?? null,
+    certainty_state: 'KNOWN',
+    origin: 'MANUAL',
+    visibility: 'INTERNAL',
+    metadata: { canonical_role: 'MCP_PROPOSED_ACTION', capture_surface: 'stage_presence_cockpit_artifact' },
+  }
+
+  let inserted: any
+  try {
+    const rows = await pgrestUpsert(env, 'work_items', 'source_key', payload)
+    inserted = Array.isArray(rows) ? rows[0] : rows
+  } catch (err: any) {
+    return notSaved(`Write failed: ${err?.message || err}`, { engagementNumber: engagement.engagement_number })
+  }
+  if (!inserted?.id) return notSaved('Write returned no record.', { engagementNumber: engagement.engagement_number })
+
+  // Canonical re-read: never trust the write response alone.
+  let verified: any = null
+  try {
+    const rows = await pgrest(env, 'work_items', {
+      select: 'id,engagement_id,source_key,title,action_type,status,priority,due_date,why_now,instructions,success_condition',
+      id: `eq.${inserted.id}`,
+      limit: '1',
+    })
+    verified = rows?.[0] ?? null
+  } catch (err: any) {
+    return notSaved(`Canonical re-read failed: ${err?.message || err}`, { engagementNumber: engagement.engagement_number, workItemId: inserted.id })
+  }
+  if (!verified) return notSaved('Canonical re-read did not find the record after write.', { engagementNumber: engagement.engagement_number, workItemId: inserted.id })
+
+  let currentNextWork: any = null
+  try {
+    const rows = await pgrest(env, 'engagement_summary_v', {
+      select: 'id,engagement_number,next_work',
+      id: `eq.${engagement.id}`,
+      limit: '1',
+    })
+    currentNextWork = rows?.[0]?.next_work ?? null
+  } catch {
+    currentNextWork = null
+  }
+
+  const becameNextWork = !!currentNextWork && currentNextWork.id === verified.id
+
+  return {
+    saved: true,
+    verificationState: 'VERIFIED_SAVED',
+    engagementNumber: engagement.engagement_number,
+    workItemId: verified.id,
+    title: verified.title,
+    actionType: verified.action_type,
+    priority: verified.priority,
+    dueDate: verified.due_date,
+    canonicalStatus: verified.status,
+    currentNextWork,
+    note: becameNextWork ? null : 'SAVED AS OPEN WORK — CURRENT NEXT WORK UNCHANGED',
+  }
+}
+
 /* ============================== MCP tool registry ============================== */
 
-const TOOLS = [
+interface McpTool {
+  name: string
+  description: string
+  inputSchema: Record<string, unknown>
+  annotations?: { title?: string; readOnlyHint?: boolean; destructiveHint?: boolean; idempotentHint?: boolean }
+  run: (env: Env, args: any) => Promise<any>
+}
+
+const TOOLS: McpTool[] = [
   {
     name: 'find_contact',
     description: 'Search real Stage Presence Parties by name, organization, email, or phone. Read-only.',
@@ -194,7 +352,30 @@ const TOOLS = [
     inputSchema: { type: 'object', properties: { limit: { type: 'number' } } },
     run: getUpcomingEngagements,
   },
-] as const
+  {
+    name: 'set_next_action',
+    description:
+      'Write ONE new OPEN work item (next action) on a real engagement — ONLY after the human has explicitly approved the exact proposed change (confirmed=true). Never modifies, cancels, completes, or reprioritizes any existing work item. Idempotent: retries with the same idempotencyKey re-affirm the same row instead of duplicating it. Always re-reads the canonical row after writing and only reports success if that re-read confirms it.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        engagementNumber: { type: 'string', description: 'Real engagement number, e.g. SP-000014' },
+        title: { type: 'string' },
+        actionType: { type: 'string', enum: ACTION_TYPES },
+        priority: { type: 'string', enum: PRIORITIES },
+        dueDate: { type: 'string', description: 'Optional ISO date (YYYY-MM-DD)' },
+        whyNow: { type: 'string' },
+        instructions: { type: 'string' },
+        successCondition: { type: 'string' },
+        confirmed: { type: 'boolean', description: 'Must be literally true. Set only after the human clicked Approve on the exact proposed change.' },
+        idempotencyKey: { type: 'string', description: 'A unique key for this proposed mutation; retries with the same key never create a duplicate.' },
+      },
+      required: ['engagementNumber', 'title', 'actionType', 'priority', 'confirmed', 'idempotencyKey'],
+    },
+    annotations: { title: 'Set Next Action', readOnlyHint: false, destructiveHint: false, idempotentHint: true },
+    run: setNextAction,
+  },
+]
 
 const TOOLS_BY_NAME = new Map(TOOLS.map((t) => [t.name, t]))
 
@@ -221,7 +402,12 @@ async function handleRpc(env: Env, body: any) {
   }
   if (method === 'tools/list') {
     return jsonRpcResult(id, {
-      tools: TOOLS.map((t) => ({ name: t.name, description: t.description, inputSchema: t.inputSchema })),
+      tools: TOOLS.map((t) => ({
+        name: t.name,
+        description: t.description,
+        inputSchema: t.inputSchema,
+        ...(t.annotations ? { annotations: t.annotations } : {}),
+      })),
     })
   }
   if (method === 'tools/call') {

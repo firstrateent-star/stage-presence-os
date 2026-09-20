@@ -10,11 +10,13 @@ It exposes exactly 8 tools, each a fixed, parameterized read against an existing
 
 ## Tools
 
-`find_contact`, `find_engagement`, `get_pricing`, `generate_lead_summary`, `generate_job_sheet`, `search_stage_presence`, `get_attention_items`, `get_upcoming_engagements` — same names and intent as the capabilities in `src/lib/capabilityRegistry.ts`.
+**Reads (8):** `find_contact`, `find_engagement`, `get_pricing`, `generate_lead_summary`, `generate_job_sheet`, `search_stage_presence`, `get_attention_items`, `get_upcoming_engagements` — same names and intent as the capabilities in `src/lib/capabilityRegistry.ts`. Live reads through the deployed Worker have been proven against real Supabase data.
+
+**Write (1): `set_next_action`.** Inserts exactly one `OPEN` row into `public.work_items` for a real engagement — never modifies, cancels, completes, or reprioritizes any other existing work item. Only runs when `confirmed: true` is passed (the Artifact must only send that after the human clicked Approve on the exact proposed change). Idempotent: retries with the same `idempotencyKey` re-affirm the same row via the table's unique `source_key` column instead of creating a duplicate. Always re-reads the row (and the engagement's current `next_work`) after writing — reports `saved: true, verificationState: "VERIFIED_SAVED"` only if that re-read confirms it, otherwise `saved: false, verificationState: "NOT_SAVED"`. MCP annotations: `readOnlyHint: false`, `destructiveHint: false`, `idempotentHint: true`.
 
 ## Auth model
 
-- **Bridge → Supabase**: a `SUPABASE_SERVICE_ROLE_KEY` held only as a Cloudflare Worker secret, never sent to the browser or the Artifact. It bypasses RLS, which is safe here specifically because the Worker code only ever runs the 8 fixed, hardcoded query shapes above — there is no path for a caller to widen what gets queried.
+- **Bridge → Supabase**: a `SUPABASE_SERVICE_ROLE_KEY` held only as a Cloudflare Worker secret, never sent to the browser or the Artifact. It bypasses RLS, which is safe here specifically because the Worker code only ever runs the 9 fixed, hardcoded query/mutation shapes above — there is no path for a caller to widen what gets queried or written.
 - **Claude → Bridge**: a shared `BRIDGE_TOKEN` bearer secret, checked on every request. Without it, every request gets `401`.
 
 ## Local development

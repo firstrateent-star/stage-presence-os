@@ -471,7 +471,13 @@ Every `CONSEQUENTIAL` entry declares `requiresHumanReview: true`, enforced struc
 
 While implementing this, `src/screens/GregMode.tsx`'s pricing-rule edit/approve/retire/create actions (added in the prior "Greg Command Center v1" work) were found writing to `pricing_rules` directly, which was already failing that UI-discipline contract test. These were extracted into `pricingRuntime.updatePricingRuleFields/approvePricingRule/retirePricingRule/createManualPricingRule`; see `docs/DECISIONS.md`.
 
-No Artifact cockpit has been built yet. No AI (Claude or otherwise) has been wired into this registry — it is the capability surface an AI layer would call once that is built, per the scoped gate decision in `docs/DECISIONS.md` (2026-09-20).
+### Greg Cockpit Artifact + `mcp-bridge` — live reads proven, first write built (2026-09-20)
+
+A Claude Artifact ("Stage Presence Cockpit") now exists and is connected to real Stage Presence data through `mcp-bridge/` — a narrow Cloudflare Worker (`stage-presence-mcp-bridge`) that is the only thing standing between the Artifact and Supabase. It holds `SUPABASE_SERVICE_ROLE_KEY` as a Worker secret (never sent to the Artifact/browser) and runs only fixed, hardcoded PostgREST query shapes mirroring the capability registry above — no arbitrary SQL is ever accepted from the Artifact side. It is registered in claude.ai as the `stage-presence` remote MCP connector, gated by a `BRIDGE_TOKEN` bearer secret.
+
+8 read tools (`find_contact`, `find_engagement`, `get_pricing`, `generate_lead_summary`, `generate_job_sheet`, `search_stage_presence`, `get_attention_items`, `get_upcoming_engagements`) are deployed and **live reads have been proven**: real tool calls through the connector returned real current Supabase data (e.g. the two real "Lowvelo" engagements, the one real DRAFT_CANDIDATE 12x7 LED Trailer price, real Needs Attention / upcoming-engagement lists), including values that don't match any earlier prototype/example data — confirming these are genuine live queries, not a re-served snapshot.
+
+A 9th tool, `set_next_action`, has been added (same Worker, same service-role-key trust model as the reads — no new architecture). It inserts exactly one `OPEN` `work_items` row via an upsert keyed on a caller-supplied `idempotencyKey` (mapped to the table's existing unique `source_key` column), only when `confirmed: true` is passed, never modifies any other existing work item, and always re-reads the row (and the engagement's current `next_work`) before reporting `VERIFIED_SAVED` — a write that can't be confirmed by re-read is reported `NOT_SAVED`. See `docs/DECISIONS.md` (2026-09-20) for why an OAuth/RLS-based alternative was not built instead. **Not yet write-tested against real data** — that requires explicit human approval of a specific test case before it runs.
 
 ---
 
