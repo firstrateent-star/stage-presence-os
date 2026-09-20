@@ -373,12 +373,9 @@ function createServer(env: Env) {
 }
 
 function unauthorized() {
-  return new Response("Unauthorized", {
-    status: 401,
-    headers: {
-      "WWW-Authenticate": 'Bearer realm="stage-presence-mcp"',
-    },
-  });
+  // This bridge uses a static API key, not OAuth. Do not advertise a
+  // WWW-Authenticate challenge or MCP clients may incorrectly start OAuth.
+  return new Response("Unauthorized", { status: 401 });
 }
 
 export default {
@@ -391,6 +388,7 @@ export default {
         status: "ok",
         protocol: "streamable-http",
         endpoint: "/mcp",
+        authentication: "x-api-key",
       });
     }
 
@@ -398,8 +396,12 @@ export default {
       return new Response("Not found", { status: 404 });
     }
 
+    const apiKey = request.headers.get("x-api-key") || "";
     const auth = request.headers.get("authorization") || "";
-    if (!env.BRIDGE_TOKEN || auth !== `Bearer ${env.BRIDGE_TOKEN}`) {
+    const tokenMatches =
+      apiKey === env.BRIDGE_TOKEN || auth === `Bearer ${env.BRIDGE_TOKEN}`;
+
+    if (!env.BRIDGE_TOKEN || !tokenMatches) {
       return unauthorized();
     }
 
