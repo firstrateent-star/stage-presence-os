@@ -138,10 +138,11 @@ Current backend signal set:
 - Billing/collection automation: DORMANT
 
 ## AI
-- AI boundary/contracts: STAGED
+- AI boundary/contracts: LIVE — `src/lib/capabilityRegistry.ts` (2026-09-20); see `docs/CURRENT_STATE.md`
 - Paid AI API calls: NONE
-- Engagement Interpreter: STAGED behind privacy/cost/authority decision
+- Engagement Interpreter: STAGED behind privacy/cost/authority decision, except a Claude-in-Artifact cockpit calling the Capability Registry, which is scoped-approved per `docs/PERMISSION_GATES.md` (2026-09-20); no such cockpit is built yet
 - AI may propose candidates but may not silently convert inference into verified truth
+- Named, human-review-gated capability functions (find_contact, find_engagement, create_lead, update_lead, set_next_action, get_pricing, build_quote_draft, save_quote_draft, create_job, update_job, add_resource_requirement, assign_team_member, generate_lead_summary, generate_email, generate_job_sheet, search_stage_presence): LIVE as callable functions; not yet wired to any AI surface
 
 ## Current strategic interpretation
 Stage Presence OS is no longer an empty Shared Reality prototype. It now contains a meaningful current slice of real Stage Presence customers, Engagements, dates, configured resources, pricing evidence, conflicts and unknowns.

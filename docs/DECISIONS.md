@@ -201,3 +201,24 @@ Reason: real Stage Presence quoting must represent structures such as per-panel/
 ## 2026-09-12 — Estimate Runtime reuses the direct-cost ledger
 Decision: do not create a second estimate header/line aggregate. `engagement_cost_items` remains the canonical job-cost ledger and progresses through `ESTIMATE → COMMITTED → ACTUAL → CANCELLED`. Add read contracts and application commands around that ledger, and snapshot any reusable Cost Book rate when it is applied to a job.
 Reason: the existing cost model already carries quantity, unit cost, amount, contributor/resource/vendor links, fulfillment/commercial linkage, reusable rate linkage, rate snapshot, provenance and certainty. A separate estimate model would duplicate economic truth and create reconciliation debt. Missing cost remains an explicit coverage gap rather than `$0`, DRAFT rates require explicit opt-in, and later Cost Book revisions must never rewrite historical job economics. Canonical design: `docs/ESTIMATE_RUNTIME_V1.md`.
+
+## 2026-09-20 — Stage Presence Capability Registry
+Decision: add `src/lib/capabilityRegistry.ts` as the fixed, named action surface for any AI operating layer (Greg cockpit, chat operating desk, future automation). Every entry wraps an existing canonical `src/lib` function or performs a read-only query against an existing table/view. No new writes, no new abstractions, no separate "Lead"/"Job" entity.
+Reason: an AI layer must call named, reviewable business actions instead of freely writing SQL — the same "UI must not touch tables directly" discipline already enforced on the human frontend (`scripts/backendContracts.test.mjs`). Reused the existing OBSERVE/SUGGEST/REVERSIBLE/CONSEQUENTIAL authority vocabulary from Capture Intelligence rather than inventing a new one. Structurally enforced by `scripts/capabilityRegistry.contract.test.mjs`, which requires every CONSEQUENTIAL entry to declare `requiresHumanReview: true`.
+
+## 2026-09-20 — GregMode pricing writes routed through pricingRuntime
+Decision: extract `GregMode.tsx`'s four direct `pricing_rules` mutations (edit, approve, retire, create-draft) into named functions in `src/lib/pricingRuntime.ts` (`updatePricingRuleFields`, `approvePricingRule`, `retirePricingRule`, `createManualPricingRule`).
+Reason: these direct writes predated this pass (introduced in the prior "Greg Command Center v1" work) and were already failing the repo's own `backendContracts.test.mjs` "no component writes canonical backend tables directly" contract. Fixing this reinforces the exact discipline the Capability Registry depends on.
+
+## 2026-09-20 — Resume development; Capture Interpreter gate scoped for Claude-in-Artifact usage
+Decision: Greg explicitly chose to resume development (default is otherwise "operate and learn, not keep building") and to move forward on the Capture Interpreter / external AI processing gate in `docs/PERMISSION_GATES.md`, specifically for a Claude-powered Artifact cockpit rather than a server-side paid third-party API integration. That gate requires nine items resolved before activation; resolution for this specific form:
+1. Provider/project ownership — not applicable as scoped: Claude runs inside an Anthropic Artifact under the viewer's own Claude account; no separate Stage Presence-owned API project or key exists.
+2. Data boundary — the Artifact must call only the Capability Registry's read functions (`find_contact`, `find_engagement`, `get_pricing`, `search_stage_presence`, `generate_lead_summary`/`generate_email`/`generate_job_sheet`), never broad table access.
+3. Output authority — unchanged: AI output is candidate interpretation only, never verified business truth.
+4. Promotion authority — unchanged: no silent contractual, pricing, capacity, payment, reservation, or safety commitments; every CONSEQUENTIAL capability requires human review before commit.
+5. Confidence handling — unchanged: material ambiguity stays visible.
+6. Matching — unchanged: `find_contact`/`find_engagement` return literal-match candidates only; no automatic dedup/merge.
+7. Cost/budget — not applicable as scoped: no metered API key means no separate Stage Presence budget line; usage is bounded by the viewer's own Claude account.
+8. Secrets — not applicable as scoped: no API key exists to leak; nothing server-side is introduced.
+9. Logging/retention — capture review continues through the existing `CAPTURE_REVIEW_RECORDED` event pattern (`captureReviewTrace.ts`) when Artifact proposals are approved or rejected.
+Reason: this resolution covers only the Claude-in-Artifact approach described above, because it structurally lacks the provider/budget/secrets surface the original gate was written to guard. A future server-side paid AI integration (for example, automated photo/OCR interpretation running without a human in the loop) is a materially different case and still requires the original gate's full resolution, including a real provider, budget, and secrets decision.
