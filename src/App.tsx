@@ -14,6 +14,7 @@ import { WarehouseVerificationPanel } from './components/WarehouseVerificationPa
 import { EngagementDetailScreen } from './screens/EngagementDetailScreen'
 import { NewEngagementScreen } from './screens/NewEngagementScreen'
 import { LoginScreen } from './screens/LoginScreen'
+import { OAuthConsentScreen } from './screens/OAuthConsentScreen'
 import { RecoveryScreen } from './screens/RecoveryScreen'
 import { CapabilityV2, EconomyV2, RelationshipsV2 } from './screens/OperatingSurfaceV2'
 import { ExploreHub, HumanToday, HumanWork, SystemHub, WorkStory } from './screens/HumanInterfaceV2'
@@ -183,6 +184,16 @@ export default function App() {
         </div>
       </div>
     )
+  }
+
+  if (
+    isBackendConfigured &&
+    session &&
+    accessState === 'authorized' &&
+    typeof window !== 'undefined' &&
+    window.location.pathname === '/oauth/consent'
+  ) {
+    return <OAuthConsentScreen />
   }
 
   const loading = isBackendConfigured ? surface.loading : legacy.loading
