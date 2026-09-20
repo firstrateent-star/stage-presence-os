@@ -1,0 +1,2 @@
+SUPABASE_SERVICE_ROLE_KEY=paste-the-real-service-role-key-from-supabase-project-settings-api
+BRIDGE_TOKEN=generate-a-random-secret-e.g.-openssl-rand-hex-32
