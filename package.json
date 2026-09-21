@@ -13,7 +13,7 @@
     "mcp:dev": "wrangler dev --config mcp-bridge/wrangler.jsonc",
     "mcp:deploy": "wrangler deploy --config mcp-bridge/wrangler.jsonc",
     "eval:capture": "node --experimental-strip-types --test scripts/captureIntelligence.test.mjs",
-    "test:backend-contracts": "node --test scripts/backendContracts.test.mjs scripts/pricingRuntime.contract.test.mjs scripts/commercialOperationsBridge.contract.test.mjs scripts/resourceRequirementRuntime.contract.test.mjs scripts/warehouseFulfillmentRuntime.contract.test.mjs scripts/actualsRuntime.contract.test.mjs scripts/jobWorkspace.contract.test.mjs scripts/operationsCommandSurface.contract.test.mjs scripts/inventoryCapacityRuntime.contract.test.mjs scripts/warehouseVerificationSurface.contract.test.mjs scripts/maintenanceServiceRuntime.contract.test.mjs scripts/assetEconomicsRuntime.contract.test.mjs scripts/capabilityRegistry.contract.test.mjs"
+    "test:backend-contracts": "node --test scripts/backendContracts.test.mjs scripts/pricingRuntime.contract.test.mjs scripts/commercialOperationsBridge.contract.test.mjs scripts/resourceRequirementRuntime.contract.test.mjs scripts/warehouseFulfillmentRuntime.contract.test.mjs scripts/actualsRuntime.contract.test.mjs scripts/jobWorkspace.contract.test.mjs scripts/operationsCommandSurface.contract.test.mjs scripts/inventoryCapacityRuntime.contract.test.mjs scripts/warehouseVerificationSurface.contract.test.mjs scripts/maintenanceServiceRuntime.contract.test.mjs scripts/assetEconomicsRuntime.contract.test.mjs scripts/capabilityRegistry.contract.test.mjs scripts/stagePresenceMcp.contract.test.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "2.115.0",

@@ -196,6 +196,8 @@ const PRIORITIES = ['NOW', 'SOON', 'NORMAL', 'LOW'] as const
 
 const WORK_ITEM_FIELDS =
   'id,engagement_id,source_key,title,action_type,status,priority,due_date,why_now,instructions,success_condition'
+const WORK_ITEM_FULL_FIELDS = `${WORK_ITEM_FIELDS},completed_at,metadata`
+const OPEN_WORK_ITEM_STATUSES = ['OPEN', 'WAITING', 'BLOCKED']
 
 interface SetNextActionArgs {
   engagementNumber: string
@@ -369,12 +371,266 @@ async function setNextAction(supabase: ScopedSupabase, args: SetNextActionArgs) 
   }
 }
 
+/* ============================== complete_next_action ==============================
+   Targets one specific workItemId (never "whatever is next"). Only allows the transition
+   OPEN/WAITING/BLOCKED -> DONE; refuses on any other current status rather than guessing.
+   Never touches any row other than the one named by workItemId. Idempotent: the row's own
+   `metadata.completion_idempotency_key` (no new table) records which request completed it, so a
+   replay with the SAME idempotencyKey is a safe no-op, and completing an already-DONE item under
+   a DIFFERENT key is refused rather than silently treated as a no-op. */
+
+interface CompleteNextActionArgs {
+  workItemId: string
+  confirmed: boolean
+  idempotencyKey: string
+}
+
+async function completeNextAction(supabase: ScopedSupabase, args: CompleteNextActionArgs) {
+  const notSaved = (reason: string, extra: Record<string, unknown> = {}) => ({
+    saved: false,
+    verificationState: 'NOT_SAVED',
+    workItemId: args.workItemId ?? null,
+    reason,
+    ...extra,
+  })
+
+  if (args.confirmed !== true) {
+    return notSaved(
+      'Refused: confirmed must be literally true. This tool only writes after explicit human approval.',
+    )
+  }
+  if (!args.idempotencyKey) return notSaved('idempotencyKey is required.')
+  if (!args.workItemId) return notSaved('workItemId is required.')
+
+  const { data: current, error: currentError } = await supabase
+    .from('work_items')
+    .select(WORK_ITEM_FULL_FIELDS)
+    .eq('id', args.workItemId)
+    .maybeSingle()
+  if (currentError) return notSaved(`Could not look up work item: ${currentError.message}`)
+  if (!current) return notSaved(`No work item found with id ${args.workItemId}. Nothing was written.`)
+
+  const sourceKey = `mcp:complete_next_action:${args.idempotencyKey}`
+
+  if (current.status === 'DONE') {
+    if (current.metadata?.completion_idempotency_key === sourceKey) {
+      // Idempotent replay of the exact request that already completed this item.
+      return rereadCompletedWorkItem(supabase, args.workItemId, current.engagement_id, 'Already DONE — idempotent replay, no change made.')
+    }
+    return notSaved(`Work item ${args.workItemId} is already DONE (completed by a different request). No transition applied.`, {
+      engagementId: current.engagement_id,
+    })
+  }
+  if (!OPEN_WORK_ITEM_STATUSES.includes(current.status)) {
+    return notSaved(`Work item ${args.workItemId} has status ${current.status}, which does not support completion. No transition applied.`, {
+      engagementId: current.engagement_id,
+    })
+  }
+
+  const { error: updateError } = await supabase
+    .from('work_items')
+    .update({
+      status: 'DONE',
+      completed_at: new Date().toISOString(),
+      metadata: { ...(current.metadata ?? {}), completion_idempotency_key: sourceKey },
+    })
+    .eq('id', args.workItemId)
+  if (updateError) return notSaved(`Write failed: ${updateError.message}`, { engagementId: current.engagement_id })
+
+  return rereadCompletedWorkItem(supabase, args.workItemId, current.engagement_id, null)
+}
+
+async function rereadCompletedWorkItem(supabase: ScopedSupabase, workItemId: string, engagementId: string, note: string | null) {
+  // Canonical re-read: never trust the write (or the pre-check) response alone.
+  const { data: verified, error: verifyError } = await supabase
+    .from('work_items')
+    .select(WORK_ITEM_FULL_FIELDS)
+    .eq('id', workItemId)
+    .maybeSingle()
+  if (verifyError) return { saved: false, verificationState: 'NOT_SAVED', workItemId, reason: `Canonical re-read failed: ${verifyError.message}` }
+  if (!verified || verified.status !== 'DONE' || !verified.completed_at) {
+    return { saved: false, verificationState: 'NOT_SAVED', workItemId, reason: 'Canonical re-read did not confirm a completed record.' }
+  }
+
+  const { data: summaryRow } = await supabase
+    .from('engagement_summary_v')
+    .select('id,engagement_number,next_work')
+    .eq('id', engagementId)
+    .maybeSingle()
+
+  return {
+    saved: true,
+    verificationState: 'VERIFIED_SAVED',
+    workItemId: verified.id,
+    engagementId,
+    engagementNumber: summaryRow?.engagement_number ?? null,
+    title: verified.title,
+    canonicalStatus: verified.status,
+    completedAt: verified.completed_at,
+    currentNextWork: summaryRow?.next_work ?? null,
+    note,
+  }
+}
+
+/* ============================== update_next_action ==============================
+   Targets one specific workItemId. Only the fields explicitly supplied are changed — omitted
+   fields are left exactly as they are, never silently overwritten or cleared. Refuses to edit a
+   DONE or CANCELLED item (a closed record is not reopened by this tool). Idempotent: the row's
+   own `metadata.last_update` records which idempotencyKey applied which exact field payload, so a
+   replay with the SAME key and SAME payload is a safe no-op; the SAME key with a DIFFERENT payload
+   is refused (NOT_SAVED) rather than silently applied. */
+
+interface UpdateNextActionArgs {
+  workItemId: string
+  confirmed: boolean
+  idempotencyKey: string
+  title?: string
+  actionType?: string
+  priority?: string
+  dueDate?: string
+  whyNow?: string
+  instructions?: string
+  successCondition?: string
+}
+
+const UPDATE_NEXT_ACTION_FIELD_MAP: Record<string, string> = {
+  title: 'title',
+  actionType: 'action_type',
+  priority: 'priority',
+  dueDate: 'due_date',
+  whyNow: 'why_now',
+  instructions: 'instructions',
+  successCondition: 'success_condition',
+}
+
+async function updateNextAction(supabase: ScopedSupabase, args: UpdateNextActionArgs) {
+  const notSaved = (reason: string, extra: Record<string, unknown> = {}) => ({
+    saved: false,
+    verificationState: 'NOT_SAVED',
+    workItemId: args.workItemId ?? null,
+    reason,
+    ...extra,
+  })
+
+  if (args.confirmed !== true) {
+    return notSaved(
+      'Refused: confirmed must be literally true. This tool only writes after explicit human approval.',
+    )
+  }
+  if (!args.idempotencyKey) return notSaved('idempotencyKey is required.')
+  if (!args.workItemId) return notSaved('workItemId is required.')
+  if (args.actionType !== undefined && !(ACTION_TYPES as readonly string[]).includes(args.actionType)) {
+    return notSaved(`Invalid actionType: ${args.actionType}. Must be one of ${ACTION_TYPES.join(', ')}.`)
+  }
+  if (args.priority !== undefined && !(PRIORITIES as readonly string[]).includes(args.priority)) {
+    return notSaved(`Invalid priority: ${args.priority}. Must be one of ${PRIORITIES.join(', ')}.`)
+  }
+
+  const requestedEntries = Object.entries(UPDATE_NEXT_ACTION_FIELD_MAP)
+    .filter(([argKey]) => (args as unknown as Record<string, unknown>)[argKey] !== undefined)
+  if (requestedEntries.length === 0) {
+    return notSaved('No fields supplied to update. Provide at least one of: title, actionType, priority, dueDate, whyNow, instructions, successCondition.')
+  }
+
+  const { data: current, error: currentError } = await supabase
+    .from('work_items')
+    .select(WORK_ITEM_FULL_FIELDS)
+    .eq('id', args.workItemId)
+    .maybeSingle()
+  if (currentError) return notSaved(`Could not look up work item: ${currentError.message}`)
+  if (!current) return notSaved(`No work item found with id ${args.workItemId}. Nothing was written.`)
+  if (current.status === 'DONE' || current.status === 'CANCELLED') {
+    return notSaved(`Work item ${args.workItemId} has status ${current.status} and is closed; this tool does not edit closed items.`, {
+      engagementId: current.engagement_id,
+    })
+  }
+
+  const requestedPatch: Record<string, unknown> = {}
+  const changes: Record<string, { from: unknown; to: unknown }> = {}
+  for (const [argKey, column] of requestedEntries) {
+    const newValue = (args as unknown as Record<string, unknown>)[argKey]
+    requestedPatch[column] = newValue
+    changes[column] = { from: current[column] ?? null, to: newValue }
+  }
+
+  const sourceKey = `mcp:update_next_action:${args.idempotencyKey}`
+  const payloadSignature = JSON.stringify(requestedPatch, Object.keys(requestedPatch).sort())
+
+  if (current.metadata?.last_update?.key === sourceKey) {
+    if (current.metadata.last_update.payload === payloadSignature) {
+      // Idempotent replay of the exact same edit.
+      return rereadUpdatedWorkItem(supabase, args.workItemId, current.engagement_id, changes, 'Idempotent replay — no change made.')
+    }
+    return notSaved('This idempotencyKey was already used for a different update payload on this work item. Use a new idempotencyKey for a new or edited proposal.', {
+      engagementId: current.engagement_id,
+    })
+  }
+
+  const { error: updateError } = await supabase
+    .from('work_items')
+    .update({
+      ...requestedPatch,
+      metadata: { ...(current.metadata ?? {}), last_update: { key: sourceKey, payload: payloadSignature, at: new Date().toISOString() } },
+    })
+    .eq('id', args.workItemId)
+  if (updateError) return notSaved(`Write failed: ${updateError.message}`, { engagementId: current.engagement_id })
+
+  return rereadUpdatedWorkItem(supabase, args.workItemId, current.engagement_id, changes, null)
+}
+
+async function rereadUpdatedWorkItem(
+  supabase: ScopedSupabase,
+  workItemId: string,
+  engagementId: string,
+  changes: Record<string, { from: unknown; to: unknown }>,
+  note: string | null,
+) {
+  // Canonical re-read: never trust the write (or the pre-check) response alone.
+  const { data: verified, error: verifyError } = await supabase
+    .from('work_items')
+    .select(WORK_ITEM_FULL_FIELDS)
+    .eq('id', workItemId)
+    .maybeSingle()
+  if (verifyError) return { saved: false, verificationState: 'NOT_SAVED', workItemId, reason: `Canonical re-read failed: ${verifyError.message}` }
+  if (!verified) return { saved: false, verificationState: 'NOT_SAVED', workItemId, reason: 'Canonical re-read did not find the record after write.' }
+
+  for (const [column, { to }] of Object.entries(changes)) {
+    if ((verified as Record<string, unknown>)[column] !== to) {
+      return {
+        saved: false,
+        verificationState: 'NOT_SAVED',
+        workItemId,
+        reason: `Canonical re-read did not confirm the requested change to ${column}.`,
+      }
+    }
+  }
+
+  return {
+    saved: true,
+    verificationState: 'VERIFIED_SAVED',
+    workItemId: verified.id,
+    engagementId,
+    changes,
+    canonicalStatus: verified.status,
+    current: {
+      title: verified.title,
+      actionType: verified.action_type,
+      priority: verified.priority,
+      dueDate: verified.due_date,
+      whyNow: verified.why_now,
+      instructions: verified.instructions,
+      successCondition: verified.success_condition,
+    },
+    note,
+  }
+}
+
 Deno.serve(
   pipeline(
     [withOAuthProtectedResource(), withSupabase({ auth: 'user' })],
     async (req, { supabase }) => {
       const handler = createMcpHandler(() => {
-        const server = new McpServer({ name: 'stage-presence', version: '1.0.0' })
+        const server = new McpServer({ name: 'stage-presence', version: '1.1.0' })
 
         server.registerTool('find_contact', {
           description: 'Search Stage Presence contacts by name, organization, email, or phone. Read-only.',
@@ -478,6 +734,41 @@ Deno.serve(
           annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true },
         }, async (args) => {
           try { return toolResult(await setNextAction(supabase, args)) }
+          catch (error) { return toolError(error) }
+        })
+
+        server.registerTool('complete_next_action', {
+          description:
+            'Mark ONE specific work item (by workItemId) DONE — ONLY after the human has explicitly approved it (confirmed=true). Only allows the transition OPEN/WAITING/BLOCKED -> DONE; refuses on any other current status. Never completes a different item. Idempotent: a retry with the same idempotencyKey on an already-completed item is a safe no-op; completing an already-DONE item under a different idempotencyKey is refused. Always re-reads the canonical row after writing and only reports success if that re-read confirms it.',
+          inputSchema: z.object({
+            workItemId: z.string().describe('The specific work item to complete — never "whatever is next".'),
+            confirmed: z.literal(true).describe('Must be literally true. Set only after the human clicked Approve on the exact proposed change.'),
+            idempotencyKey: z.string().describe('A unique key for this proposed mutation; a retry with the same key is a no-op once completed.'),
+          }),
+          annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true },
+        }, async (args) => {
+          try { return toolResult(await completeNextAction(supabase, args)) }
+          catch (error) { return toolError(error) }
+        })
+
+        server.registerTool('update_next_action', {
+          description:
+            'Narrowly edit ONE specific work item (by workItemId) — ONLY after the human has explicitly approved the exact proposed change (confirmed=true). Only the fields explicitly supplied are changed; omitted fields are left untouched. Refuses to edit a DONE or CANCELLED (closed) item. Idempotent: a retry with the same idempotencyKey AND the same field payload is a safe no-op; the same idempotencyKey with a different payload is refused (NOT_SAVED). Always re-reads the canonical row after writing and only reports success if that re-read confirms every requested change.',
+          inputSchema: z.object({
+            workItemId: z.string().describe('The specific work item to edit.'),
+            confirmed: z.literal(true).describe('Must be literally true. Set only after the human clicked Approve on the exact proposed change.'),
+            idempotencyKey: z.string().describe('A unique key for this proposed mutation; a retry with the same key and the same payload is a no-op, a different payload is refused.'),
+            title: z.string().optional(),
+            actionType: z.enum(ACTION_TYPES).optional(),
+            priority: z.enum(PRIORITIES).optional(),
+            dueDate: z.string().optional().describe('ISO date (YYYY-MM-DD)'),
+            whyNow: z.string().optional(),
+            instructions: z.string().optional(),
+            successCondition: z.string().optional(),
+          }),
+          annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true },
+        }, async (args) => {
+          try { return toolResult(await updateNextAction(supabase, args)) }
           catch (error) { return toolError(error) }
         })
 

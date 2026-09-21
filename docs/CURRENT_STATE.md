@@ -473,13 +473,18 @@ While implementing this, `src/screens/GregMode.tsx`'s pricing-rule edit/approve/
 
 No Artifact cockpit has been built yet. No AI (Claude or otherwise) has been wired into this registry — it is the capability surface an AI layer would call once that is built, per the scoped gate decision in `docs/DECISIONS.md` (2026-09-20).
 
-### Stage Presence MCP — OAuth-backed Supabase Edge Function, 9 tools (2026-09-20)
+### Stage Presence MCP — OAuth-backed Supabase Edge Function, 11 tools (2026-09-21)
 
 `supabase/functions/stage-presence-mcp/index.ts` is the real, currently-deployed MCP surface for Stage Presence: a Supabase Edge Function behind Supabase OAuth 2.1 (`withOAuthProtectedResource()` + `withSupabase({ auth: 'user' })`), reachable at `https://yaojcuvgtlncytujfxef.supabase.co/functions/v1/stage-presence-mcp`. Every tool runs against the per-request client that middleware injects — scoped to the calling user's own session, subject to ordinary RLS. No service-role key, no raw SQL, anywhere in this function.
 
 8 read tools mirror the capability registry's read surface: `find_contact`, `find_engagement`, `get_pricing`, `generate_lead_summary`, `generate_job_sheet`, `search_stage_presence`, `get_attention_items`, `get_upcoming_engagements`.
 
-A 9th tool, `set_next_action`, writes exactly one `OPEN` `work_items` row per approved proposal. It requires `confirmed: true` (enforced by the input schema itself) and an `idempotencyKey`; the same key with an identical payload returns the already-saved record, the same key with a different payload is refused (`NOT_SAVED`) rather than silently overwritten. It never touches any other existing work item, and always re-reads the row (and the engagement's current `next_work`) before reporting `VERIFIED_SAVED`. See `docs/DECISIONS.md` (2026-09-20).
+3 write tools complete the `work_items` (next-action) lifecycle, all requiring `confirmed: true` and a caller-supplied `idempotencyKey`, all performing a canonical re-read before reporting `VERIFIED_SAVED` (never `SAVED` from the write response alone), all refusing idempotency-key reuse with a changed payload:
+- `set_next_action` — creates exactly one `OPEN` `work_items` row per approved proposal.
+- `complete_next_action` — targets one specific `workItemId`, only allows `OPEN`/`WAITING`/`BLOCKED` → `DONE`, sets `completed_at`.
+- `update_next_action` — narrowly patches only the fields explicitly supplied on one specific `workItemId`; refuses to edit a closed (`DONE`/`CANCELLED`) item.
+
+**Proven live**: on 2026-09-21, Greg approved and `set_next_action` created a real work item (`20d10a27-e4fa-4a6b-ae38-d5447ef4186d`, "Follow up on final LowVelo IOP scope") on `SP-000014`, confirmed `VERIFIED_SAVED` by canonical re-read, and `engagement_summary_v.next_work` reflected it correctly. `complete_next_action`/`update_next_action` are built and contract-tested but not yet exercised against live business data. See `docs/DECISIONS.md` (2026-09-20, 2026-09-21).
 
 A separate, earlier exploration built a narrow Cloudflare Worker (`mcp-bridge/`, service-role-key trust model) on `claude/confident-sagan-5y3701` for the same purpose. That branch is not the production path and was left untouched by this work — the Supabase Edge Function above is Stage Presence's actual deployed MCP endpoint.
 
