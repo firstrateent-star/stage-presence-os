@@ -473,7 +473,7 @@ While implementing this, `src/screens/GregMode.tsx`'s pricing-rule edit/approve/
 
 No Artifact cockpit has been built yet. No AI (Claude or otherwise) has been wired into this registry — it is the capability surface an AI layer would call once that is built, per the scoped gate decision in `docs/DECISIONS.md` (2026-09-20).
 
-### Stage Presence MCP — OAuth-backed Supabase Edge Function, 11 tools (2026-09-21)
+### Stage Presence MCP — OAuth-backed Supabase Edge Function, 12 tools (2026-09-21)
 
 `supabase/functions/stage-presence-mcp/index.ts` is the real, currently-deployed MCP surface for Stage Presence: a Supabase Edge Function behind Supabase OAuth 2.1 (`withOAuthProtectedResource()` + `withSupabase({ auth: 'user' })`), reachable at `https://yaojcuvgtlncytujfxef.supabase.co/functions/v1/stage-presence-mcp`. Every tool runs against the per-request client that middleware injects — scoped to the calling user's own session, subject to ordinary RLS. No service-role key, no raw SQL, anywhere in this function.
 
@@ -484,7 +484,9 @@ No Artifact cockpit has been built yet. No AI (Claude or otherwise) has been wir
 - `complete_next_action` — targets one specific `workItemId`, only allows `OPEN`/`WAITING`/`BLOCKED` → `DONE`, sets `completed_at`.
 - `update_next_action` — narrowly patches only the fields explicitly supplied on one specific `workItemId`; refuses to edit a closed (`DONE`/`CANCELLED`) item.
 
-**Proven live**: on 2026-09-21, Greg approved and `set_next_action` created a real work item (`20d10a27-e4fa-4a6b-ae38-d5447ef4186d`, "Follow up on final LowVelo IOP scope") on `SP-000014`, confirmed `VERIFIED_SAVED` by canonical re-read, and `engagement_summary_v.next_work` reflected it correctly. `complete_next_action`/`update_next_action` are built and contract-tested but not yet exercised against live business data. See `docs/DECISIONS.md` (2026-09-20, 2026-09-21).
+A 12th tool, `create_lead`, is the first real intake path: writes one `engagements` row (a lead is not a separate entity) plus, only where supplied, a linked contact/venue and known-unknown facts, reusing `src/lib/canonicalWrites.ts`'s existing ambiguous-match-never-guessed precedent for contacts/venues. Idempotent via `engagements.source_key` (already reserved for "idempotent external-system imports").
+
+**Proven live**: on 2026-09-21, Greg approved and `set_next_action` created a real work item (`20d10a27-e4fa-4a6b-ae38-d5447ef4186d`, "Follow up on final LowVelo IOP scope") on `SP-000014`, confirmed `VERIFIED_SAVED` by canonical re-read, and `engagement_summary_v.next_work` reflected it correctly. `complete_next_action`/`update_next_action`/`create_lead` are built and contract-tested but not yet exercised against live business data. See `docs/DECISIONS.md` (2026-09-20, 2026-09-21).
 
 A separate, earlier exploration built a narrow Cloudflare Worker (`mcp-bridge/`, service-role-key trust model) on `claude/confident-sagan-5y3701` for the same purpose. That branch is not the production path and was left untouched by this work — the Supabase Edge Function above is Stage Presence's actual deployed MCP endpoint.
 

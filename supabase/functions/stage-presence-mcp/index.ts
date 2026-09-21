@@ -625,12 +625,360 @@ async function rereadUpdatedWorkItem(
   }
 }
 
+/* ============================== create_lead ==============================
+   A lead is an early-stage Engagement — no separate `leads` table. Reuses engagements, parties,
+   engagement_parties, locations, engagement_locations, engagement_facts, source_artifacts
+   (provenance, same pattern as src/lib/repository.ts's createEngagement), and work_items
+   (optional initial next action, same shape as set_next_action).
+   Never auto-merges an ambiguous contact/venue match: reuses a party/location only when exactly
+   one confident match exists (exact email/phone for contacts, exact name for venues — mirrors
+   src/lib/canonicalWrites.ts's linkCanonicalVenue); on more than one match it records the
+   ambiguity as a CONFLICTING engagement_fact rather than guessing, and creates a new record only
+   when there is truly no match.
+   Idempotent via engagements.source_key — the same column the schema already reserves for
+   "idempotent external-system imports" (e.g. Goodshuffle) — plus a payload signature stored on
+   the linked source_artifacts.metadata, since engagements itself has no metadata column. */
+
+const ENGAGEMENT_TYPES = ['EVENT', 'LONG_TERM_RENTAL', 'INSTALLATION', 'EQUIPMENT_SALE', 'SERVICE', 'OTHER'] as const
+
+interface CreateLeadArgs {
+  title: string
+  engagementType?: string
+  contactName?: string
+  organizationName?: string
+  email?: string
+  phone?: string
+  eventDate?: string
+  venueName?: string
+  customerRequest?: string
+  desiredOutcome?: string
+  notes?: string
+  knownUnknowns?: string[]
+  nextActionTitle?: string
+  confirmed: boolean
+  idempotencyKey: string
+}
+
+type ContactMatchResult =
+  | { partyId: string; matchState: 'REUSED_EXISTING' | 'CREATED_NEW' }
+  | { partyId: null; matchState: 'NOT_PROVIDED' }
+  | { partyId: null; matchState: 'AMBIGUOUS_NOT_LINKED'; ambiguousOn: string; ambiguousValue: string }
+
+async function matchOrCreateContactParty(supabase: ScopedSupabase, args: CreateLeadArgs): Promise<ContactMatchResult> {
+  const email = args.email?.trim()
+  const phone = args.phone?.trim()
+  const contactName = args.contactName?.trim()
+  const organizationName = args.organizationName?.trim()
+
+  if (!email && !phone && !contactName && !organizationName) {
+    return { partyId: null, matchState: 'NOT_PROVIDED' }
+  }
+
+  for (const [column, value] of [['email', email], ['phone', phone]] as const) {
+    if (!value) continue
+    const { data: matches, error } = await supabase
+      .from('parties')
+      .select('id')
+      .ilike(column, value)
+      .is('archived_at', null)
+      .limit(2)
+    if (error) throw new Error(`Contact lookup failed: ${error.message}`)
+    if ((matches ?? []).length === 1) return { partyId: matches[0].id, matchState: 'REUSED_EXISTING' }
+    if ((matches ?? []).length > 1) return { partyId: null, matchState: 'AMBIGUOUS_NOT_LINKED', ambiguousOn: column, ambiguousValue: value }
+  }
+
+  const { data: created, error: createError } = await supabase
+    .from('parties')
+    .insert({
+      party_type: contactName ? 'PERSON' : 'ORGANIZATION',
+      name: contactName || organizationName,
+      organization_name: organizationName || null,
+      email: email || null,
+      phone: phone || null,
+    })
+    .select('id')
+    .single()
+  if (createError) throw new Error(`Could not create contact: ${createError.message}`)
+  return { partyId: created.id, matchState: 'CREATED_NEW' }
+}
+
+type VenueMatchResult =
+  | { locationId: string; matchState: 'REUSED_EXISTING' | 'CREATED_NEW' }
+  | { locationId: null; matchState: 'NOT_PROVIDED' | 'AMBIGUOUS_NOT_LINKED' }
+
+async function matchOrCreateVenueLocation(supabase: ScopedSupabase, venueName?: string): Promise<VenueMatchResult> {
+  const name = venueName?.trim()
+  if (!name) return { locationId: null, matchState: 'NOT_PROVIDED' }
+
+  const { data: matches, error } = await supabase
+    .from('locations')
+    .select('id')
+    .eq('name', name)
+    .is('archived_at', null)
+    .limit(2)
+  if (error) throw new Error(`Venue lookup failed: ${error.message}`)
+  if ((matches ?? []).length === 1) return { locationId: matches[0].id, matchState: 'REUSED_EXISTING' }
+  if ((matches ?? []).length > 1) return { locationId: null, matchState: 'AMBIGUOUS_NOT_LINKED' }
+
+  const { data: created, error: createError } = await supabase
+    .from('locations')
+    .insert({ name, location_type: 'VENUE' })
+    .select('id')
+    .single()
+  if (createError) throw new Error(`Could not create venue: ${createError.message}`)
+  return { locationId: created.id, matchState: 'CREATED_NEW' }
+}
+
+async function createLead(supabase: ScopedSupabase, args: CreateLeadArgs) {
+  const notSaved = (reason: string, extra: Record<string, unknown> = {}) => ({
+    saved: false,
+    verificationState: 'NOT_SAVED',
+    reason,
+    ...extra,
+  })
+
+  if (args.confirmed !== true) {
+    return notSaved('Refused: confirmed must be literally true. This tool only writes after explicit human approval.')
+  }
+  if (!args.idempotencyKey) return notSaved('idempotencyKey is required.')
+  const title = String(args.title || '').trim()
+  if (!title) return notSaved('title is required.')
+  if (args.engagementType !== undefined && !(ENGAGEMENT_TYPES as readonly string[]).includes(args.engagementType)) {
+    return notSaved(`Invalid engagementType: ${args.engagementType}. Must be one of ${ENGAGEMENT_TYPES.join(', ')}.`)
+  }
+
+  const sourceKey = `mcp:create_lead:${args.idempotencyKey}`
+  const submittedFields = {
+    title,
+    engagementType: args.engagementType ?? null,
+    contactName: args.contactName ?? null,
+    organizationName: args.organizationName ?? null,
+    email: args.email ?? null,
+    phone: args.phone ?? null,
+    eventDate: args.eventDate ?? null,
+    venueName: args.venueName ?? null,
+    customerRequest: args.customerRequest ?? null,
+    desiredOutcome: args.desiredOutcome ?? null,
+    notes: args.notes ?? null,
+    knownUnknowns: args.knownUnknowns ?? null,
+    nextActionTitle: args.nextActionTitle ?? null,
+  }
+  const payloadSignature = JSON.stringify(submittedFields)
+
+  // Idempotency check: has this exact proposal already been submitted? engagements has no
+  // metadata column of its own, so the check lives on the linked source_artifacts provenance row.
+  const { data: priorArtifact, error: priorError } = await supabase
+    .from('source_artifacts')
+    .select('id,metadata')
+    .eq('metadata->>mcp_idempotency_key', sourceKey)
+    .maybeSingle()
+  if (priorError) return notSaved(`Could not check for a prior submission with this idempotencyKey: ${priorError.message}`)
+  if (priorArtifact) {
+    if (priorArtifact.metadata?.mcp_payload_signature !== payloadSignature) {
+      return notSaved('This idempotencyKey was already used for a different lead proposal. Use a new idempotencyKey for a new or edited proposal.')
+    }
+    const priorEngagementId = priorArtifact.metadata?.mcp_engagement_id
+    if (!priorEngagementId) return notSaved('A prior submission with this idempotencyKey exists but its engagement could not be resolved.')
+    return rereadCreatedLead(supabase, priorEngagementId, 'Idempotent replay — no new record created.')
+  }
+
+  const { data: userData } = await supabase.auth.getUser()
+  const actorUserId = userData.user?.id ?? null
+
+  // Provenance: preserve exactly what was submitted, same pattern as src/lib/repository.ts's createEngagement.
+  const { data: artifact, error: artifactError } = await supabase
+    .from('source_artifacts')
+    .insert({
+      artifact_type: 'TEXT',
+      processing_state: 'NOT_REQUIRED',
+      created_by: actorUserId,
+      metadata: {
+        capture_surface: 'stage_presence_mcp',
+        mcp_idempotency_key: sourceKey,
+        mcp_payload_signature: payloadSignature,
+        submitted_fields: submittedFields,
+      },
+    })
+    .select('id')
+    .single()
+  if (artifactError) return notSaved(`Could not record provenance: ${artifactError.message}`)
+
+  const { data: engagement, error: engagementError } = await supabase
+    .from('engagements')
+    .insert({
+      name: title,
+      engagement_type: args.engagementType,
+      customer_request: args.customerRequest?.trim() || null,
+      desired_outcome: args.desiredOutcome?.trim() || null,
+      internal_summary: args.notes?.trim() || null,
+      event_start_date: args.eventDate || null,
+      source_key: sourceKey,
+      created_by: actorUserId,
+    })
+    .select('id,engagement_number')
+    .single()
+  if (engagementError) return notSaved(`Could not create engagement: ${engagementError.message}`)
+
+  // Link provenance to the created engagement so an idempotent replay can resolve it later.
+  await supabase.from('source_artifacts').update({
+    metadata: {
+      capture_surface: 'stage_presence_mcp',
+      mcp_idempotency_key: sourceKey,
+      mcp_payload_signature: payloadSignature,
+      mcp_engagement_id: engagement.id,
+      submitted_fields: submittedFields,
+    },
+  }).eq('id', artifact.id)
+  await supabase.from('events').insert({
+    engagement_id: engagement.id,
+    entity_type: 'source_artifact',
+    entity_id: artifact.id,
+    event_type: 'SOURCE_ADDED',
+    actor_user_id: actorUserId,
+    summary: 'Lead captured via Stage Presence MCP',
+    metadata: { source_type: 'TEXT' },
+  })
+
+  let contactResult: ContactMatchResult
+  try {
+    contactResult = await matchOrCreateContactParty(supabase, args)
+  } catch {
+    contactResult = { partyId: null, matchState: 'NOT_PROVIDED' }
+  }
+  if (contactResult.partyId) {
+    await supabase.from('engagement_parties').insert({
+      engagement_id: engagement.id,
+      party_id: contactResult.partyId,
+      role: 'CUSTOMER',
+      is_primary: true,
+    })
+  } else if (contactResult.matchState === 'AMBIGUOUS_NOT_LINKED') {
+    await supabase.from('engagement_facts').insert({
+      engagement_id: engagement.id,
+      category: 'CUSTOMER',
+      kind: 'OBSERVATION',
+      label: 'Contact match needs review',
+      value_text: contactResult.ambiguousValue,
+      certainty_state: 'CONFLICTING',
+      source_type: 'MANUAL',
+      source_artifact_id: artifact.id,
+      notes: 'Multiple canonical Party records share this exact value. The system preserved the input but did not guess which Party is correct.',
+      created_by: actorUserId,
+    })
+  }
+
+  let venueResult: VenueMatchResult
+  try {
+    venueResult = await matchOrCreateVenueLocation(supabase, args.venueName)
+  } catch {
+    venueResult = { locationId: null, matchState: 'NOT_PROVIDED' }
+  }
+  if (venueResult.locationId) {
+    await supabase.from('engagement_locations').insert({
+      engagement_id: engagement.id,
+      location_id: venueResult.locationId,
+      role: 'VENUE',
+      is_primary: true,
+      certainty_state: 'KNOWN',
+      source_artifact_id: artifact.id,
+    })
+  } else if (venueResult.matchState === 'AMBIGUOUS_NOT_LINKED' && args.venueName?.trim()) {
+    await supabase.from('engagement_facts').insert({
+      engagement_id: engagement.id,
+      category: 'VENUE',
+      kind: 'OBSERVATION',
+      label: 'Venue match needs review',
+      value_text: args.venueName.trim(),
+      certainty_state: 'CONFLICTING',
+      source_type: 'MANUAL',
+      source_artifact_id: artifact.id,
+      notes: 'Multiple canonical Location records share this exact name. The system preserved the input but did not guess which Location is correct.',
+      created_by: actorUserId,
+    })
+  }
+
+  let factsRecorded = 0
+  for (const raw of args.knownUnknowns ?? []) {
+    const label = String(raw || '').trim()
+    if (!label) continue
+    const { error: factError } = await supabase.from('engagement_facts').insert({
+      engagement_id: engagement.id,
+      category: 'OTHER',
+      kind: 'OBSERVATION',
+      label: label.slice(0, 200),
+      certainty_state: 'UNKNOWN',
+      source_type: 'MANUAL',
+      source_artifact_id: artifact.id,
+      created_by: actorUserId,
+    })
+    if (!factError) factsRecorded += 1
+  }
+
+  let nextActionCreated = false
+  const nextActionTitle = args.nextActionTitle?.trim()
+  if (nextActionTitle) {
+    const { error: workItemError } = await supabase.from('work_items').insert({
+      engagement_id: engagement.id,
+      source_key: `${sourceKey}:next_action`,
+      title: nextActionTitle,
+      action_type: 'FOLLOW_UP',
+      status: 'OPEN',
+      priority: 'NORMAL',
+      certainty_state: 'KNOWN',
+      origin: 'MANUAL',
+      visibility: 'INTERNAL',
+      metadata: { canonical_role: 'MCP_PROPOSED_ACTION', capture_surface: 'stage_presence_mcp' },
+    })
+    nextActionCreated = !workItemError
+  }
+
+  return rereadCreatedLead(supabase, engagement.id, null, {
+    contactMatch: contactResult.matchState,
+    venueMatch: venueResult.matchState,
+    factsRecorded,
+    nextActionCreated,
+  })
+}
+
+async function rereadCreatedLead(
+  supabase: ScopedSupabase,
+  engagementId: string,
+  note: string | null,
+  extra: Record<string, unknown> = {},
+) {
+  // Canonical re-read: never trust the write response alone.
+  const { data: verified, error: verifyError } = await supabase
+    .from('engagement_summary_v')
+    .select('id,engagement_number,name,engagement_type,commercial_state,commitment_state,event_start_date,primary_customer,venue,next_work')
+    .eq('id', engagementId)
+    .maybeSingle()
+  if (verifyError) return { saved: false, verificationState: 'NOT_SAVED', reason: `Canonical re-read failed: ${verifyError.message}` }
+  if (!verified) return { saved: false, verificationState: 'NOT_SAVED', reason: 'Canonical re-read did not find the engagement after write.' }
+
+  return {
+    saved: true,
+    verificationState: 'VERIFIED_SAVED',
+    engagementId: verified.id,
+    engagementNumber: verified.engagement_number,
+    name: verified.name,
+    engagementType: verified.engagement_type,
+    commercialState: verified.commercial_state,
+    commitmentState: verified.commitment_state,
+    eventStartDate: verified.event_start_date,
+    primaryCustomer: verified.primary_customer,
+    venue: verified.venue,
+    nextWork: verified.next_work,
+    note,
+    ...extra,
+  }
+}
+
 Deno.serve(
   pipeline(
     [withOAuthProtectedResource(), withSupabase({ auth: 'user' })],
     async (req, { supabase }) => {
       const handler = createMcpHandler(() => {
-        const server = new McpServer({ name: 'stage-presence', version: '1.1.0' })
+        const server = new McpServer({ name: 'stage-presence', version: '1.2.0' })
 
         server.registerTool('find_contact', {
           description: 'Search Stage Presence contacts by name, organization, email, or phone. Read-only.',
@@ -769,6 +1117,32 @@ Deno.serve(
           annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true },
         }, async (args) => {
           try { return toolResult(await updateNextAction(supabase, args)) }
+          catch (error) { return toolError(error) }
+        })
+
+        server.registerTool('create_lead', {
+          description:
+            'Create ONE new early-stage Engagement (a lead) — ONLY after the human has explicitly approved the exact proposed record (confirmed=true). A lead is not a separate entity: this creates a real engagements row plus, where supplied, a linked contact (Party), venue (Location), known-unknown facts, and an initial next action. Never auto-merges an ambiguous contact or venue match — reuses one only on an exact, unambiguous match; otherwise creates a new record and flags the ambiguity. Idempotent: a retry with the same idempotencyKey AND the same payload returns the already-created engagement instead of duplicating it; the same idempotencyKey with a different payload is refused (NOT_SAVED). Always re-reads the canonical engagement after writing and only reports success if that re-read confirms it.',
+          inputSchema: z.object({
+            title: z.string().describe('The engagement/project name.'),
+            engagementType: z.enum(ENGAGEMENT_TYPES).optional(),
+            contactName: z.string().optional(),
+            organizationName: z.string().optional(),
+            email: z.string().optional(),
+            phone: z.string().optional(),
+            eventDate: z.string().optional().describe('ISO date (YYYY-MM-DD)'),
+            venueName: z.string().optional(),
+            customerRequest: z.string().optional(),
+            desiredOutcome: z.string().optional(),
+            notes: z.string().optional(),
+            knownUnknowns: z.array(z.string()).optional().describe('Plain-text list of things explicitly not yet known.'),
+            nextActionTitle: z.string().optional().describe('If supplied, creates one OPEN FOLLOW_UP work item on the new engagement.'),
+            confirmed: z.literal(true).describe('Must be literally true. Set only after the human clicked Approve on the exact proposed record.'),
+            idempotencyKey: z.string().describe('A unique key for this proposed creation; a retry with the same key and the same payload is a no-op, a different payload is refused.'),
+          }),
+          annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true },
+        }, async (args) => {
+          try { return toolResult(await createLead(supabase, args)) }
           catch (error) { return toolError(error) }
         })
 

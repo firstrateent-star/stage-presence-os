@@ -15,7 +15,7 @@ const readTools = [
   'get_upcoming_engagements',
 ]
 
-const writeTools = ['set_next_action', 'complete_next_action', 'update_next_action']
+const writeTools = ['set_next_action', 'complete_next_action', 'update_next_action', 'create_lead']
 
 test('every expected tool is registered exactly once', () => {
   for (const name of [...readTools, ...writeTools]) {
@@ -24,9 +24,9 @@ test('every expected tool is registered exactly once', () => {
   }
 })
 
-test('exactly 11 tools are registered — no silent extra or missing tool', () => {
+test('exactly 12 tools are registered — no silent extra or missing tool', () => {
   const matches = source.match(/server\.registerTool\('[a-z_]+'/g) ?? []
-  assert.equal(matches.length, 11, `expected 11 registerTool calls, found ${matches.length}`)
+  assert.equal(matches.length, 12, `expected 12 registerTool calls, found ${matches.length}`)
 })
 
 test('read tools are marked readOnlyHint: true', () => {
@@ -40,7 +40,7 @@ test('read tools are marked readOnlyHint: true', () => {
 test('write tools declare non-destructive, idempotent, non-readonly annotations', () => {
   for (const name of writeTools) {
     const start = source.indexOf(`server.registerTool('${name}'`)
-    const block = source.slice(start, start + 1600)
+    const block = source.slice(start, start + 2400)
     assert.match(block, /annotations: \{ readOnlyHint: false, destructiveHint: false, idempotentHint: true \}/, `${name} must declare write annotations`)
   }
 })
@@ -48,7 +48,7 @@ test('write tools declare non-destructive, idempotent, non-readonly annotations'
 test('write tools require confirmed literally true and a non-optional idempotencyKey', () => {
   for (const name of writeTools) {
     const start = source.indexOf(`server.registerTool('${name}'`)
-    const block = source.slice(start, start + 1600)
+    const block = source.slice(start, start + 2400)
     assert.match(block, /confirmed: z\.literal\(true\)/, `${name} schema must require confirmed: z.literal(true)`)
     assert.match(block, /idempotencyKey: z\.string\(\)/, `${name} schema must require idempotencyKey`)
     assert.doesNotMatch(block.split('idempotencyKey:')[1]?.split('\n')[0] ?? '', /optional\(\)/, `${name}'s idempotencyKey must not be optional`)
@@ -56,7 +56,7 @@ test('write tools require confirmed literally true and a non-optional idempotenc
 })
 
 test('every write handler refuses when confirmed is not literally true', () => {
-  for (const fn of ['setNextAction', 'completeNextAction', 'updateNextAction']) {
+  for (const fn of ['setNextAction', 'completeNextAction', 'updateNextAction', 'createLead']) {
     const start = source.indexOf(`async function ${fn}(`)
     assert.ok(start >= 0, `could not find ${fn} implementation`)
     const block = source.slice(start, start + 800)
@@ -111,17 +111,56 @@ test('set_next_action rejects idempotency-key reuse with a different payload', (
   assert.match(block, /already used for a different proposed change/)
 })
 
-test('all three write tools perform a canonical re-read before reporting VERIFIED_SAVED', () => {
-  for (const fn of ['setNextAction', 'rereadCompletedWorkItem', 'rereadUpdatedWorkItem']) {
+test('all four write tools perform a canonical re-read before reporting VERIFIED_SAVED', () => {
+  for (const fn of ['setNextAction', 'rereadCompletedWorkItem', 'rereadUpdatedWorkItem', 'rereadCreatedLead']) {
     const start = source.indexOf(`async function ${fn}(`)
     assert.ok(start >= 0, `could not find ${fn}`)
   }
   const verifiedCount = (source.match(/VERIFIED_SAVED/g) ?? []).length
   const canonicalRereadComments = (source.match(/Canonical re-read: never trust the write/g) ?? []).length
-  assert.ok(verifiedCount >= 3, 'expected VERIFIED_SAVED to appear for each write capability')
-  assert.equal(canonicalRereadComments, 3, 'expected an explicit canonical-re-read step for each of the 3 write tools')
+  assert.ok(verifiedCount >= 4, 'expected VERIFIED_SAVED to appear for each write capability')
+  assert.equal(canonicalRereadComments, 4, 'expected an explicit canonical-re-read step for each of the 4 write tools')
+})
+
+test('create_lead never auto-merges an ambiguous contact or venue match', () => {
+  const block = source.slice(source.indexOf('async function matchOrCreateContactParty('), source.indexOf('async function createLead('))
+  assert.match(block, /AMBIGUOUS_NOT_LINKED/)
+  assert.match(block, /\(matches \?\? \[\]\)\.length > 1/)
+})
+
+test('create_lead records ambiguous matches as CONFLICTING engagement_facts instead of guessing', () => {
+  const start = source.indexOf('async function createLead(')
+  const end = source.indexOf('async function rereadCreatedLead(')
+  const block = source.slice(start, end)
+  assert.match(block, /category: 'CUSTOMER'/)
+  assert.match(block, /category: 'VENUE'/)
+  assert.match(block, /certainty_state: 'CONFLICTING'/)
+})
+
+test('create_lead does not invent a separate leads table — it writes engagements', () => {
+  const start = source.indexOf('async function createLead(')
+  const end = source.indexOf('async function rereadCreatedLead(')
+  const block = source.slice(start, end)
+  assert.match(block, /\.from\('engagements'\)\s*\n\s*\.insert/)
+  assert.doesNotMatch(source, /\.from\('leads'\)/)
+})
+
+test('create_lead is idempotent via engagements.source_key and refuses a changed payload under the same key', () => {
+  const start = source.indexOf('async function createLead(')
+  const end = source.indexOf('async function rereadCreatedLead(')
+  const block = source.slice(start, end)
+  assert.match(block, /source_key: sourceKey/)
+  assert.match(block, /already used for a different lead proposal/)
+})
+
+test('create_lead does not silently promote a lead\'s default commercial/commitment state', () => {
+  const start = source.indexOf('async function createLead(')
+  const end = source.indexOf('async function rereadCreatedLead(')
+  const block = source.slice(start, end)
+  assert.doesNotMatch(block, /commercial_state:/)
+  assert.doesNotMatch(block, /commitment_state:/)
 })
 
 test('server manifest version was bumped for the new tool set', () => {
-  assert.match(source, /new McpServer\(\{ name: 'stage-presence', version: '1\.1\.0' \}\)/)
+  assert.match(source, /new McpServer\(\{ name: 'stage-presence', version: '1\.2\.0' \}\)/)
 })
