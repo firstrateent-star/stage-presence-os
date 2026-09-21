@@ -48,6 +48,33 @@ async function findEngagement(supabase: ScopedSupabase, query: string) {
   return data ?? []
 }
 
+async function findTeamMember(supabase: ScopedSupabase, query: string) {
+  const term = sanitizeTerm(query)
+  if (!term) return []
+  const { data, error } = await supabase
+    .from('team_members')
+    .select('id,display_name,username,member_type,primary_role,active')
+    .or(`display_name.ilike.*${term}*,username.ilike.*${term}*,primary_role.ilike.*${term}*`)
+    .limit(20)
+  if (error) throw new Error(error.message)
+  return data ?? []
+}
+
+async function findResource(supabase: ScopedSupabase, args: { query: string; category?: string }) {
+  const term = sanitizeTerm(args.query)
+  if (!term) return []
+  let q = supabase
+    .from('resources')
+    .select('id,name,category,resource_type,sourcing_model,quantity,quantity_state,active')
+    .or(`name.ilike.*${term}*,resource_type.ilike.*${term}*`)
+    .is('archived_at', null)
+    .limit(20)
+  if (args.category) q = q.eq('category', args.category)
+  const { data, error } = await q
+  if (error) throw new Error(error.message)
+  return data ?? []
+}
+
 async function getPricing(
   supabase: ScopedSupabase,
   args: { item?: string; category?: string; roleCode?: string; scopeType?: string },
@@ -77,9 +104,10 @@ async function loadEngagementByNumber(supabase: ScopedSupabase, engagementNumber
     .select([
       'id,engagement_number,name,engagement_type,commercial_state,commitment_state,operational_state,attention_state,event_start_date,customer_request',
       'engagement_parties(role,is_primary,parties(name,organization_name,email,phone))',
-      'engagement_resources(quantity,relationship,resources(name))',
-      'engagement_facts(label,certainty_state)',
-      'engagement_assignments(role_code,assignment_state,team_members(display_name))',
+      'engagement_locations(role,is_primary,locations(name,address,access_notes,load_in_notes,parking_notes,power_notes,connectivity_notes))',
+      'engagement_resources(quantity,relationship,required_from_date,required_through_date,requirement_window_state,planned_sourcing_model,resources(name))',
+      'engagement_facts(label,value_text,certainty_state)',
+      'engagement_assignments(role_code,role_label,assignment_state,scheduled_start,scheduled_end,team_members(display_name))',
       'engagement_schedule_items(schedule_type,label,start_at,start_date,time_state)',
     ].join(','))
     .eq('engagement_number', engagementNumber)
@@ -119,36 +147,139 @@ async function generateLeadSummary(supabase: ScopedSupabase, engagementNumber: s
   }
 }
 
+/* generate_job_sheet is an internal operational projection built from whitelisted canonical fields
+   only. It never presents REQUESTED/POSSIBLE crew as CONFIRMED, and never presents a resource
+   requirement (engagement_resources) as reserved inventory — resource_commitments (actual holds/
+   reservations/allocations) are shown separately, only if any exist. Facts are bucketed by their
+   real certainty_state (VERIFIED/KNOWN/ESTIMATED/ASSUMED/CONFLICTING/UNKNOWN) rather than flattened. */
 async function generateJobSheet(supabase: ScopedSupabase, engagementNumber: string) {
   const e = await loadEngagementByNumber(supabase, engagementNumber)
   if (!e) return { found: false, engagementNumber }
 
-  const contacts = (e.engagement_parties || []).map(
-    (p: any) => `- ${p.role}: ${p.parties?.name ?? 'unknown'}${p.parties?.phone ? ' · ' + p.parties.phone : ''}`,
-  )
-  const resources = (e.engagement_resources || []).map(
-    (r: any) => `- ${r.resources?.name ?? 'unknown resource'} (${r.relationship}${r.quantity ? ' × ' + r.quantity : ''})`,
-  )
-  const schedule = (e.engagement_schedule_items || []).map(
+  const primaryContact = (e.engagement_parties || []).find((p: any) => p.is_primary) || (e.engagement_parties || [])[0]
+  const primaryVenue = (e.engagement_locations || []).find((l: any) => l.is_primary) || (e.engagement_locations || [])[0]
+
+  const { data: commitments } = await supabase
+    .from('resource_commitments')
+    .select('commitment_type,commitment_state,quantity,from_date,through_date,resources(name)')
+    .eq('engagement_id', e.id)
+
+  const { data: summaryRow } = await supabase
+    .from('engagement_summary_v')
+    .select('next_work')
+    .eq('id', e.id)
+    .maybeSingle()
+
+  const factsByCertainty: Record<string, string[]> = { VERIFIED: [], KNOWN: [], ESTIMATED: [], ASSUMED: [], CONFLICTING: [], UNKNOWN: [] }
+  for (const f of e.engagement_facts || []) {
+    const bucket = factsByCertainty[f.certainty_state] ?? (factsByCertainty[f.certainty_state] = [])
+    bucket.push(f.value_text ? `${f.label}: ${f.value_text}` : f.label)
+  }
+
+  const teamAssignments = (e.engagement_assignments || []).map((a: any) => ({
+    name: a.team_members?.display_name ?? 'unknown',
+    roleCode: a.role_code,
+    roleLabel: a.role_label,
+    assignmentState: a.assignment_state,
+    scheduledStart: a.scheduled_start,
+    scheduledEnd: a.scheduled_end,
+    confirmed: a.assignment_state === 'CONFIRMED',
+  }))
+
+  const resourceRequirements = (e.engagement_resources || []).map((r: any) => ({
+    resourceName: r.resources?.name ?? 'unknown resource',
+    relationship: r.relationship,
+    quantity: r.quantity,
+    requiredFromDate: r.required_from_date,
+    requiredThroughDate: r.required_through_date,
+    requirementWindowState: r.requirement_window_state,
+    plannedSourcingModel: r.planned_sourcing_model,
+    reservedInventory: false,
+  }))
+
+  const resourceCommitments = (commitments || []).map((c: any) => ({
+    resourceName: c.resources?.name ?? 'unknown resource',
+    commitmentType: c.commitment_type,
+    commitmentState: c.commitment_state,
+    quantity: c.quantity,
+    fromDate: c.from_date,
+    throughDate: c.through_date,
+  }))
+
+  const bucketLines = (label: string, items: string[]) => [`${label}:`, ...(items.length ? items.map((l) => `- ${l}`) : ['- none recorded'])]
+  const scheduleLines = (e.engagement_schedule_items || []).map(
     (s: any) => `- ${s.schedule_type} — ${s.label} — ${s.start_at || s.start_date || 'TBD'} (${s.time_state})`,
   )
+  const teamLines = teamAssignments.length
+    ? teamAssignments.map((a: any) => `- ${a.roleCode}${a.roleLabel ? ` (${a.roleLabel})` : ''}: ${a.name} — ${a.assignmentState}${a.confirmed ? '' : ' (NOT CONFIRMED — proposal only)'}`)
+    : ['- none assigned yet']
+  const resourceLines = resourceRequirements.length
+    ? resourceRequirements.map((r: any) => `- ${r.resourceName} (${r.relationship}${r.quantity ? ' × ' + r.quantity : ''}) — requirement only, not reserved inventory`)
+    : ['- none recorded']
+  const commitmentLines = resourceCommitments.length
+    ? resourceCommitments.map((c: any) => `- ${c.resourceName}: ${c.commitmentType} / ${c.commitmentState}${c.quantity ? ' × ' + c.quantity : ''}`)
+    : ['- none recorded']
+
+  const text = [
+    `JOB SHEET — ${e.name} (${e.engagement_number})`,
+    e.event_start_date ? `Date: ${e.event_start_date}` : 'Date: TBD',
+    '',
+    'Client / Primary Contact:',
+    primaryContact ? `- ${primaryContact.role}: ${primaryContact.parties?.name ?? 'unknown'}${primaryContact.parties?.phone ? ' · ' + primaryContact.parties.phone : ''}` : '- none recorded',
+    '',
+    'Venue:',
+    primaryVenue ? `- ${primaryVenue.locations?.name ?? 'unknown venue'}${primaryVenue.locations?.address ? ' · ' + primaryVenue.locations.address : ''}` : '- none recorded',
+    '',
+    'Schedule:',
+    ...(scheduleLines.length ? scheduleLines : ['- not scheduled']),
+    '',
+    'Team Assignments (assignment_state shown — REQUESTED/POSSIBLE is NOT confirmed availability):',
+    ...teamLines,
+    '',
+    'Resource Requirements (need/consideration/configuration only — NOT reserved inventory):',
+    ...resourceLines,
+    '',
+    'Resource Commitments (actual holds/reservations/allocations, if any):',
+    ...commitmentLines,
+    '',
+    ...bucketLines('Known / Verified', [...factsByCertainty.VERIFIED, ...factsByCertainty.KNOWN]),
+    '',
+    ...bucketLines('Estimated', factsByCertainty.ESTIMATED),
+    '',
+    ...bucketLines('Assumed', factsByCertainty.ASSUMED),
+    '',
+    ...bucketLines('Conflicting / Open Questions', factsByCertainty.CONFLICTING),
+    '',
+    ...bucketLines('Unknown', factsByCertainty.UNKNOWN),
+    '',
+    'Current Next Action:',
+    summaryRow?.next_work?.title ? `- ${summaryRow.next_work.title} (${summaryRow.next_work.status}, ${summaryRow.next_work.priority})` : '- none set',
+  ].join('\n')
 
   return {
     found: true,
-    engagement: e,
-    text: [
-      `JOB SHEET — ${e.name} (${e.engagement_number})`,
-      e.event_start_date ? `Date: ${e.event_start_date}` : 'Date: TBD',
-      '',
-      'Contacts:',
-      ...(contacts.length ? contacts : ['- none recorded']),
-      '',
-      'Resources:',
-      ...(resources.length ? resources : ['- none recorded']),
-      '',
-      'Schedule:',
-      ...(schedule.length ? schedule : ['- not scheduled']),
-    ].join('\n'),
+    engagementNumber: e.engagement_number,
+    eventStartDate: e.event_start_date,
+    primaryContact: primaryContact
+      ? { role: primaryContact.role, name: primaryContact.parties?.name, phone: primaryContact.parties?.phone, email: primaryContact.parties?.email }
+      : null,
+    venue: primaryVenue
+      ? {
+          name: primaryVenue.locations?.name,
+          address: primaryVenue.locations?.address,
+          loadInNotes: primaryVenue.locations?.load_in_notes,
+          parkingNotes: primaryVenue.locations?.parking_notes,
+          powerNotes: primaryVenue.locations?.power_notes,
+          connectivityNotes: primaryVenue.locations?.connectivity_notes,
+        }
+      : null,
+    schedule: e.engagement_schedule_items || [],
+    teamAssignments,
+    resourceRequirements,
+    resourceCommitments,
+    factsByCertainty,
+    nextAction: summaryRow?.next_work ?? null,
+    text,
   }
 }
 
@@ -1403,12 +1534,477 @@ async function rereadSavedQuote(supabase: ScopedSupabase, quoteId: string, note:
   }
 }
 
+/* ============================== assign_team_member ==============================
+   Proposes — never confirms — a crew assignment. Only POSSIBLE and REQUESTED are permitted;
+   CONFIRMED/DECLINED/COMPLETED/UNKNOWN are refused, because there is no availability or
+   acknowledgement evidence source anywhere in the schema to justify a CONFIRMED assignment —
+   crossing that line without evidence is an explicit, documented frontier. */
+
+const ROLE_CODES = [
+  'SALES_LEAD', 'PROJECT_MANAGER', 'VIDEO_TECH', 'LED_TECH', 'AUDIO_TECH', 'A1', 'A2',
+  'CAMERA', 'CONTENT', 'WAREHOUSE', 'DRIVER', 'LABOR', 'INSTALLER', 'OTHER',
+] as const
+const ASSIGNABLE_STATES = ['POSSIBLE', 'REQUESTED'] as const
+
+interface AssignTeamMemberArgs {
+  engagementNumber: string
+  teamMemberId: string
+  roleCode: string
+  assignmentState: string
+  roleLabel?: string
+  scheduledStart?: string
+  scheduledEnd?: string
+  notes?: string
+  confirmed: boolean
+  idempotencyKey: string
+}
+
+function assignmentPayloadMatches(existing: any, requested: Record<string, unknown>) {
+  return (
+    existing.team_member_id === requested.team_member_id &&
+    existing.role_code === requested.role_code &&
+    existing.assignment_state === requested.assignment_state &&
+    (existing.role_label ?? null) === (requested.role_label ?? null) &&
+    (existing.scheduled_start ?? null) === (requested.scheduled_start ?? null) &&
+    (existing.scheduled_end ?? null) === (requested.scheduled_end ?? null) &&
+    (existing.notes ?? null) === (requested.notes ?? null)
+  )
+}
+
+async function assignTeamMember(supabase: ScopedSupabase, args: AssignTeamMemberArgs) {
+  const notSaved = (reason: string, extra: Record<string, unknown> = {}) => ({
+    saved: false,
+    verificationState: 'NOT_SAVED',
+    reason,
+    ...extra,
+  })
+
+  if (args.confirmed !== true) {
+    return notSaved('Refused: confirmed must be literally true. This tool only writes after explicit human approval.')
+  }
+  if (!args.idempotencyKey) return notSaved('idempotencyKey is required.')
+  if (!args.engagementNumber) return notSaved('engagementNumber is required.')
+  if (!args.teamMemberId) return notSaved('teamMemberId is required — resolve one first with find_team_member.')
+  if (!(ROLE_CODES as readonly string[]).includes(args.roleCode)) {
+    return notSaved(`Invalid roleCode: ${args.roleCode}. Must be one of ${ROLE_CODES.join(', ')}.`)
+  }
+  if (!(ASSIGNABLE_STATES as readonly string[]).includes(args.assignmentState)) {
+    return notSaved(
+      `Invalid assignmentState: ${args.assignmentState}. This tool only creates POSSIBLE or REQUESTED assignments — CONFIRMED requires an availability/acknowledgement evidence rule that does not exist yet.`,
+    )
+  }
+  if (args.scheduledStart && args.scheduledEnd && args.scheduledEnd < args.scheduledStart) {
+    return notSaved('scheduledEnd cannot be before scheduledStart.')
+  }
+
+  const { data: engagement, error: engagementError } = await supabase
+    .from('engagements')
+    .select('id,engagement_number')
+    .eq('engagement_number', args.engagementNumber)
+    .maybeSingle()
+  if (engagementError) return notSaved(`Could not look up engagement: ${engagementError.message}`)
+  if (!engagement) return notSaved(`No engagement found with number ${args.engagementNumber}. Nothing was written.`)
+
+  const { data: teamMember, error: teamMemberError } = await supabase
+    .from('team_members')
+    .select('id,display_name,active')
+    .eq('id', args.teamMemberId)
+    .maybeSingle()
+  if (teamMemberError) return notSaved(`Could not look up team member: ${teamMemberError.message}`)
+  if (!teamMember) return notSaved(`No team member found with id ${args.teamMemberId}. Nothing was written.`)
+
+  const sourceKey = `mcp:assign_team_member:${args.idempotencyKey}`
+  const requestedPayload = {
+    engagement_id: engagement.id,
+    team_member_id: teamMember.id,
+    role_code: args.roleCode,
+    assignment_state: args.assignmentState,
+    role_label: args.roleLabel?.trim() || null,
+    scheduled_start: args.scheduledStart ?? null,
+    scheduled_end: args.scheduledEnd ?? null,
+    notes: args.notes?.trim() || null,
+  }
+
+  const { data: existing, error: existingError } = await supabase
+    .from('engagement_assignments')
+    .select('id,team_member_id,role_code,assignment_state,role_label,scheduled_start,scheduled_end,notes')
+    .eq('source_key', sourceKey)
+    .maybeSingle()
+  if (existingError) return notSaved(`Could not check for a prior write with this idempotencyKey: ${existingError.message}`)
+
+  let assignmentId: string
+  if (existing) {
+    if (!assignmentPayloadMatches(existing, requestedPayload)) {
+      return notSaved(
+        'This idempotencyKey was already used for a different proposed assignment. Use a new idempotencyKey for a new or edited proposal.',
+        { assignmentId: existing.id },
+      )
+    }
+    assignmentId = existing.id
+  } else {
+    const { data: inserted, error: insertError } = await supabase
+      .from('engagement_assignments')
+      .insert({
+        ...requestedPayload,
+        source_key: sourceKey,
+        certainty_state: 'KNOWN',
+        metadata: { canonical_role: 'MCP_PROPOSED_ASSIGNMENT', capture_surface: 'stage_presence_mcp' },
+      })
+      .select('id')
+      .single()
+    if (insertError) return notSaved(`Write failed: ${insertError.message}`)
+    assignmentId = inserted.id
+  }
+
+  // Canonical re-read: never trust the write (or the pre-check) response alone.
+  const { data: verified, error: verifyError } = await supabase
+    .from('engagement_assignments')
+    .select('id,engagement_id,team_member_id,role_code,role_label,assignment_state,scheduled_start,scheduled_end,notes')
+    .eq('id', assignmentId)
+    .maybeSingle()
+  if (verifyError) return notSaved(`Canonical re-read failed: ${verifyError.message}`, { assignmentId })
+  if (!verified) return notSaved('Canonical re-read did not find the record after write.', { assignmentId })
+
+  return {
+    saved: true,
+    verificationState: 'VERIFIED_SAVED',
+    assignmentId: verified.id,
+    engagementNumber: engagement.engagement_number,
+    teamMemberId: verified.team_member_id,
+    teamMemberName: teamMember.display_name,
+    teamMemberActive: teamMember.active,
+    roleCode: verified.role_code,
+    roleLabel: verified.role_label,
+    assignmentState: verified.assignment_state,
+    scheduledStart: verified.scheduled_start,
+    scheduledEnd: verified.scheduled_end,
+    availabilityNote:
+      'This assignment_state records a proposal only — it does not prove or confirm actual crew availability. Confirming availability requires an evidence rule that does not exist yet.',
+  }
+}
+
+/* ============================== add_resource_requirement ==============================
+   Records that an engagement needs/is considering/is configuring a resource — never that
+   inventory is available, held, or reserved. Targets only the existing engagement_resources
+   requirement/configuration layer (relationship + requirement-window + sourcing fields already
+   established by the schema); never touches resource_commitments (HOLD/RESERVATION/ALLOCATION),
+   which remains a separate, not-yet-built frontier.
+   Idempotent via a source_artifacts provenance row (engagement_resources has no metadata/source_key
+   column of its own — same pattern create_lead already established) plus the table's own real
+   unique(engagement_id, resource_id, relationship) constraint as an independent second guard. */
+
+const RESOURCE_RELATIONSHIPS = ['CUSTOMER_REQUESTED', 'CONSIDERING', 'RECOMMENDED', 'CONFIGURED'] as const
+const REQUIREMENT_WINDOW_STATES = ['UNKNOWN', 'INFERRED_FROM_EVENT', 'ESTIMATED', 'KNOWN', 'VERIFIED'] as const
+const SOURCING_MODELS = ['OWNED', 'SUBCONTRACTED', 'PARTNER', 'VENUE', 'UNKNOWN'] as const
+
+interface AddResourceRequirementArgs {
+  engagementNumber: string
+  resourceId: string
+  relationship: string
+  quantity?: number
+  notes?: string
+  requiredFromDate?: string
+  requiredThroughDate?: string
+  requirementWindowState?: string
+  plannedSourcingModel?: string
+  confirmed: boolean
+  idempotencyKey: string
+}
+
+async function addResourceRequirement(supabase: ScopedSupabase, args: AddResourceRequirementArgs) {
+  const notSaved = (reason: string, extra: Record<string, unknown> = {}) => ({
+    saved: false,
+    verificationState: 'NOT_SAVED',
+    reason,
+    ...extra,
+  })
+
+  if (args.confirmed !== true) {
+    return notSaved('Refused: confirmed must be literally true. This tool only writes after explicit human approval.')
+  }
+  if (!args.idempotencyKey) return notSaved('idempotencyKey is required.')
+  if (!args.engagementNumber) return notSaved('engagementNumber is required.')
+  if (!args.resourceId) return notSaved('resourceId is required — resolve one first with find_resource rather than guessing a name.')
+  if (!(RESOURCE_RELATIONSHIPS as readonly string[]).includes(args.relationship)) {
+    return notSaved(`Invalid relationship: ${args.relationship}. Must be one of ${RESOURCE_RELATIONSHIPS.join(', ')}.`)
+  }
+  if (args.quantity !== undefined && (!Number.isFinite(args.quantity) || args.quantity <= 0)) {
+    return notSaved('quantity must be a positive number if supplied.')
+  }
+  if (args.requirementWindowState !== undefined && !(REQUIREMENT_WINDOW_STATES as readonly string[]).includes(args.requirementWindowState)) {
+    return notSaved(`Invalid requirementWindowState: ${args.requirementWindowState}. Must be one of ${REQUIREMENT_WINDOW_STATES.join(', ')}.`)
+  }
+  if (args.plannedSourcingModel !== undefined && !(SOURCING_MODELS as readonly string[]).includes(args.plannedSourcingModel)) {
+    return notSaved(`Invalid plannedSourcingModel: ${args.plannedSourcingModel}. Must be one of ${SOURCING_MODELS.join(', ')}.`)
+  }
+  if (args.requiredFromDate && args.requiredThroughDate && args.requiredThroughDate < args.requiredFromDate) {
+    return notSaved('requiredThroughDate cannot be before requiredFromDate.')
+  }
+
+  const { data: engagement, error: engagementError } = await supabase
+    .from('engagements')
+    .select('id,engagement_number')
+    .eq('engagement_number', args.engagementNumber)
+    .maybeSingle()
+  if (engagementError) return notSaved(`Could not look up engagement: ${engagementError.message}`)
+  if (!engagement) return notSaved(`No engagement found with number ${args.engagementNumber}. Nothing was written.`)
+
+  const { data: resource, error: resourceError } = await supabase
+    .from('resources')
+    .select('id,name,active')
+    .eq('id', args.resourceId)
+    .maybeSingle()
+  if (resourceError) return notSaved(`Could not look up resource: ${resourceError.message}`)
+  if (!resource) return notSaved(`No resource found with id ${args.resourceId}. Nothing was written.`)
+
+  const sourceKey = `mcp:add_resource_requirement:${args.idempotencyKey}`
+  const windowState = args.requirementWindowState ?? (args.requiredFromDate || args.requiredThroughDate ? 'KNOWN' : undefined)
+  const requestedPayload: Record<string, unknown> = {
+    engagement_id: engagement.id,
+    resource_id: resource.id,
+    relationship: args.relationship,
+    quantity: args.quantity ?? null,
+    notes: args.notes?.trim() || null,
+    required_from_date: args.requiredFromDate ?? null,
+    required_through_date: args.requiredThroughDate ?? null,
+  }
+  if (windowState !== undefined) requestedPayload.requirement_window_state = windowState
+  if (args.plannedSourcingModel !== undefined) requestedPayload.planned_sourcing_model = args.plannedSourcingModel
+  const payloadSignature = JSON.stringify(requestedPayload, Object.keys(requestedPayload).sort())
+
+  // Idempotency check via provenance row (engagement_resources has no metadata column of its own).
+  const { data: priorArtifact, error: priorError } = await supabase
+    .from('source_artifacts')
+    .select('id,metadata')
+    .eq('metadata->>mcp_idempotency_key', sourceKey)
+    .maybeSingle()
+  if (priorError) return notSaved(`Could not check for a prior submission with this idempotencyKey: ${priorError.message}`)
+  if (priorArtifact) {
+    if (priorArtifact.metadata?.mcp_payload_signature !== payloadSignature) {
+      return notSaved('This idempotencyKey was already used for a different proposed requirement. Use a new idempotencyKey for a new or edited proposal.')
+    }
+    const priorRequirementId = priorArtifact.metadata?.mcp_requirement_id
+    if (!priorRequirementId) return notSaved('A prior submission with this idempotencyKey exists but its requirement record could not be resolved.')
+    return rereadResourceRequirement(supabase, priorRequirementId, 'Idempotent replay — no new record created.')
+  }
+
+  const { data: userData } = await supabase.auth.getUser()
+  const actorUserId = userData.user?.id ?? null
+
+  const { data: artifact, error: artifactError } = await supabase
+    .from('source_artifacts')
+    .insert({
+      artifact_type: 'TEXT',
+      processing_state: 'NOT_REQUIRED',
+      created_by: actorUserId,
+      metadata: { capture_surface: 'stage_presence_mcp', mcp_idempotency_key: sourceKey, mcp_payload_signature: payloadSignature },
+    })
+    .select('id')
+    .single()
+  if (artifactError) return notSaved(`Could not record provenance: ${artifactError.message}`)
+
+  const { data: inserted, error: insertError } = await supabase
+    .from('engagement_resources')
+    .insert({ ...requestedPayload, source_artifact_id: artifact.id })
+    .select('id')
+    .single()
+
+  if (insertError) {
+    // The table's own unique(engagement_id, resource_id, relationship) constraint means this exact
+    // combination may already exist from a different write — never silently touch someone else's row.
+    const { data: existingRow } = await supabase
+      .from('engagement_resources')
+      .select('id')
+      .eq('engagement_id', engagement.id)
+      .eq('resource_id', resource.id)
+      .eq('relationship', args.relationship)
+      .maybeSingle()
+    if (existingRow) {
+      return notSaved(
+        `This engagement already has a ${args.relationship} requirement for resource "${resource.name}". Changing its fields needs a future targeted update capability — this tool only creates.`,
+        { requirementId: existingRow.id },
+      )
+    }
+    return notSaved(`Write failed: ${insertError.message}`)
+  }
+
+  await supabase.from('source_artifacts').update({
+    metadata: { capture_surface: 'stage_presence_mcp', mcp_idempotency_key: sourceKey, mcp_payload_signature: payloadSignature, mcp_requirement_id: inserted.id },
+  }).eq('id', artifact.id)
+
+  return rereadResourceRequirement(supabase, inserted.id, null)
+}
+
+async function rereadResourceRequirement(supabase: ScopedSupabase, requirementId: string, note: string | null) {
+  // Canonical re-read: never trust the write response alone.
+  const { data: verified, error: verifyError } = await supabase
+    .from('engagement_resources')
+    .select('id,engagement_id,resource_id,relationship,quantity,notes,required_from_date,required_through_date,requirement_window_state,planned_sourcing_model,resources(name)')
+    .eq('id', requirementId)
+    .maybeSingle()
+  if (verifyError) return { saved: false, verificationState: 'NOT_SAVED', reason: `Canonical re-read failed: ${verifyError.message}` }
+  if (!verified) return { saved: false, verificationState: 'NOT_SAVED', reason: 'Canonical re-read did not find the record after write.' }
+
+  return {
+    saved: true,
+    verificationState: 'VERIFIED_SAVED',
+    requirementId: verified.id,
+    resourceName: (verified as any).resources?.name ?? null,
+    relationship: verified.relationship,
+    quantity: verified.quantity,
+    requiredFromDate: verified.required_from_date,
+    requiredThroughDate: verified.required_through_date,
+    requirementWindowState: verified.requirement_window_state,
+    plannedSourcingModel: verified.planned_sourcing_model,
+    note,
+    availabilityNote:
+      'This records a requirement/consideration only — it does not mean this resource is available, held, or reserved. A real hold/reservation policy (resource_commitments) remains a separate, not-yet-built capability.',
+  }
+}
+
+/* ============================== generate_email (draft-only, never sends) ============================== */
+
+const EMAIL_KINDS = [
+  'LEAD_RESPONSE', 'MISSING_INFO_REQUEST', 'QUOTE_FOLLOW_UP', 'QUOTE_COVER',
+  'EVENT_CONFIRMATION_DRAFT', 'LOGISTICS_REQUEST', 'INTERNAL_HANDOFF',
+] as const
+
+async function generateEmail(supabase: ScopedSupabase, args: { engagementNumber: string; kind: string }) {
+  if (!(EMAIL_KINDS as readonly string[]).includes(args.kind)) {
+    return { found: false, reason: `Invalid kind: ${args.kind}. Must be one of ${EMAIL_KINDS.join(', ')}.` }
+  }
+  const e = await loadEngagementByNumber(supabase, args.engagementNumber)
+  if (!e) return { found: false, engagementNumber: args.engagementNumber, reason: 'No engagement found.' }
+
+  const primary = (e.engagement_parties || []).find((p: any) => p.is_primary) || (e.engagement_parties || [])[0]
+  const contactName = primary?.parties?.name || 'there'
+
+  const { data: quote } = await supabase
+    .from('commercial_documents')
+    .select('id,document_state,total,grand_total,currency,version_no')
+    .eq('engagement_id', e.id)
+    .eq('document_type', 'QUOTE')
+    .neq('document_state', 'VOID')
+    .order('version_no', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+
+  const openFacts = (e.engagement_facts || [])
+    .filter((f: any) => ['UNKNOWN', 'REQUESTED', 'CONFLICTING'].includes(f.certainty_state))
+    .map((f: any) => f.label)
+
+  const quoteAmount = quote ? `${quote.currency} ${quote.grand_total ?? quote.total ?? 'TBD'}` : null
+  const factualInputsUsed = [
+    `Engagement: ${e.name} (${e.engagement_number})`,
+    `Commercial state: ${e.commercial_state}, Commitment state: ${e.commitment_state}`,
+    e.event_start_date ? `Event date: ${e.event_start_date}` : 'Event date: unknown',
+    quote ? `Current quote: v${quote.version_no}, ${quote.document_state}, ${quoteAmount}` : 'No current quote on file',
+  ]
+  const assumptions: string[] = []
+  if (!primary) assumptions.push('No primary contact on file — recipient name is a placeholder.')
+  if (openFacts.length) assumptions.push(`Open/unresolved facts not addressed in this draft: ${openFacts.join('; ')}`)
+
+  let subject = ''
+  let body = ''
+  switch (args.kind) {
+    case 'LEAD_RESPONSE':
+      subject = `Re: ${e.name}`
+      body = `Hi ${contactName},\n\nThanks for reaching out about ${e.name}. We'd love to help — could you share a bit more about your event so we can put together the right solution?\n\nBest,\nStage Presence`
+      break
+    case 'MISSING_INFO_REQUEST':
+      subject = `A couple of details for ${e.name}`
+      body = `Hi ${contactName},\n\nTo move forward on ${e.name}, could you confirm:\n${(openFacts.length ? openFacts : ['event date, venue, and scope']).map((f: string) => `- ${f}`).join('\n')}\n\nThanks,\nStage Presence`
+      break
+    case 'QUOTE_FOLLOW_UP':
+      subject = `Following up on your ${e.name} quote`
+      body = `Hi ${contactName},\n\nJust checking in on the quote${quoteAmount ? ` (v${quote?.version_no}, ${quoteAmount})` : ''} for ${e.name}. Let us know if you have any questions or would like to move forward.\n\nBest,\nStage Presence`
+      break
+    case 'QUOTE_COVER':
+      subject = `Your quote for ${e.name}`
+      body = `Hi ${contactName},\n\nAttached is our proposal for ${e.name}${quoteAmount ? ` (${quoteAmount})` : ''}. Happy to walk through any part of it.\n\nBest,\nStage Presence`
+      break
+    case 'EVENT_CONFIRMATION_DRAFT':
+      subject = `Confirming details for ${e.name}`
+      body = `Hi ${contactName},\n\nAs we get closer to ${e.event_start_date ?? 'your event date'}, wanted to confirm the plan for ${e.name}. Let us know if anything has changed.\n\nBest,\nStage Presence`
+      break
+    case 'LOGISTICS_REQUEST':
+      subject = `Logistics details for ${e.name}`
+      body = `Hi ${contactName},\n\nCould you confirm load-in access, parking, and power availability at the venue for ${e.name}?\n\nThanks,\nStage Presence`
+      break
+    case 'INTERNAL_HANDOFF':
+      subject = `Handoff: ${e.name} (${e.engagement_number})`
+      body = `Team,\n\nHanding off ${e.name} (${e.engagement_number}). Commercial: ${e.commercial_state}, Commitment: ${e.commitment_state}.${openFacts.length ? ` Open items: ${openFacts.join('; ')}.` : ''}\n\nThanks`
+      break
+  }
+
+  return {
+    found: true,
+    engagementNumber: e.engagement_number,
+    kind: args.kind,
+    intendedAudience: args.kind === 'INTERNAL_HANDOFF' ? 'INTERNAL' : 'CUSTOMER',
+    recipientHint: primary ? (primary.parties?.email || primary.parties?.name || null) : null,
+    subject,
+    body,
+    factualInputsUsed,
+    assumptions,
+    draftOnly: true,
+    sent: false,
+  }
+}
+
+/* ============================== get_capabilities (read-only capability truth) ==============================
+   Lets the calling AI (or Greg) truthfully ask what this system can actually do, reconciling
+   src/lib/capabilityRegistry.ts's SPA-facing surface with what is really deployed here. Never
+   advertises email sending, confirmed crew availability, inventory availability/holds/reservations,
+   pricing authority changes, or payment-truth changes — those are FRONTIER or NOT_IMPLEMENTED until
+   they are actually built and proven. */
+
+const CAPABILITY_TRUTH = [
+  { name: 'find_contact', category: 'READ' },
+  { name: 'find_engagement', category: 'READ' },
+  { name: 'get_pricing', category: 'READ' },
+  { name: 'generate_lead_summary', category: 'READ' },
+  { name: 'generate_job_sheet', category: 'READ', note: 'Internal projection only — never presents REQUESTED crew as confirmed or a requirement as reserved inventory.' },
+  { name: 'search_stage_presence', category: 'READ' },
+  { name: 'get_attention_items', category: 'READ' },
+  { name: 'get_upcoming_engagements', category: 'READ' },
+  { name: 'build_quote_draft', category: 'READ', note: 'Proposes a quote; never persists anything.' },
+  { name: 'find_team_member', category: 'READ' },
+  { name: 'find_resource', category: 'READ' },
+  { name: 'get_capabilities', category: 'READ' },
+  { name: 'generate_email', category: 'DRAFT_ONLY', note: 'Produces subject/body only. Never sends. Sending email is NOT_IMPLEMENTED.' },
+  { name: 'set_next_action', category: 'APPROVAL_REQUIRED' },
+  { name: 'complete_next_action', category: 'APPROVAL_REQUIRED' },
+  { name: 'update_next_action', category: 'APPROVAL_REQUIRED' },
+  { name: 'create_lead', category: 'APPROVAL_REQUIRED' },
+  { name: 'save_quote_draft', category: 'APPROVAL_REQUIRED', note: 'Never promotes DRAFT_CANDIDATE pricing to approved policy.' },
+  { name: 'assign_team_member', category: 'APPROVAL_REQUIRED', note: 'Only creates POSSIBLE/REQUESTED. Cannot create CONFIRMED — see confirm_crew_availability frontier.' },
+  { name: 'add_resource_requirement', category: 'APPROVAL_REQUIRED', note: 'Records requirement/consideration/configuration only — never inventory availability or a hold/reservation.' },
+  { name: 'confirm_crew_availability', category: 'FRONTIER', note: 'No availability/acknowledgement evidence source exists yet in the schema.' },
+  { name: 'create_resource_hold_or_reservation', category: 'FRONTIER', note: 'resource_commitments (HOLD/RESERVATION/ALLOCATION) exists cleanly, but the CONFIGURED -> REQUIREMENT WINDOW -> PRESSURE -> HOLD -> RESERVATION policy has not been built.' },
+  { name: 'approve_or_change_pricing_authority', category: 'FRONTIER', note: 'Pricing authority decisions are a standing hard-stop boundary.' },
+  { name: 'send_email', category: 'NOT_IMPLEMENTED' },
+  { name: 'mark_invoice_or_payment_paid', category: 'NOT_IMPLEMENTED' },
+  { name: 'delete_or_void_business_record', category: 'NOT_IMPLEMENTED' },
+] as const
+
+async function getCapabilities() {
+  return {
+    generatedAt: new Date().toISOString(),
+    capabilities: CAPABILITY_TRUTH,
+    rules: [
+      'Never advertise email sending, confirmed crew availability, inventory availability/holds/reservations, pricing authority changes, or payment-truth changes unless actually implemented and proven.',
+      'Every APPROVAL_REQUIRED capability requires confirmed:true and is never reported SAVED until a canonical re-read confirms it.',
+    ],
+  }
+}
+
 Deno.serve(
   pipeline(
     [withOAuthProtectedResource(), withSupabase({ auth: 'user' })],
     async (req, { supabase }) => {
       const handler = createMcpHandler(() => {
-        const server = new McpServer({ name: 'stage-presence', version: '1.3.0' })
+        const server = new McpServer({ name: 'stage-presence', version: '1.4.0' })
 
         server.registerTool('find_contact', {
           description: 'Search Stage Presence contacts by name, organization, email, or phone. Read-only.',
@@ -1491,6 +2087,45 @@ Deno.serve(
           annotations: { readOnlyHint: true },
         }, async ({ limit }) => {
           try { return toolResult(await getUpcomingEngagements(supabase, limit)) }
+          catch (error) { return toolError(error) }
+        })
+
+        server.registerTool('find_team_member', {
+          description: 'Search Stage Presence team members by display name, username, or primary role. Read-only.',
+          inputSchema: z.object({ query: z.string() }),
+          annotations: { readOnlyHint: true },
+        }, async ({ query }) => {
+          try { return toolResult(await findTeamMember(supabase, query)) }
+          catch (error) { return toolError(error) }
+        })
+
+        server.registerTool('find_resource', {
+          description: 'Search Stage Presence resources (equipment/inventory library) by name or type. Read-only — does not indicate current availability.',
+          inputSchema: z.object({ query: z.string(), category: z.string().optional() }),
+          annotations: { readOnlyHint: true },
+        }, async (args) => {
+          try { return toolResult(await findResource(supabase, args)) }
+          catch (error) { return toolError(error) }
+        })
+
+        server.registerTool('get_capabilities', {
+          description: 'Return the truthful, current capability list for this MCP surface (READ / DRAFT_ONLY / APPROVAL_REQUIRED / FRONTIER / NOT_IMPLEMENTED). Read-only.',
+          inputSchema: z.object({}),
+          annotations: { readOnlyHint: true },
+        }, async () => {
+          try { return toolResult(await getCapabilities()) }
+          catch (error) { return toolError(error) }
+        })
+
+        server.registerTool('generate_email', {
+          description: 'Generate a draft email (lead response, missing-info request, quote follow-up, quote cover, event confirmation draft, logistics request, or internal handoff) using live canonical engagement context. Draft only — never sends, never marks anything sent, never changes engagement state. Read-only.',
+          inputSchema: z.object({
+            engagementNumber: z.string(),
+            kind: z.enum(EMAIL_KINDS),
+          }),
+          annotations: { readOnlyHint: true },
+        }, async (args) => {
+          try { return toolResult(await generateEmail(supabase, args)) }
           catch (error) { return toolError(error) }
         })
 
@@ -1616,6 +2251,49 @@ Deno.serve(
           annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true },
         }, async (args) => {
           try { return toolResult(await saveQuoteDraft(supabase, args)) }
+          catch (error) { return toolError(error) }
+        })
+
+        server.registerTool('assign_team_member', {
+          description:
+            'Propose ONE crew assignment (POSSIBLE or REQUESTED only) on a real engagement — ONLY after the human has explicitly approved it (confirmed=true). Never creates CONFIRMED, DECLINED, COMPLETED, or UNKNOWN — there is no availability/acknowledgement evidence source to justify CONFIRMED yet. Does not prove or confirm actual crew availability. Idempotent: a retry with the same idempotencyKey AND the same payload returns the already-created assignment instead of duplicating it; the same idempotencyKey with a different payload is refused (NOT_SAVED). Always re-reads the canonical row before reporting VERIFIED_SAVED.',
+          inputSchema: z.object({
+            engagementNumber: z.string(),
+            teamMemberId: z.string().describe('Resolve with find_team_member first — never guess a name.'),
+            roleCode: z.enum(ROLE_CODES),
+            assignmentState: z.enum(ASSIGNABLE_STATES).describe('Only POSSIBLE or REQUESTED are permitted.'),
+            roleLabel: z.string().optional(),
+            scheduledStart: z.string().optional().describe('ISO datetime'),
+            scheduledEnd: z.string().optional().describe('ISO datetime'),
+            notes: z.string().optional(),
+            confirmed: z.literal(true).describe('Must be literally true. Set only after the human clicked Approve on the exact proposed assignment.'),
+            idempotencyKey: z.string().describe('A unique key for this proposed mutation; a retry with the same key and the same payload is a no-op, a different payload is refused.'),
+          }),
+          annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true },
+        }, async (args) => {
+          try { return toolResult(await assignTeamMember(supabase, args)) }
+          catch (error) { return toolError(error) }
+        })
+
+        server.registerTool('add_resource_requirement', {
+          description:
+            'Record ONE resource requirement/consideration/configuration on a real engagement — ONLY after the human has explicitly approved it (confirmed=true). Means only "this engagement needs/is considering/is configuring this resource" — NEVER that inventory is available, held, or reserved (that remains a separate, not-yet-built capability). Idempotent: a retry with the same idempotencyKey AND the same payload returns the already-created record instead of duplicating it; the same idempotencyKey with a different payload is refused (NOT_SAVED). Always re-reads the canonical row before reporting VERIFIED_SAVED.',
+          inputSchema: z.object({
+            engagementNumber: z.string(),
+            resourceId: z.string().describe('Resolve with find_resource first — never guess a name.'),
+            relationship: z.enum(RESOURCE_RELATIONSHIPS),
+            quantity: z.number().optional(),
+            notes: z.string().optional(),
+            requiredFromDate: z.string().optional().describe('ISO date (YYYY-MM-DD)'),
+            requiredThroughDate: z.string().optional().describe('ISO date (YYYY-MM-DD)'),
+            requirementWindowState: z.enum(REQUIREMENT_WINDOW_STATES).optional(),
+            plannedSourcingModel: z.enum(SOURCING_MODELS).optional(),
+            confirmed: z.literal(true).describe('Must be literally true. Set only after the human clicked Approve on the exact proposed requirement.'),
+            idempotencyKey: z.string().describe('A unique key for this proposed mutation; a retry with the same key and the same payload is a no-op, a different payload is refused.'),
+          }),
+          annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true },
+        }, async (args) => {
+          try { return toolResult(await addResourceRequirement(supabase, args)) }
           catch (error) { return toolError(error) }
         })
 

@@ -14,9 +14,16 @@ const readTools = [
   'get_attention_items',
   'get_upcoming_engagements',
   'build_quote_draft',
+  'find_team_member',
+  'find_resource',
+  'get_capabilities',
+  'generate_email',
 ]
 
-const writeTools = ['set_next_action', 'complete_next_action', 'update_next_action', 'create_lead', 'save_quote_draft']
+const writeTools = [
+  'set_next_action', 'complete_next_action', 'update_next_action', 'create_lead',
+  'save_quote_draft', 'assign_team_member', 'add_resource_requirement',
+]
 
 test('every expected tool is registered exactly once', () => {
   for (const name of [...readTools, ...writeTools]) {
@@ -25,9 +32,9 @@ test('every expected tool is registered exactly once', () => {
   }
 })
 
-test('exactly 14 tools are registered — no silent extra or missing tool', () => {
+test('exactly 20 tools are registered — no silent extra or missing tool', () => {
   const matches = source.match(/server\.registerTool\('[a-z_]+'/g) ?? []
-  assert.equal(matches.length, 14, `expected 14 registerTool calls, found ${matches.length}`)
+  assert.equal(matches.length, 20, `expected 20 registerTool calls, found ${matches.length}`)
 })
 
 test('read tools are marked readOnlyHint: true', () => {
@@ -57,7 +64,7 @@ test('write tools require confirmed literally true and a non-optional idempotenc
 })
 
 test('every write handler refuses when confirmed is not literally true', () => {
-  for (const fn of ['setNextAction', 'completeNextAction', 'updateNextAction', 'createLead', 'saveQuoteDraft']) {
+  for (const fn of ['setNextAction', 'completeNextAction', 'updateNextAction', 'createLead', 'saveQuoteDraft', 'assignTeamMember', 'addResourceRequirement']) {
     const start = source.indexOf(`async function ${fn}(`)
     assert.ok(start >= 0, `could not find ${fn} implementation`)
     const block = source.slice(start, start + 800)
@@ -112,15 +119,82 @@ test('set_next_action rejects idempotency-key reuse with a different payload', (
   assert.match(block, /already used for a different proposed change/)
 })
 
-test('all five write tools perform a canonical re-read before reporting VERIFIED_SAVED', () => {
-  for (const fn of ['setNextAction', 'rereadCompletedWorkItem', 'rereadUpdatedWorkItem', 'rereadCreatedLead', 'rereadSavedQuote']) {
+test('all seven write tools perform a canonical re-read before reporting VERIFIED_SAVED', () => {
+  for (const fn of ['setNextAction', 'rereadCompletedWorkItem', 'rereadUpdatedWorkItem', 'rereadCreatedLead', 'rereadSavedQuote', 'rereadResourceRequirement', 'assignTeamMember']) {
     const start = source.indexOf(`async function ${fn}(`)
     assert.ok(start >= 0, `could not find ${fn}`)
   }
   const verifiedCount = (source.match(/VERIFIED_SAVED/g) ?? []).length
   const canonicalRereadComments = (source.match(/Canonical re-read: never trust the write/g) ?? []).length
-  assert.ok(verifiedCount >= 5, 'expected VERIFIED_SAVED to appear for each write capability')
-  assert.equal(canonicalRereadComments, 5, 'expected an explicit canonical-re-read step for each of the 5 write tools')
+  assert.ok(verifiedCount >= 7, 'expected VERIFIED_SAVED to appear for each write capability')
+  assert.equal(canonicalRereadComments, 7, 'expected an explicit canonical-re-read step for each of the 7 write tools')
+})
+
+test('assign_team_member only permits POSSIBLE or REQUESTED — never CONFIRMED/DECLINED/COMPLETED/UNKNOWN', () => {
+  assert.match(source, /const ASSIGNABLE_STATES = \['POSSIBLE', 'REQUESTED'\] as const/)
+  const start = source.indexOf('async function assignTeamMember(')
+  const end = source.indexOf('/* ============================== add_resource_requirement')
+  const block = source.slice(start, end)
+  assert.doesNotMatch(block, /assignment_state: 'CONFIRMED'/)
+})
+
+test('assign_team_member never claims availability is proven', () => {
+  const start = source.indexOf('async function assignTeamMember(')
+  const end = source.indexOf('/* ============================== add_resource_requirement')
+  const block = source.slice(start, end)
+  assert.match(block, /does not prove or confirm actual crew availability/)
+})
+
+test('assign_team_member rejects idempotency-key reuse with a different payload', () => {
+  const start = source.indexOf('async function assignTeamMember(')
+  const end = source.indexOf('/* ============================== add_resource_requirement')
+  const block = source.slice(start, end)
+  assert.match(block, /already used for a different proposed assignment/)
+})
+
+test('add_resource_requirement never writes to resource_commitments (no hold/reservation)', () => {
+  const start = source.indexOf('async function addResourceRequirement(')
+  const end = source.indexOf('/* ============================== generate_email')
+  const block = source.slice(start, end)
+  assert.doesNotMatch(block, /\.from\('resource_commitments'\)/)
+  assert.match(block, /\.from\('engagement_resources'\)/)
+})
+
+test('add_resource_requirement never claims availability', () => {
+  const start = source.indexOf('async function rereadResourceRequirement(')
+  const block = source.slice(start, start + 1800)
+  assert.match(block, /does not mean this resource is available, held, or reserved/)
+})
+
+test('generate_job_sheet never presents non-CONFIRMED crew as confirmed and separates requirements from commitments', () => {
+  const start = source.indexOf('async function generateJobSheet(')
+  const end = source.indexOf('async function getAttentionItems(') > start ? source.indexOf('async function getAttentionItems(') : source.length
+  const block = source.slice(start, start + 6000)
+  assert.match(block, /confirmed: a\.assignment_state === 'CONFIRMED'/)
+  assert.match(block, /NOT CONFIRMED — proposal only/)
+  assert.match(block, /reservedInventory: false/)
+  assert.match(block, /resource_commitments/)
+})
+
+test('generate_email is draft-only and never sends or changes engagement state', () => {
+  const start = source.indexOf('async function generateEmail(')
+  const end = source.indexOf('/* ============================== get_capabilities')
+  const block = source.slice(start, end)
+  assert.match(block, /draftOnly: true/)
+  assert.match(block, /sent: false/)
+  assert.doesNotMatch(block, /\.insert\(/)
+  assert.doesNotMatch(block, /\.update\(/)
+  assert.doesNotMatch(block, /commercial_state:/)
+})
+
+test('get_capabilities never advertises send_email, confirmed availability, holds, or pricing-authority changes as implemented', () => {
+  const start = source.indexOf('const CAPABILITY_TRUTH')
+  const end = source.indexOf('async function getCapabilities(')
+  const block = source.slice(start, end)
+  assert.match(block, /name: 'send_email', category: 'NOT_IMPLEMENTED'/)
+  assert.match(block, /name: 'confirm_crew_availability', category: 'FRONTIER'/)
+  assert.match(block, /name: 'create_resource_hold_or_reservation', category: 'FRONTIER'/)
+  assert.match(block, /name: 'approve_or_change_pricing_authority', category: 'FRONTIER'/)
 })
 
 test('save_quote_draft never promotes a DRAFT_CANDIDATE Price Book rate to approved policy', () => {
@@ -212,5 +286,5 @@ test('create_lead does not silently promote a lead\'s default commercial/commitm
 })
 
 test('server manifest version was bumped for the new tool set', () => {
-  assert.match(source, /new McpServer\(\{ name: 'stage-presence', version: '1\.3\.0' \}\)/)
+  assert.match(source, /new McpServer\(\{ name: 'stage-presence', version: '1\.4\.0' \}\)/)
 })
