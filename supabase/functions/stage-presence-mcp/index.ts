@@ -1665,6 +1665,18 @@ async function assignTeamMember(supabase: ScopedSupabase, args: AssignTeamMember
   if (verifyError) return notSaved(`Canonical re-read failed: ${verifyError.message}`, { assignmentId })
   if (!verified) return notSaved('Canonical re-read did not find the record after write.', { assignmentId })
 
+  let conflictEvidence: unknown = null
+  try {
+    conflictEvidence = await checkTeamConflicts(supabase, {
+      teamMemberId: teamMember.id,
+      proposedStart: args.scheduledStart,
+      proposedEnd: args.scheduledEnd,
+      engagementNumber: args.engagementNumber,
+    })
+  } catch {
+    conflictEvidence = { found: false, reason: 'Conflict evidence could not be computed for this response; run check_team_conflicts separately.' }
+  }
+
   return {
     saved: true,
     verificationState: 'VERIFIED_SAVED',
@@ -1678,8 +1690,9 @@ async function assignTeamMember(supabase: ScopedSupabase, args: AssignTeamMember
     assignmentState: verified.assignment_state,
     scheduledStart: verified.scheduled_start,
     scheduledEnd: verified.scheduled_end,
+    conflictEvidence,
     availabilityNote:
-      'This assignment_state records a proposal only — it does not prove or confirm actual crew availability. Confirming availability requires an evidence rule that does not exist yet.',
+      'This assignment_state records a proposal only — it does not prove or confirm actual crew availability. Confirming availability requires an evidence rule that does not exist yet. See conflictEvidence for what canonical scheduling data actually shows.',
   }
 }
 
@@ -1952,6 +1965,791 @@ async function generateEmail(supabase: ScopedSupabase, args: { engagementNumber:
   }
 }
 
+/* ============================== get_pricing_review_queue (read-only) ==============================
+   Answers "what pricing still needs review / why isn't this approved / what has no price at all?"
+   directly from price_book_v (no new authority derivation — every authority_state and evidence
+   field here is exactly what that view already computes). Adds only a human-readable `reason` and,
+   for actual pricing_rules (entry_kind RULE), each rule's real `updated_at` — pulled from
+   pricing_rules itself since price_book_v does not expose it — so a caller can pass it straight
+   into approve_pricing_rule/update_pricing_rule_draft as the stale-proposal guard. */
+
+const PRICING_AUTHORITY_STATES = [
+  'APPROVED_AUTHORITY', 'DRAFT_CANDIDATE', 'RETIRED_POLICY',
+  'CURRENT_REFERENCE_ONLY', 'LEGACY_REFERENCE_ONLY', 'HISTORICAL_ONLY', 'NO_PRICE_EVIDENCE',
+] as const
+
+function pricingReviewReason(row: { authority_state: string; requires_approval: boolean | null }) {
+  switch (row.authority_state) {
+    case 'APPROVED_AUTHORITY':
+      return 'Approved — this is current governed pricing authority.'
+    case 'DRAFT_CANDIDATE':
+      return `Drafted but not yet approved.${row.requires_approval ? ' Marked as requiring human approval before use.' : ''}`
+    case 'RETIRED_POLICY':
+      return 'Retired — no longer active pricing policy.'
+    case 'CURRENT_REFERENCE_ONLY':
+      return 'No pricing rule exists for this resource; only a current reference price is on file. A reference price is evidence, not approved authority.'
+    case 'LEGACY_REFERENCE_ONLY':
+      return 'No pricing rule exists for this resource; only a legacy/historical reference price is on file.'
+    case 'HISTORICAL_ONLY':
+      return 'No pricing rule or reference price exists; only historical quote observations exist for this resource.'
+    case 'NO_PRICE_EVIDENCE':
+      return 'No pricing rule, reference price, or historical observation exists for this resource.'
+    default:
+      return 'Unrecognized authority state.'
+  }
+}
+
+async function getPricingReviewQueue(supabase: ScopedSupabase, args: { authorityState?: string }) {
+  if (args.authorityState !== undefined && !(PRICING_AUTHORITY_STATES as readonly string[]).includes(args.authorityState)) {
+    return { reason: `Invalid authorityState: ${args.authorityState}. Must be one of ${PRICING_AUTHORITY_STATES.join(', ')}.` }
+  }
+  let query = supabase
+    .from('price_book_v')
+    .select(
+      'pricing_rule_id,entry_kind,code,name,status,rule_kind,price_position,scope_type,resource_name,role_code,category,engagement_type,scope_label,rate_type,billing_basis,duration_value,duration_unit,amount,percentage,currency,effective_from,effective_through,requires_approval,rationale,notes,approved_by,approved_at,reference_price,reference_price_basis,reference_price_state,historical_observation_count,historical_positive_observation_count,historical_positive_min_price,historical_positive_avg_price,historical_positive_max_price,authority_state',
+    )
+    .order('authority_state')
+    .order('resource_name')
+  if (args.authorityState) query = query.eq('authority_state', args.authorityState)
+  const { data, error } = await query
+  if (error) throw new Error(error.message)
+  const rows = data ?? []
+
+  const ruleIds = [...new Set(rows.map((r: any) => r.pricing_rule_id).filter(Boolean))]
+  const updatedAtById: Record<string, string> = {}
+  if (ruleIds.length) {
+    const { data: ruleRows, error: ruleError } = await supabase.from('pricing_rules').select('id,updated_at').in('id', ruleIds)
+    if (ruleError) throw new Error(ruleError.message)
+    for (const r of ruleRows ?? []) updatedAtById[r.id] = r.updated_at
+  }
+
+  const summary: Record<string, number> = {}
+  for (const s of PRICING_AUTHORITY_STATES) summary[s] = 0
+
+  const items = rows.map((r: any) => {
+    summary[r.authority_state] = (summary[r.authority_state] ?? 0) + 1
+    return {
+      pricingRuleId: r.pricing_rule_id,
+      entryKind: r.entry_kind,
+      itemLabel: r.scope_label ?? r.resource_name ?? r.name,
+      code: r.code,
+      status: r.status,
+      authorityState: r.authority_state,
+      ruleKind: r.rule_kind,
+      scopeType: r.scope_type,
+      rateType: r.rate_type,
+      billingBasis: r.billing_basis,
+      amount: r.amount,
+      percentage: r.percentage,
+      currency: r.currency,
+      effectiveFrom: r.effective_from,
+      effectiveThrough: r.effective_through,
+      requiresApproval: r.requires_approval,
+      rationale: r.rationale,
+      notes: r.notes,
+      approvedBy: r.approved_by,
+      approvedAt: r.approved_at,
+      referencePrice: r.reference_price,
+      referencePriceBasis: r.reference_price_basis,
+      referencePriceState: r.reference_price_state,
+      historicalObservationCount: r.historical_positive_observation_count ?? r.historical_observation_count,
+      historicalAvgPrice: r.historical_positive_avg_price,
+      historicalMinPrice: r.historical_positive_min_price,
+      historicalMaxPrice: r.historical_positive_max_price,
+      updatedAt: r.pricing_rule_id ? updatedAtById[r.pricing_rule_id] ?? null : null,
+      reason: pricingReviewReason(r),
+    }
+  })
+
+  return {
+    generatedAt: new Date().toISOString(),
+    summary,
+    items,
+    note:
+      'CURRENT_REFERENCE_ONLY / LEGACY_REFERENCE_ONLY / HISTORICAL_ONLY / NO_PRICE_EVIDENCE are evidence states, never approved authority. Only APPROVED_AUTHORITY may be used as governed pricing. Use an item\'s pricingRuleId and updatedAt with approve_pricing_rule or update_pricing_rule_draft.',
+  }
+}
+
+/* ============================== approve_pricing_rule ==============================
+   Turns exactly one existing DRAFT pricing_rules row into APPROVED_AUTHORITY — never creates a
+   rule, never changes its amount/scope/rate_type (that is update_pricing_rule_draft's narrower job),
+   and never touches any row but the one named. Writes only the existing canonical approval fields
+   (status, approved_by, approved_at) plus this tool's own idempotency bookkeeping in the row's
+   existing metadata column. A required `expectedUpdatedAt` — the updated_at the caller last read
+   from get_pricing_review_queue — is compared against the live row (and enforced again at the
+   database level via .eq('updated_at', ...)) so a rule that changed between proposal and approval
+   is refused rather than silently approved. After writing, re-reads both pricing_rules AND
+   price_book_v for this pricing_rule_id and only reports VERIFIED_SAVED if the view itself now
+   reports authority_state = 'APPROVED_AUTHORITY' — never trusting the write response alone. */
+
+interface ApprovePricingRuleArgs {
+  pricingRuleId: string
+  expectedUpdatedAt: string
+  confirmed: boolean
+  idempotencyKey: string
+}
+
+async function approvePricingRule(supabase: ScopedSupabase, args: ApprovePricingRuleArgs) {
+  const notSaved = (reason: string, extra: Record<string, unknown> = {}) => ({
+    saved: false,
+    verificationState: 'NOT_SAVED',
+    pricingRuleId: args.pricingRuleId ?? null,
+    reason,
+    ...extra,
+  })
+
+  if (args.confirmed !== true) {
+    return notSaved('Refused: confirmed must be literally true. This tool only writes after explicit human approval.')
+  }
+  if (!args.idempotencyKey) return notSaved('idempotencyKey is required.')
+  if (!args.pricingRuleId) return notSaved('pricingRuleId is required.')
+  if (!args.expectedUpdatedAt) {
+    return notSaved(
+      "expectedUpdatedAt is required — read the rule's current state (get_pricing_review_queue) immediately before proposing approval, and pass its updatedAt back here so a change made in between is detected rather than silently overwritten.",
+    )
+  }
+
+  const { data: current, error: currentError } = await supabase
+    .from('pricing_rules')
+    .select('id,code,name,status,rate_type,amount,percentage,metadata,updated_at')
+    .eq('id', args.pricingRuleId)
+    .maybeSingle()
+  if (currentError) return notSaved(`Could not look up pricing rule: ${currentError.message}`)
+  if (!current) return notSaved(`No pricing rule found with id ${args.pricingRuleId}. Nothing was written.`)
+
+  const sourceKey = `mcp:approve_pricing_rule:${args.idempotencyKey}`
+
+  if (current.status === 'APPROVED') {
+    if (current.metadata?.approval_idempotency_key === sourceKey) {
+      return rereadApprovedPricingRule(supabase, args.pricingRuleId, 'Already APPROVED — idempotent replay, no change made.')
+    }
+    return notSaved(`Pricing rule ${args.pricingRuleId} is already APPROVED (by a different action). Nothing changed.`, { code: current.code })
+  }
+  if (current.status === 'RETIRED') {
+    return notSaved(`Pricing rule ${args.pricingRuleId} is RETIRED and cannot be approved. Nothing was written.`, { code: current.code })
+  }
+  // status === 'DRAFT' from here.
+  if (current.updated_at !== args.expectedUpdatedAt) {
+    return notSaved(
+      'This pricing rule changed since it was last read. Re-fetch its current state (get_pricing_review_queue) and re-propose approval against the latest updatedAt.',
+      { code: current.code, currentUpdatedAt: current.updated_at },
+    )
+  }
+
+  const { data: userData } = await supabase.auth.getUser()
+  const actorUserId = userData.user?.id ?? null
+  if (!actorUserId) return notSaved('Could not resolve the approving user. Sign in again before approving pricing.')
+
+  const { data: updated, error: updateError } = await supabase
+    .from('pricing_rules')
+    .update({
+      status: 'APPROVED',
+      approved_by: actorUserId,
+      approved_at: new Date().toISOString(),
+      metadata: { ...(current.metadata ?? {}), approval_idempotency_key: sourceKey },
+    })
+    .eq('id', args.pricingRuleId)
+    .eq('updated_at', current.updated_at)
+    .select('id')
+    .maybeSingle()
+  if (updateError) return notSaved(`Write failed: ${updateError.message}`, { code: current.code })
+  if (!updated) {
+    return notSaved('This pricing rule changed concurrently while being approved. Re-fetch its current state and re-propose.', { code: current.code })
+  }
+
+  return rereadApprovedPricingRule(supabase, args.pricingRuleId, null)
+}
+
+async function rereadApprovedPricingRule(supabase: ScopedSupabase, pricingRuleId: string, note: string | null) {
+  // Canonical re-read: never trust the write response alone.
+  const { data: rule, error: ruleError } = await supabase
+    .from('pricing_rules')
+    .select('id,code,name,status,amount,percentage,approved_by,approved_at,updated_at')
+    .eq('id', pricingRuleId)
+    .maybeSingle()
+  if (ruleError) return { saved: false, verificationState: 'NOT_SAVED', reason: `Canonical re-read failed: ${ruleError.message}` }
+  if (!rule || rule.status !== 'APPROVED' || !rule.approved_by || !rule.approved_at) {
+    return { saved: false, verificationState: 'NOT_SAVED', reason: 'Canonical re-read did not confirm an approved rule.' }
+  }
+
+  const { data: pbRow, error: pbError } = await supabase.from('price_book_v').select('authority_state').eq('pricing_rule_id', pricingRuleId).maybeSingle()
+  if (pbError) return { saved: false, verificationState: 'NOT_SAVED', reason: `price_book_v re-read failed: ${pbError.message}`, pricingRuleId }
+  if (!pbRow || pbRow.authority_state !== 'APPROVED_AUTHORITY') {
+    return {
+      saved: false,
+      verificationState: 'NOT_SAVED',
+      reason: `pricing_rules.status is APPROVED but price_book_v.authority_state reports ${pbRow?.authority_state ?? 'no row'} instead of APPROVED_AUTHORITY — not confirming success.`,
+      pricingRuleId,
+    }
+  }
+
+  return {
+    saved: true,
+    verificationState: 'VERIFIED_SAVED',
+    pricingRuleId: rule.id,
+    code: rule.code,
+    name: rule.name,
+    status: rule.status,
+    amount: rule.amount,
+    percentage: rule.percentage,
+    approvedBy: rule.approved_by,
+    approvedAt: rule.approved_at,
+    priceBookAuthorityState: pbRow.authority_state,
+    note,
+  }
+}
+
+/* ============================== update_pricing_rule_draft ==============================
+   Narrowly edits ONE existing DRAFT pricing_rules row's candidate amount/percentage/name/notes/
+   rationale/effective window — refuses outright on any rule that is not currently DRAFT (an
+   APPROVED or RETIRED rule is never edited by this tool; that is a separate, not-yet-built
+   capability if ever needed). Never touches status/approved_by/approved_at. Same
+   expectedUpdatedAt stale-proposal guard as approve_pricing_rule. */
+
+const PRICING_DRAFT_FIELD_MAP: Record<string, string> = {
+  name: 'name',
+  amount: 'amount',
+  percentage: 'percentage',
+  notes: 'notes',
+  rationale: 'rationale',
+  effectiveFrom: 'effective_from',
+  effectiveThrough: 'effective_through',
+}
+
+interface UpdatePricingRuleDraftArgs {
+  pricingRuleId: string
+  expectedUpdatedAt: string
+  confirmed: boolean
+  idempotencyKey: string
+  name?: string
+  amount?: number
+  percentage?: number
+  notes?: string
+  rationale?: string
+  effectiveFrom?: string
+  effectiveThrough?: string
+}
+
+async function updatePricingRuleDraft(supabase: ScopedSupabase, args: UpdatePricingRuleDraftArgs) {
+  const notSaved = (reason: string, extra: Record<string, unknown> = {}) => ({
+    saved: false,
+    verificationState: 'NOT_SAVED',
+    pricingRuleId: args.pricingRuleId ?? null,
+    reason,
+    ...extra,
+  })
+
+  if (args.confirmed !== true) {
+    return notSaved('Refused: confirmed must be literally true. This tool only writes after explicit human approval.')
+  }
+  if (!args.idempotencyKey) return notSaved('idempotencyKey is required.')
+  if (!args.pricingRuleId) return notSaved('pricingRuleId is required.')
+  if (!args.expectedUpdatedAt) {
+    return notSaved("expectedUpdatedAt is required — read the rule's current state (get_pricing_review_queue) immediately before proposing this edit.")
+  }
+
+  const requestedEntries = Object.entries(PRICING_DRAFT_FIELD_MAP).filter(([argKey]) => (args as unknown as Record<string, unknown>)[argKey] !== undefined)
+  if (requestedEntries.length === 0) {
+    return notSaved('No fields supplied to update. Provide at least one of: name, amount, percentage, notes, rationale, effectiveFrom, effectiveThrough.')
+  }
+
+  const { data: current, error: currentError } = await supabase
+    .from('pricing_rules')
+    .select('id,code,name,status,rate_type,amount,percentage,notes,rationale,effective_from,effective_through,metadata,updated_at')
+    .eq('id', args.pricingRuleId)
+    .maybeSingle()
+  if (currentError) return notSaved(`Could not look up pricing rule: ${currentError.message}`)
+  if (!current) return notSaved(`No pricing rule found with id ${args.pricingRuleId}. Nothing was written.`)
+  if (current.status !== 'DRAFT') {
+    return notSaved(`Pricing rule ${args.pricingRuleId} has status ${current.status}. Only a DRAFT rule's candidate amount/scope may be edited by this tool.`, { code: current.code })
+  }
+  if (args.amount !== undefined && current.rate_type === 'PERCENT') {
+    return notSaved('This rule uses PERCENT pricing (percentage), not a flat amount. Edit percentage instead.', { code: current.code })
+  }
+  if (args.percentage !== undefined && current.rate_type !== 'PERCENT') {
+    return notSaved('This rule does not use PERCENT pricing. Edit amount instead.', { code: current.code })
+  }
+  if (args.amount !== undefined && !(Number.isFinite(args.amount) && args.amount >= 0)) {
+    return notSaved('amount must be a finite number >= 0.', { code: current.code })
+  }
+  if (args.percentage !== undefined && !(Number.isFinite(args.percentage) && args.percentage >= 0)) {
+    return notSaved('percentage must be a finite number >= 0.', { code: current.code })
+  }
+  if (args.name !== undefined && !args.name.trim()) {
+    return notSaved('name cannot be blank.', { code: current.code })
+  }
+  if (args.effectiveFrom !== undefined && args.effectiveThrough !== undefined && args.effectiveThrough < args.effectiveFrom) {
+    return notSaved('effectiveThrough cannot be before effectiveFrom.', { code: current.code })
+  }
+  if (current.updated_at !== args.expectedUpdatedAt) {
+    return notSaved(
+      'This pricing rule changed since it was last read. Re-fetch its current state (get_pricing_review_queue) and re-propose this edit against the latest updatedAt.',
+      { code: current.code, currentUpdatedAt: current.updated_at },
+    )
+  }
+
+  const requestedPatch: Record<string, unknown> = {}
+  for (const [argKey, column] of requestedEntries) {
+    let value = (args as unknown as Record<string, unknown>)[argKey]
+    if (argKey === 'name') value = (value as string).trim()
+    if (argKey === 'notes' || argKey === 'rationale') value = (value as string)?.trim() || null
+    requestedPatch[column] = value
+  }
+  const sourceKey = `mcp:update_pricing_rule_draft:${args.idempotencyKey}`
+  const payloadSignature = JSON.stringify(requestedPatch, Object.keys(requestedPatch).sort())
+
+  if (current.metadata?.last_draft_update?.key === sourceKey) {
+    if (current.metadata.last_draft_update.payload === payloadSignature) {
+      return rereadPricingRuleDraft(supabase, args.pricingRuleId, 'Idempotent replay — no change made.')
+    }
+    return notSaved('This idempotencyKey was already used for a different draft edit on this rule. Use a new idempotencyKey for a new or edited proposal.', { code: current.code })
+  }
+
+  const { data: updated, error: updateError } = await supabase
+    .from('pricing_rules')
+    .update({
+      ...requestedPatch,
+      metadata: { ...(current.metadata ?? {}), last_draft_update: { key: sourceKey, payload: payloadSignature, at: new Date().toISOString() } },
+    })
+    .eq('id', args.pricingRuleId)
+    .eq('updated_at', current.updated_at)
+    .eq('status', 'DRAFT')
+    .select('id')
+    .maybeSingle()
+  if (updateError) return notSaved(`Write failed: ${updateError.message}`, { code: current.code })
+  if (!updated) {
+    return notSaved('This pricing rule changed concurrently while being edited. Re-fetch its current state and re-propose.', { code: current.code })
+  }
+
+  return rereadPricingRuleDraft(supabase, args.pricingRuleId, null)
+}
+
+async function rereadPricingRuleDraft(supabase: ScopedSupabase, pricingRuleId: string, note: string | null) {
+  // Canonical re-read: never trust the write response alone.
+  const { data: rule, error } = await supabase
+    .from('pricing_rules')
+    .select('id,code,name,status,amount,percentage,notes,rationale,effective_from,effective_through,updated_at')
+    .eq('id', pricingRuleId)
+    .maybeSingle()
+  if (error) return { saved: false, verificationState: 'NOT_SAVED', reason: `Canonical re-read failed: ${error.message}` }
+  if (!rule || rule.status !== 'DRAFT') {
+    return { saved: false, verificationState: 'NOT_SAVED', reason: 'Canonical re-read did not confirm the rule is still a DRAFT candidate.' }
+  }
+  return {
+    saved: true,
+    verificationState: 'VERIFIED_SAVED',
+    pricingRuleId: rule.id,
+    code: rule.code,
+    name: rule.name,
+    status: rule.status,
+    amount: rule.amount,
+    percentage: rule.percentage,
+    notes: rule.notes,
+    rationale: rule.rationale,
+    effectiveFrom: rule.effective_from,
+    effectiveThrough: rule.effective_through,
+    updatedAt: rule.updated_at,
+    note,
+  }
+}
+
+/* ============================== check_team_conflicts (read-only evidence, never availability) ==============================
+   Never reports AVAILABLE. Compares a proposed window (explicit, or derived from an engagement's
+   own schedule/event date) against this team member's other recorded assignments and reports only
+   what canonical data actually shows: a known exact-time overlap, a known same-day/date-level
+   match, an explicit absence of any overlap found, or that there isn't enough scheduling evidence
+   to compare at all. */
+
+function resolveExplicitWindow(start: string, end?: string) {
+  return { start, end: end || start, precision: 'EXACT' as const, source: 'EXPLICIT_INPUT' }
+}
+
+async function resolveEngagementWindow(supabase: ScopedSupabase, engagementId: string) {
+  const { data: items } = await supabase
+    .from('engagement_schedule_items')
+    .select('start_at,end_at,start_date,end_date')
+    .eq('engagement_id', engagementId)
+  const starts: string[] = []
+  const ends: string[] = []
+  let dateOnly = false
+  for (const it of items ?? []) {
+    if (it.start_at) starts.push(it.start_at)
+    else if (it.start_date) {
+      starts.push(`${it.start_date}T00:00:00.000Z`)
+      dateOnly = true
+    }
+    if (it.end_at) ends.push(it.end_at)
+    else if (it.end_date) {
+      ends.push(`${it.end_date}T23:59:59.999Z`)
+      dateOnly = true
+    } else if (it.start_at) ends.push(it.start_at)
+    else if (it.start_date) ends.push(`${it.start_date}T23:59:59.999Z`)
+  }
+  if (starts.length) {
+    starts.sort()
+    ends.sort()
+    return { start: starts[0], end: ends[ends.length - 1] || starts[starts.length - 1], precision: dateOnly ? ('DATE_LEVEL' as const) : ('EXACT' as const), source: 'ENGAGEMENT_SCHEDULE_ITEMS' }
+  }
+  const { data: engagement } = await supabase.from('engagements').select('event_start_date').eq('id', engagementId).maybeSingle()
+  if (engagement?.event_start_date) {
+    return { start: `${engagement.event_start_date}T00:00:00.000Z`, end: `${engagement.event_start_date}T23:59:59.999Z`, precision: 'DATE_LEVEL' as const, source: 'ENGAGEMENT_EVENT_DATE' }
+  }
+  return null
+}
+
+interface CheckTeamConflictsArgs {
+  teamMemberId: string
+  proposedStart?: string
+  proposedEnd?: string
+  engagementNumber?: string
+}
+
+async function checkTeamConflicts(supabase: ScopedSupabase, args: CheckTeamConflictsArgs) {
+  if (!args.teamMemberId) return { found: false, reason: 'teamMemberId is required.' }
+
+  const { data: teamMember, error: tmError } = await supabase.from('team_members').select('id,display_name,active').eq('id', args.teamMemberId).maybeSingle()
+  if (tmError) return { found: false, reason: `Could not look up team member: ${tmError.message}` }
+  if (!teamMember) return { found: false, reason: `No team member found with id ${args.teamMemberId}.` }
+
+  let proposedWindow: { start: string; end: string; precision: string; source: string } | null = null
+  let excludeEngagementId: string | null = null
+  let targetEngagementNumber: string | null = null
+
+  if (args.proposedStart) proposedWindow = resolveExplicitWindow(args.proposedStart, args.proposedEnd)
+  if (args.engagementNumber) {
+    const { data: eng } = await supabase.from('engagements').select('id,engagement_number').eq('engagement_number', args.engagementNumber).maybeSingle()
+    if (eng) {
+      excludeEngagementId = eng.id
+      targetEngagementNumber = eng.engagement_number
+      if (!proposedWindow) proposedWindow = await resolveEngagementWindow(supabase, eng.id)
+    }
+  }
+
+  const { data: assignments, error: assignError } = await supabase
+    .from('engagement_assignments')
+    .select('id,engagement_id,role_code,role_label,assignment_state,scheduled_start,scheduled_end,engagements(engagement_number,name)')
+    .eq('team_member_id', args.teamMemberId)
+    .neq('assignment_state', 'DECLINED')
+  if (assignError) return { found: false, reason: `Could not read assignments: ${assignError.message}` }
+
+  const evidence: Record<string, unknown>[] = []
+  let hasExactConflict = false
+  let hasDateLevelConflict = false
+  let hasUncomparable = false
+
+  for (const a of assignments ?? []) {
+    if (excludeEngagementId && a.engagement_id === excludeEngagementId) continue
+
+    let window: { start: string; end: string; precision: string; source: string } | null = null
+    if (a.scheduled_start && a.scheduled_end) window = { start: a.scheduled_start, end: a.scheduled_end, precision: 'EXACT', source: 'ASSIGNMENT_SCHEDULE' }
+    else if (a.scheduled_start) window = { start: a.scheduled_start, end: a.scheduled_start, precision: 'EXACT', source: 'ASSIGNMENT_SCHEDULE' }
+    else window = await resolveEngagementWindow(supabase, a.engagement_id)
+
+    let comparison = 'CANNOT_COMPARE'
+    if (proposedWindow && window) {
+      const doOverlap = proposedWindow.start <= window.end && proposedWindow.end >= window.start
+      if (doOverlap) comparison = proposedWindow.precision === 'EXACT' && window.precision === 'EXACT' ? 'OVERLAPS_EXACT' : 'OVERLAPS_DATE_LEVEL'
+      else comparison = 'NO_OVERLAP'
+    }
+    if (comparison === 'OVERLAPS_EXACT') hasExactConflict = true
+    if (comparison === 'OVERLAPS_DATE_LEVEL') hasDateLevelConflict = true
+    if (comparison === 'CANNOT_COMPARE') hasUncomparable = true
+
+    evidence.push({
+      engagementNumber: (a as any).engagements?.engagement_number ?? null,
+      engagementName: (a as any).engagements?.name ?? null,
+      roleCode: a.role_code,
+      roleLabel: a.role_label,
+      assignmentState: a.assignment_state,
+      window,
+      comparison,
+    })
+  }
+
+  let overallState: string
+  if (!proposedWindow) overallState = 'INSUFFICIENT_SCHEDULING_EVIDENCE'
+  else if (hasExactConflict) overallState = 'KNOWN_CONFLICTING_ASSIGNMENT'
+  else if (hasDateLevelConflict) overallState = 'KNOWN_SCHEDULED_ASSIGNMENT'
+  else if (hasUncomparable) overallState = 'INSUFFICIENT_SCHEDULING_EVIDENCE'
+  else overallState = 'NO_CONFLICT_FOUND_IN_CANONICAL_DATA'
+
+  return {
+    found: true,
+    teamMemberId: teamMember.id,
+    teamMemberName: teamMember.display_name,
+    teamMemberActive: teamMember.active,
+    proposedWindow,
+    engagementNumberChecked: targetEngagementNumber ?? args.engagementNumber ?? null,
+    overallState,
+    evidence,
+    disclaimer:
+      'NO_CONFLICT_FOUND_IN_CANONICAL_DATA means no overlapping assignment was found in recorded data — it does NOT mean this person is available. Confirming availability requires evidence (a calendar, an acknowledgement, a confirmation channel) this system does not yet collect.',
+  }
+}
+
+/* ============================== check_resource_pressure (read-only evidence, never availability) ==============================
+   Never reports AVAILABLE, and never creates a HOLD/RESERVATION. Compares recorded demand
+   (other engagements' requirements/commitments for this resource, plus an optional proposed
+   quantity/window) against the resource's own configured quantity — but only when that quantity's
+   quantity_state is VERIFIED; otherwise it says so explicitly rather than treating an unverified
+   number as trustworthy inventory. */
+
+function windowsOverlap(aFrom: string | null, aThrough: string | null, bFrom: string | null, bThrough: string | null) {
+  if (aFrom && bThrough && aFrom > bThrough) return false
+  if (aThrough && bFrom && aThrough < bFrom) return false
+  return true
+}
+
+interface CheckResourcePressureArgs {
+  resourceId: string
+  requiredFromDate?: string
+  requiredThroughDate?: string
+  requiredQuantity?: number
+  engagementNumber?: string
+}
+
+async function checkResourcePressure(supabase: ScopedSupabase, args: CheckResourcePressureArgs) {
+  if (!args.resourceId) return { found: false, reason: 'resourceId is required.' }
+
+  const { data: resource, error: resourceError } = await supabase
+    .from('resources')
+    .select('id,name,category,resource_type,sourcing_model,quantity,quantity_state,active')
+    .eq('id', args.resourceId)
+    .maybeSingle()
+  if (resourceError) return { found: false, reason: `Could not look up resource: ${resourceError.message}` }
+  if (!resource) return { found: false, reason: `No resource found with id ${args.resourceId}.` }
+
+  const hasWindow = !!(args.requiredFromDate || args.requiredThroughDate)
+
+  let excludeEngagementId: string | null = null
+  if (args.engagementNumber) {
+    const { data: eng } = await supabase.from('engagements').select('id').eq('engagement_number', args.engagementNumber).maybeSingle()
+    if (eng) excludeEngagementId = eng.id
+  }
+
+  const { data: requirements, error: reqError } = await supabase
+    .from('engagement_resources')
+    .select('engagement_id,relationship,quantity,required_from_date,required_through_date,requirement_window_state,engagements(engagement_number,name)')
+    .eq('resource_id', args.resourceId)
+  if (reqError) return { found: false, reason: `Could not read engagement_resources: ${reqError.message}` }
+
+  const { data: commitments, error: commitError } = await supabase
+    .from('resource_commitments')
+    .select('engagement_id,commitment_type,commitment_state,quantity,from_date,through_date,engagements(engagement_number,name)')
+    .eq('resource_id', args.resourceId)
+  if (commitError) return { found: false, reason: `Could not read resource_commitments: ${commitError.message}` }
+
+  const relevantRequirements = (requirements ?? [])
+    .filter((r: any) => r.engagement_id !== excludeEngagementId)
+    .map((r: any) => ({
+      engagementNumber: r.engagements?.engagement_number ?? null,
+      engagementName: r.engagements?.name ?? null,
+      relationship: r.relationship,
+      quantity: r.quantity,
+      requiredFromDate: r.required_from_date,
+      requiredThroughDate: r.required_through_date,
+      requirementWindowState: r.requirement_window_state,
+      overlapsRequestedWindow: hasWindow ? windowsOverlap(args.requiredFromDate ?? null, args.requiredThroughDate ?? null, r.required_from_date, r.required_through_date) : null,
+    }))
+
+  const relevantCommitments = (commitments ?? [])
+    .filter((c: any) => c.engagement_id !== excludeEngagementId)
+    .map((c: any) => ({
+      engagementNumber: c.engagements?.engagement_number ?? null,
+      engagementName: c.engagements?.name ?? null,
+      commitmentType: c.commitment_type,
+      commitmentState: c.commitment_state,
+      quantity: c.quantity,
+      fromDate: c.from_date,
+      throughDate: c.through_date,
+      overlapsRequestedWindow: hasWindow ? windowsOverlap(args.requiredFromDate ?? null, args.requiredThroughDate ?? null, c.from_date, c.through_date) : null,
+    }))
+
+  const sumQty = (arr: { quantity: number | null }[]) => arr.reduce((s, c) => s + (Number(c.quantity) || 0), 0)
+  const tentativeOverlapping = relevantCommitments.filter((c) => c.commitmentState === 'TENTATIVE' && (!hasWindow || c.overlapsRequestedWindow))
+  const confirmedOverlapping = relevantCommitments.filter((c) => c.commitmentState === 'CONFIRMED' && (!hasWindow || c.overlapsRequestedWindow))
+
+  const configuredQuantityTrustworthy = resource.quantity_state === 'VERIFIED' && resource.quantity !== null
+
+  let pressureState: string
+  let pressureReason: string
+  if (!configuredQuantityTrustworthy) {
+    pressureState = 'INSUFFICIENT_EVIDENCE_TO_ASSESS'
+    pressureReason = `resources.quantity_state is ${resource.quantity_state}${resource.quantity === null ? ' and no quantity is recorded' : ''}, so configured inventory quantity is not trustworthy evidence.`
+  } else if (!hasWindow) {
+    pressureState = 'INSUFFICIENT_EVIDENCE_TO_ASSESS'
+    pressureReason = 'No requiredFromDate/requiredThroughDate window was supplied, so demand cannot be compared against a specific period.'
+  } else {
+    const demandQuantity = (Number(args.requiredQuantity) || 0) + sumQty(confirmedOverlapping)
+    pressureState = demandQuantity > Number(resource.quantity) ? 'DEMAND_MAY_EXCEED_CONFIGURED_QUANTITY' : 'DEMAND_WITHIN_CONFIGURED_QUANTITY'
+    pressureReason = `Configured quantity ${resource.quantity} compared against ${demandQuantity} (requested ${args.requiredQuantity ?? 0} + ${sumQty(confirmedOverlapping)} already CONFIRMED-committed in the overlapping window).`
+  }
+
+  return {
+    found: true,
+    resourceId: resource.id,
+    resourceName: resource.name,
+    category: resource.category,
+    sourcingModel: resource.sourcing_model,
+    configuredQuantity: resource.quantity,
+    configuredQuantityState: resource.quantity_state,
+    configuredQuantityTrustworthy,
+    requestedWindow: hasWindow ? { from: args.requiredFromDate ?? null, through: args.requiredThroughDate ?? null } : null,
+    requestedQuantity: args.requiredQuantity ?? null,
+    otherRequirements: relevantRequirements,
+    otherCommitments: relevantCommitments,
+    tentativeCommitmentQuantityInWindow: sumQty(tentativeOverlapping),
+    confirmedCommitmentQuantityInWindow: sumQty(confirmedOverlapping),
+    pressureState,
+    pressureReason,
+    disclaimer:
+      'This is an evidence comparison only — it is never a hold, reservation, or availability determination. DEMAND_WITHIN_CONFIGURED_QUANTITY does not mean this resource is available; it means recorded demand does not exceed the recorded configured quantity for this window.',
+  }
+}
+
+/* ============================== generate_daily_brief (read-only synthesis) ==============================
+   Reuses already-proven read paths (getAttentionItems, getUpcomingEngagements, engagement_summary_v's
+   own economy projection, engagement_pricing_position_v) rather than re-deriving any of their logic,
+   and adds the remaining sections directly from canonical tables. Nothing is mutated. Every line is
+   tagged FACT (directly observed), DERIVED_ATTENTION (a synthesized flag computed from canonical
+   data), or UNKNOWN — payments are reported only as observed economy facts, never inferred. */
+
+async function generateDailyBrief(supabase: ScopedSupabase) {
+  const today = new Date().toISOString().slice(0, 10)
+
+  const [attentionItems, upcoming] = await Promise.all([getAttentionItems(supabase), getUpcomingEngagements(supabase, 20)])
+  const byId = new Map<string, any>()
+  for (const e of [...attentionItems, ...upcoming]) byId.set(e.id, e)
+  const engagementIds = [...byId.keys()]
+
+  const { data: urgentWork } = await supabase
+    .from('work_items')
+    .select('id,engagement_id,title,action_type,priority,status,due_date,engagements(engagement_number,name)')
+    .in('status', ['OPEN', 'WAITING', 'BLOCKED'])
+    .or(`priority.eq.NOW,due_date.lt.${today}`)
+    .order('priority')
+    .limit(30)
+
+  const { data: openQuotes } = await supabase
+    .from('commercial_documents')
+    .select('id,engagement_id,document_state,total,grand_total,version_no,engagements(engagement_number,name)')
+    .eq('document_type', 'QUOTE')
+    .in('document_state', ['DRAFT', 'SENT', 'UNSIGNED'])
+    .order('created_at', { ascending: false })
+    .limit(30)
+
+  const { data: pricingBlockers } = await supabase
+    .from('engagement_pricing_position_v')
+    .select('engagement_number,engagement_name,pricing_readiness_state,price_decision_gap_count,draft_policy_line_count')
+    .in('pricing_readiness_state', ['PRICE_SCOPE_INCOMPLETE', 'DRAFT_POLICY_REVIEW_REQUIRED', 'PRICING_REVIEW'])
+    .limit(30)
+
+  const { data: unresolvedStaffing } = await supabase
+    .from('engagement_assignments')
+    .select('id,role_code,role_label,assignment_state,team_members(display_name),engagements(engagement_number,name,event_start_date)')
+    .in('assignment_state', ['POSSIBLE', 'REQUESTED'])
+    .order('created_at', { ascending: false })
+    .limit(40)
+
+  let resourceGaps: Record<string, unknown>[] = []
+  let openFacts: Record<string, unknown>[] = []
+  if (engagementIds.length) {
+    const [{ data: reqRows }, { data: commitRows }, { data: factRows }] = await Promise.all([
+      supabase.from('engagement_resources').select('engagement_id,relationship,quantity,resources(name),engagements(engagement_number,name)').in('engagement_id', engagementIds),
+      supabase.from('resource_commitments').select('engagement_id').in('engagement_id', engagementIds),
+      supabase.from('engagement_facts').select('engagement_id,label,certainty_state,engagements(engagement_number,name)').in('engagement_id', engagementIds).in('certainty_state', ['UNKNOWN', 'CONFLICTING']).limit(40),
+    ])
+    const engagementsWithCommitments = new Set((commitRows ?? []).map((c: any) => c.engagement_id))
+    resourceGaps = (reqRows ?? [])
+      .filter((r: any) => !engagementsWithCommitments.has(r.engagement_id))
+      .map((r: any) => ({
+        engagementNumber: r.engagements?.engagement_number ?? null,
+        engagementName: r.engagements?.name ?? null,
+        resourceName: r.resources?.name ?? null,
+        relationship: r.relationship,
+        quantity: r.quantity,
+      }))
+    openFacts = (factRows ?? []).map((f: any) => ({
+      engagementNumber: f.engagements?.engagement_number ?? null,
+      engagementName: f.engagements?.name ?? null,
+      label: f.label,
+      certaintyState: f.certainty_state,
+    }))
+  }
+
+  const observedPaymentFacts = [...byId.values()]
+    .filter((e: any) => e.economy && (e.economy.collected_observed != null || e.economy.outstanding_observed != null))
+    .map((e: any) => ({
+      engagementNumber: e.engagement_number,
+      engagementName: e.name,
+      collectedObserved: e.economy.collected_observed,
+      outstandingObserved: e.economy.outstanding_observed,
+      cashEvidenceState: e.economy.cash_evidence_state,
+    }))
+
+  const nextActions: { kind: string; text: string }[] = []
+  for (const w of urgentWork ?? []) {
+    nextActions.push({ kind: 'DERIVED_ATTENTION', text: `${w.priority === 'NOW' ? 'NOW priority' : 'Overdue'}: "${w.title}" on ${(w as any).engagements?.engagement_number ?? 'an engagement'} (${w.action_type})` })
+  }
+  for (const pb of pricingBlockers ?? []) {
+    nextActions.push({ kind: 'DERIVED_ATTENTION', text: `Pricing review needed on ${(pb as any).engagement_number}: ${pb.pricing_readiness_state}` })
+  }
+  for (const s of unresolvedStaffing ?? []) {
+    nextActions.push({ kind: 'DERIVED_ATTENTION', text: `Unresolved staffing on ${(s as any).engagements?.engagement_number ?? 'an engagement'}: ${(s as any).team_members?.display_name ?? 'unassigned'} is only ${s.assignment_state} for ${s.role_code}` })
+  }
+
+  return {
+    generatedAt: new Date().toISOString(),
+    urgentWorkItems: (urgentWork ?? []).map((w: any) => ({
+      workItemId: w.id,
+      title: w.title,
+      actionType: w.action_type,
+      priority: w.priority,
+      status: w.status,
+      dueDate: w.due_date,
+      engagementNumber: w.engagements?.engagement_number ?? null,
+      engagementName: w.engagements?.name ?? null,
+    })),
+    upcomingEngagements: upcoming,
+    proposedOrUncommittedApproachingEvent: upcoming.filter((e: any) => e.commitment_state === 'UNCOMMITTED' || e.commitment_state === 'VERBAL_YES'),
+    quotesNeedingAttention: (openQuotes ?? []).map((q: any) => ({
+      quoteId: q.id,
+      documentState: q.document_state,
+      total: q.grand_total ?? q.total,
+      versionNo: q.version_no,
+      engagementNumber: q.engagements?.engagement_number ?? null,
+      engagementName: q.engagements?.name ?? null,
+    })),
+    pricingBlockers: (pricingBlockers ?? []).map((p: any) => ({
+      engagementNumber: p.engagement_number,
+      engagementName: p.engagement_name,
+      readinessState: p.pricing_readiness_state,
+      priceDecisionGapCount: p.price_decision_gap_count,
+      draftPolicyLineCount: p.draft_policy_line_count,
+    })),
+    unresolvedStaffing: (unresolvedStaffing ?? []).map((a: any) => ({
+      assignmentId: a.id,
+      roleCode: a.role_code,
+      roleLabel: a.role_label,
+      assignmentState: a.assignment_state,
+      teamMemberName: a.team_members?.display_name ?? null,
+      engagementNumber: a.engagements?.engagement_number ?? null,
+      engagementName: a.engagements?.name ?? null,
+      eventStartDate: a.engagements?.event_start_date ?? null,
+    })),
+    resourceRequirementsWithoutCommitmentEvidence: resourceGaps,
+    openOrConflictingFacts: openFacts,
+    observedPaymentFacts,
+    nextActions,
+    legend: {
+      FACT: 'Directly observed canonical data.',
+      DERIVED_ATTENTION: 'A synthesized flag computed from canonical data (e.g. overdue, pricing gap, unresolved staffing) — not a new fact.',
+      UNKNOWN: 'Explicitly unresolved or unrecorded in canonical data.',
+    },
+    disclaimer: 'This brief synthesizes only canonical recorded data. It never infers payment, availability, or commitment beyond what is explicitly recorded, and nothing was mutated to generate it.',
+  }
+}
+
 /* ============================== get_capabilities (read-only capability truth) ==============================
    Lets the calling AI (or Greg) truthfully ask what this system can actually do, reconciling
    src/lib/capabilityRegistry.ts's SPA-facing surface with what is really deployed here. Never
@@ -1972,17 +2770,23 @@ const CAPABILITY_TRUTH = [
   { name: 'find_team_member', category: 'READ' },
   { name: 'find_resource', category: 'READ' },
   { name: 'get_capabilities', category: 'READ' },
+  { name: 'get_pricing_review_queue', category: 'READ', note: 'Groups price_book_v by authority_state and explains why each item is not (yet) approved authority.' },
+  { name: 'check_team_conflicts', category: 'READ', note: 'Never reports AVAILABLE. Reports only known-conflicting, known-scheduled, no-conflict-found, or insufficient-evidence.' },
+  { name: 'check_resource_pressure', category: 'READ', note: 'Never reports AVAILABLE and never creates a hold/reservation. Compares recorded demand to configured quantity only when that quantity is VERIFIED.' },
+  { name: 'generate_daily_brief', category: 'READ', note: 'Synthesizes canonical data only; every line is tagged FACT, DERIVED_ATTENTION, or UNKNOWN.' },
   { name: 'generate_email', category: 'DRAFT_ONLY', note: 'Produces subject/body only. Never sends. Sending email is NOT_IMPLEMENTED.' },
   { name: 'set_next_action', category: 'APPROVAL_REQUIRED' },
   { name: 'complete_next_action', category: 'APPROVAL_REQUIRED' },
   { name: 'update_next_action', category: 'APPROVAL_REQUIRED' },
   { name: 'create_lead', category: 'APPROVAL_REQUIRED' },
   { name: 'save_quote_draft', category: 'APPROVAL_REQUIRED', note: 'Never promotes DRAFT_CANDIDATE pricing to approved policy.' },
-  { name: 'assign_team_member', category: 'APPROVAL_REQUIRED', note: 'Only creates POSSIBLE/REQUESTED. Cannot create CONFIRMED — see confirm_crew_availability frontier.' },
+  { name: 'assign_team_member', category: 'APPROVAL_REQUIRED', note: 'Only creates POSSIBLE/REQUESTED. Cannot create CONFIRMED — see confirm_crew_availability frontier. Response includes conflictEvidence from check_team_conflicts.' },
   { name: 'add_resource_requirement', category: 'APPROVAL_REQUIRED', note: 'Records requirement/consideration/configuration only — never inventory availability or a hold/reservation.' },
+  { name: 'approve_pricing_rule', category: 'APPROVAL_REQUIRED', note: 'Turns one existing DRAFT rule into APPROVED_AUTHORITY. Never creates a rule or changes its amount/scope. Refused if the rule changed since it was last read.' },
+  { name: 'update_pricing_rule_draft', category: 'APPROVAL_REQUIRED', note: 'Edits one existing DRAFT rule\'s candidate amount/percentage/name/notes/rationale/effective window only. Refused on any non-DRAFT rule.' },
   { name: 'confirm_crew_availability', category: 'FRONTIER', note: 'No availability/acknowledgement evidence source exists yet in the schema.' },
   { name: 'create_resource_hold_or_reservation', category: 'FRONTIER', note: 'resource_commitments (HOLD/RESERVATION/ALLOCATION) exists cleanly, but the CONFIGURED -> REQUIREMENT WINDOW -> PRESSURE -> HOLD -> RESERVATION policy has not been built.' },
-  { name: 'approve_or_change_pricing_authority', category: 'FRONTIER', note: 'Pricing authority decisions are a standing hard-stop boundary.' },
+  { name: 'create_pricing_rule', category: 'FRONTIER', note: 'Approving or editing an existing DRAFT rule is now handled by approve_pricing_rule/update_pricing_rule_draft. Creating a brand-new rule from scratch via AI remains a frontier.' },
   { name: 'send_email', category: 'NOT_IMPLEMENTED' },
   { name: 'mark_invoice_or_payment_paid', category: 'NOT_IMPLEMENTED' },
   { name: 'delete_or_void_business_record', category: 'NOT_IMPLEMENTED' },
@@ -2004,7 +2808,7 @@ Deno.serve(
     [withOAuthProtectedResource(), withSupabase({ auth: 'user' })],
     async (req, { supabase }) => {
       const handler = createMcpHandler(() => {
-        const server = new McpServer({ name: 'stage-presence', version: '1.4.0' })
+        const server = new McpServer({ name: 'stage-presence', version: '1.5.0' })
 
         server.registerTool('find_contact', {
           description: 'Search Stage Presence contacts by name, organization, email, or phone. Read-only.',
@@ -2114,6 +2918,53 @@ Deno.serve(
           annotations: { readOnlyHint: true },
         }, async () => {
           try { return toolResult(await getCapabilities()) }
+          catch (error) { return toolError(error) }
+        })
+
+        server.registerTool('get_pricing_review_queue', {
+          description: 'Return the Price Book grouped by authority_state (APPROVED_AUTHORITY / DRAFT_CANDIDATE / RETIRED_POLICY / CURRENT_REFERENCE_ONLY / LEGACY_REFERENCE_ONLY / HISTORICAL_ONLY / NO_PRICE_EVIDENCE), with a plain-language reason each item is or is not approved authority. Each DRAFT/APPROVED item includes its pricing_rules.updated_at — pass that back as expectedUpdatedAt to approve_pricing_rule or update_pricing_rule_draft. Read-only.',
+          inputSchema: z.object({ authorityState: z.enum(PRICING_AUTHORITY_STATES).optional() }),
+          annotations: { readOnlyHint: true },
+        }, async (args) => {
+          try { return toolResult(await getPricingReviewQueue(supabase, args)) }
+          catch (error) { return toolError(error) }
+        })
+
+        server.registerTool('check_team_conflicts', {
+          description: 'Check a team member\'s other recorded assignments against a proposed window (explicit, or derived from an engagement\'s own schedule/event date) for scheduling conflicts. Never reports AVAILABLE — reports only KNOWN_CONFLICTING_ASSIGNMENT, KNOWN_SCHEDULED_ASSIGNMENT, NO_CONFLICT_FOUND_IN_CANONICAL_DATA, or INSUFFICIENT_SCHEDULING_EVIDENCE. Read-only.',
+          inputSchema: z.object({
+            teamMemberId: z.string().describe('Resolve with find_team_member first.'),
+            proposedStart: z.string().optional().describe('ISO datetime. If omitted, derived from engagementNumber.'),
+            proposedEnd: z.string().optional().describe('ISO datetime.'),
+            engagementNumber: z.string().optional().describe('Used to derive the proposed window when proposedStart is omitted, and to exclude that engagement\'s own assignments from conflict evidence.'),
+          }),
+          annotations: { readOnlyHint: true },
+        }, async (args) => {
+          try { return toolResult(await checkTeamConflicts(supabase, args)) }
+          catch (error) { return toolError(error) }
+        })
+
+        server.registerTool('check_resource_pressure', {
+          description: 'Compare recorded demand for a resource (other engagements\' requirements and resource_commitments) against its configured quantity — but only treats that quantity as trustworthy when quantity_state is VERIFIED. Never reports AVAILABLE and never creates a HOLD/RESERVATION. Read-only.',
+          inputSchema: z.object({
+            resourceId: z.string().describe('Resolve with find_resource first.'),
+            requiredFromDate: z.string().optional().describe('ISO date (YYYY-MM-DD)'),
+            requiredThroughDate: z.string().optional().describe('ISO date (YYYY-MM-DD)'),
+            requiredQuantity: z.number().optional(),
+            engagementNumber: z.string().optional().describe('Excludes this engagement\'s own requirement/commitment rows from the demand comparison.'),
+          }),
+          annotations: { readOnlyHint: true },
+        }, async (args) => {
+          try { return toolResult(await checkResourcePressure(supabase, args)) }
+          catch (error) { return toolError(error) }
+        })
+
+        server.registerTool('generate_daily_brief', {
+          description: 'Synthesize canonical data into a concise owner/PM daily view: urgent/overdue work, upcoming events, proposed/uncommitted engagements approaching their event, quotes needing attention, pricing blockers, unresolved staffing, resource requirements without commitment evidence, open/conflicting facts, and observed (never inferred) payment facts. Every line is tagged FACT, DERIVED_ATTENTION, or UNKNOWN. Read-only — mutates nothing.',
+          inputSchema: z.object({}),
+          annotations: { readOnlyHint: true },
+        }, async () => {
+          try { return toolResult(await generateDailyBrief(supabase)) }
           catch (error) { return toolError(error) }
         })
 
@@ -2294,6 +3145,43 @@ Deno.serve(
           annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true },
         }, async (args) => {
           try { return toolResult(await addResourceRequirement(supabase, args)) }
+          catch (error) { return toolError(error) }
+        })
+
+        server.registerTool('approve_pricing_rule', {
+          description:
+            'Turn ONE existing DRAFT pricing_rules row into APPROVED_AUTHORITY — ONLY after the human has explicitly approved it (confirmed=true). Never creates a rule, never changes its amount/scope/rate_type (use update_pricing_rule_draft for that, DRAFT-only, as a separate proposal). Requires expectedUpdatedAt — the updatedAt read from get_pricing_review_queue immediately before proposing — and refuses if the rule changed since then. Idempotent: a retry with the same idempotencyKey on an already-approved rule is a safe no-op. Re-reads pricing_rules AND price_book_v and only reports VERIFIED_SAVED if price_book_v.authority_state actually reports APPROVED_AUTHORITY.',
+          inputSchema: z.object({
+            pricingRuleId: z.string().describe('Resolve with get_pricing_review_queue first.'),
+            expectedUpdatedAt: z.string().describe('The updatedAt this rule had when last read — detects a change made between proposal and approval.'),
+            confirmed: z.literal(true).describe('Must be literally true. Set only after the human clicked Approve on the exact proposed approval.'),
+            idempotencyKey: z.string().describe('A unique key for this proposed mutation; a retry with the same key is a safe no-op once approved.'),
+          }),
+          annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true },
+        }, async (args) => {
+          try { return toolResult(await approvePricingRule(supabase, args)) }
+          catch (error) { return toolError(error) }
+        })
+
+        server.registerTool('update_pricing_rule_draft', {
+          description:
+            'Narrowly edit ONE existing DRAFT pricing_rules row\'s candidate name/amount/percentage/notes/rationale/effective window — ONLY after the human has explicitly approved the exact change (confirmed=true). Refuses outright on any rule that is not currently DRAFT (an APPROVED or RETIRED rule is never edited by this tool). Requires expectedUpdatedAt and refuses if the rule changed since it was last read. Only the fields explicitly supplied are changed. Idempotent: a retry with the same idempotencyKey AND the same payload is a safe no-op; the same idempotencyKey with a different payload is refused (NOT_SAVED).',
+          inputSchema: z.object({
+            pricingRuleId: z.string().describe('Resolve with get_pricing_review_queue first.'),
+            expectedUpdatedAt: z.string().describe('The updatedAt this rule had when last read — detects a change made between proposal and edit.'),
+            name: z.string().optional(),
+            amount: z.number().optional().describe('Only for a rule whose rate_type is not PERCENT.'),
+            percentage: z.number().optional().describe('Only for a rule whose rate_type is PERCENT.'),
+            notes: z.string().optional(),
+            rationale: z.string().optional(),
+            effectiveFrom: z.string().optional().describe('ISO date (YYYY-MM-DD)'),
+            effectiveThrough: z.string().optional().describe('ISO date (YYYY-MM-DD)'),
+            confirmed: z.literal(true).describe('Must be literally true. Set only after the human clicked Approve on the exact proposed edit.'),
+            idempotencyKey: z.string().describe('A unique key for this proposed mutation; a retry with the same key and the same payload is a no-op, a different payload is refused.'),
+          }),
+          annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true },
+        }, async (args) => {
+          try { return toolResult(await updatePricingRuleDraft(supabase, args)) }
           catch (error) { return toolError(error) }
         })
 
