@@ -973,12 +973,442 @@ async function rereadCreatedLead(
   }
 }
 
+/* ============================== build_quote_draft (read-only, no persistence) ==============================
+   Reads the engagement's linked resources and matches each against the current Price Book,
+   distinguishing APPROVED_AUTHORITY from DRAFT_CANDIDATE and flagging resources with no matched
+   price at all (needsPrice). Computes nothing more than an in-memory proposal — writes nothing.
+   The human reviews this exact output, then (if approved) the same line shapes are passed
+   explicitly to save_quote_draft — this tool never re-derives pricing on its own initiative. */
+
+function effectiveBillingBasis(rule: { billing_basis: string | null; rate_type: string }) {
+  return rule.billing_basis ?? (
+    rule.rate_type === 'PER_UNIT' ? 'PER_UNIT' :
+    rule.rate_type === 'PER_HOUR' ? 'PER_HOUR' :
+    rule.rate_type === 'PER_DAY' ? 'PER_DAY' :
+    rule.rate_type === 'MILEAGE' ? 'PER_MILE' :
+    rule.rate_type === 'PERCENT' ? 'PERCENT' : 'FLAT'
+  )
+}
+
+function effectiveDuration(rule: { duration_value: number | null; duration_unit: string | null; rate_type: string }) {
+  if (rule.duration_value !== null && rule.duration_unit !== null) return { value: Number(rule.duration_value), unit: rule.duration_unit }
+  if (rule.rate_type === 'ONE_DAY') return { value: 1, unit: 'DAY' }
+  if (rule.rate_type === 'THREE_DAY') return { value: 3, unit: 'DAY' }
+  if (rule.rate_type === 'WEEK') return { value: 1, unit: 'WEEK' }
+  if (rule.rate_type === 'MONTH') return { value: 1, unit: 'MONTH' }
+  return { value: null as number | null, unit: null as string | null }
+}
+
+function roundMoney(value: number) {
+  return Math.round(value * 100) / 100
+}
+
+async function buildQuoteDraft(supabase: ScopedSupabase, args: { engagementNumber: string }) {
+  if (!args.engagementNumber) return { found: false, reason: 'engagementNumber is required.' }
+
+  const { data: engagement, error: engagementError } = await supabase
+    .from('engagements')
+    .select('id,engagement_number,name')
+    .eq('engagement_number', args.engagementNumber)
+    .maybeSingle()
+  if (engagementError) return { found: false, reason: `Could not look up engagement: ${engagementError.message}` }
+  if (!engagement) return { found: false, reason: `No engagement found with number ${args.engagementNumber}.` }
+
+  const { data: resourceLinks, error: resourceError } = await supabase
+    .from('engagement_resources')
+    .select('quantity,relationship,resources(id,name)')
+    .eq('engagement_id', engagement.id)
+  if (resourceError) return { found: false, reason: `Could not read engagement resources: ${resourceError.message}` }
+
+  const lines = []
+  let anyNeedsPrice = false
+  let anyDraftOnly = false
+  let computableSubtotal = 0
+  let allLinesComputable = true
+
+  for (const link of resourceLinks ?? []) {
+    const resourceName = (link as any).resources?.name
+    if (!resourceName) continue
+    const quantity = Number((link as any).quantity) > 0 ? Number((link as any).quantity) : 1
+
+    const { data: candidates } = await supabase
+      .from('price_book_v')
+      .select('pricing_rule_id,name,resource_name,rate_type,billing_basis,duration_value,duration_unit,amount,currency,status,authority_state,effective_from,effective_through')
+      .ilike('resource_name', resourceName)
+      .order('authority_state')
+      .limit(5)
+
+    const approved = (candidates ?? []).find((c: any) => c.authority_state === 'APPROVED_AUTHORITY')
+    const best = approved ?? (candidates ?? [])[0] ?? null
+
+    if (!best || best.amount === null) {
+      anyNeedsPrice = true
+      allLinesComputable = false
+      lines.push({
+        resourceName,
+        relationship: (link as any).relationship,
+        quantity,
+        matchedPricing: null,
+        authorityState: null,
+        needsPrice: true,
+        computedAmount: null,
+      })
+      continue
+    }
+
+    if (best.authority_state !== 'APPROVED_AUTHORITY') anyDraftOnly = true
+    const basis = effectiveBillingBasis(best)
+    const duration = effectiveDuration(best)
+    let computedAmount: number | null = null
+    if (basis !== 'PERCENT') {
+      computedAmount = roundMoney(Number(best.amount) * quantity)
+      computableSubtotal += computedAmount
+    } else {
+      allLinesComputable = false
+    }
+
+    lines.push({
+      resourceName,
+      relationship: (link as any).relationship,
+      quantity,
+      matchedPricing: {
+        pricingRuleId: best.pricing_rule_id,
+        name: best.name,
+        rateType: best.rate_type,
+        billingBasis: basis,
+        duration,
+        amount: best.amount,
+        currency: best.currency,
+        status: best.status,
+      },
+      authorityState: best.authority_state,
+      needsPrice: false,
+      computedAmount,
+    })
+  }
+
+  return {
+    found: true,
+    engagementNumber: engagement.engagement_number,
+    engagementName: engagement.name,
+    lines,
+    summary: {
+      lineCount: lines.length,
+      anyNeedsPrice,
+      anyDraftOnly,
+      computedSubtotal: allLinesComputable ? roundMoney(computableSubtotal) : null,
+      note: allLinesComputable
+        ? null
+        : 'Subtotal is partial or unavailable — one or more lines need a price or use PERCENT billing, which this proposal does not auto-compute.',
+    },
+    proposalOnly: true,
+  }
+}
+
+/* ============================== save_quote_draft ==============================
+   Persists a DRAFT commercial_documents QUOTE + lines — ONLY after the human has approved the
+   exact line list (normally the output of build_quote_draft, reviewed and approved as-is or
+   edited). Faithfully ports the existing, already-proven validation rules from
+   src/lib/pricingRuntime.ts's createDraftQuote/addQuoteLineFromPriceRule/addManualQuoteLine —
+   no new pricing policy is invented here. Every line is validated BEFORE anything is written, so
+   one bad line aborts the whole call rather than leaving a partial quote. Respects the existing
+   "one current DRAFT quote per engagement" rule from pricingRuntime.ts rather than creating a
+   duplicate. Never promotes a DRAFT_CANDIDATE Price Book rule to APPROVED_AUTHORITY — it only
+   records which authority state was in effect at the moment of the quote. */
+
+const COMMERCIAL_LINE_TYPES = ['RESOURCE', 'SERVICE', 'LABOR', 'LOGISTICS', 'DISCOUNT', 'FEE', 'CUSTOM', 'OTHER'] as const
+const TRANSACTION_TYPES = ['RENTAL', 'SALE', 'SERVICE', 'INSTALLATION', 'MIXED', 'UNKNOWN', 'OTHER'] as const
+
+interface QuoteLineInput {
+  source: 'MANUAL' | 'PRICE_RULE'
+  lineType: string
+  description?: string
+  quantity?: number
+  unitPrice?: number
+  pricingRuleId?: string
+  billingUnits?: number
+  allowDraft?: boolean
+  proposedTotal?: number
+  priceAdjustmentReason?: string
+  groupLabel?: string
+  detailText?: string
+}
+
+interface SaveQuoteDraftArgs {
+  engagementNumber: string
+  transactionType?: string
+  notes?: string
+  validThrough?: string
+  lines: QuoteLineInput[]
+  confirmed: boolean
+  idempotencyKey: string
+}
+
+async function saveQuoteDraft(supabase: ScopedSupabase, args: SaveQuoteDraftArgs) {
+  const notSaved = (reason: string, extra: Record<string, unknown> = {}) => ({
+    saved: false,
+    verificationState: 'NOT_SAVED',
+    engagementNumber: args.engagementNumber ?? null,
+    reason,
+    ...extra,
+  })
+
+  if (args.confirmed !== true) {
+    return notSaved('Refused: confirmed must be literally true. This tool only writes after explicit human approval of the exact line list.')
+  }
+  if (!args.idempotencyKey) return notSaved('idempotencyKey is required.')
+  if (!args.engagementNumber) return notSaved('engagementNumber is required.')
+  if (!Array.isArray(args.lines) || args.lines.length === 0) return notSaved('At least one line is required.')
+  if (args.transactionType !== undefined && !(TRANSACTION_TYPES as readonly string[]).includes(args.transactionType)) {
+    return notSaved(`Invalid transactionType: ${args.transactionType}. Must be one of ${TRANSACTION_TYPES.join(', ')}.`)
+  }
+
+  const { data: engagement, error: engagementError } = await supabase
+    .from('engagements')
+    .select('id,engagement_number')
+    .eq('engagement_number', args.engagementNumber)
+    .maybeSingle()
+  if (engagementError) return notSaved(`Could not look up engagement: ${engagementError.message}`)
+  if (!engagement) return notSaved(`No engagement found with number ${args.engagementNumber}. Nothing was written.`)
+
+  const sourceKey = `mcp:save_quote_draft:${args.idempotencyKey}`
+  const payloadSignature = JSON.stringify({
+    transactionType: args.transactionType ?? null,
+    notes: args.notes ?? null,
+    validThrough: args.validThrough ?? null,
+    lines: args.lines,
+  })
+
+  const { data: currentQuote, error: currentQuoteError } = await supabase
+    .from('commercial_documents')
+    .select('id,document_state,version_no,metadata')
+    .eq('engagement_id', engagement.id)
+    .eq('document_type', 'QUOTE')
+    .neq('document_state', 'VOID')
+    .order('version_no', { ascending: false })
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+  if (currentQuoteError) return notSaved(`Could not check for an existing quote: ${currentQuoteError.message}`)
+
+  if (currentQuote?.document_state === 'DRAFT') {
+    if (currentQuote.metadata?.mcp_idempotency_key === sourceKey) {
+      if (currentQuote.metadata?.mcp_payload_signature === payloadSignature) {
+        return rereadSavedQuote(supabase, currentQuote.id, 'Idempotent replay — no new document created.')
+      }
+      return notSaved('This idempotencyKey was already used for a different quote proposal on this engagement.', { quoteId: currentQuote.id })
+    }
+    return notSaved(
+      'This engagement already has a current DRAFT quote. Continue editing that quote (via a future targeted edit capability) instead of creating a duplicate — the same rule pricingRuntime.ts already enforces.',
+      { quoteId: currentQuote.id },
+    )
+  }
+
+  // Validate every line BEFORE writing anything, so one bad line aborts the whole call.
+  const preparedLines: Record<string, unknown>[] = []
+  for (const [index, line] of args.lines.entries()) {
+    const fail = (reason: string) => `Line ${index + 1}: ${reason}`
+    if (!(COMMERCIAL_LINE_TYPES as readonly string[]).includes(line.lineType)) {
+      return notSaved(fail(`invalid lineType ${line.lineType}. Must be one of ${COMMERCIAL_LINE_TYPES.join(', ')}.`))
+    }
+    const quantity = line.quantity ?? 1
+    if (!Number.isFinite(quantity) || quantity <= 0) return notSaved(fail('quantity must be greater than zero.'))
+
+    if (line.source === 'MANUAL') {
+      if (!line.description?.trim()) return notSaved(fail('description is required for a MANUAL line.'))
+      if (typeof line.unitPrice !== 'number' || !Number.isFinite(line.unitPrice)) return notSaved(fail('unitPrice is required and must be a finite number for a MANUAL line.'))
+      if (line.lineType !== 'DISCOUNT' && line.unitPrice < 0) return notSaved(fail('only a DISCOUNT line may use a negative unitPrice.'))
+      preparedLines.push({
+        line_type: line.lineType,
+        group_label: line.groupLabel?.trim() || null,
+        description: line.description.trim(),
+        detail_text: line.detailText?.trim() || null,
+        quantity,
+        unit_price: line.unitPrice,
+        line_total: roundMoney(quantity * line.unitPrice),
+        pricing_authority_state: 'MANUAL_PRICE',
+        price_adjustment_reason: line.priceAdjustmentReason?.trim() || null,
+        metadata: { pricing_runtime: 'mcp_v1', calculation_method: 'QUANTITY_X_MANUAL_UNIT_PRICE' },
+      })
+      continue
+    }
+
+    if (line.source === 'PRICE_RULE') {
+      if (!line.pricingRuleId) return notSaved(fail('pricingRuleId is required when source is PRICE_RULE.'))
+      const { data: rule, error: ruleError } = await supabase
+        .from('pricing_rules')
+        .select('id,name,status,rule_kind,resource_id,rate_type,amount,percentage,effective_from,effective_through,price_position,billing_basis,duration_value,duration_unit')
+        .eq('id', line.pricingRuleId)
+        .maybeSingle()
+      if (ruleError) return notSaved(fail(`could not look up Price Book rule: ${ruleError.message}`))
+      if (!rule) return notSaved(fail(`no Price Book rule found with id ${line.pricingRuleId}.`))
+      if (rule.status === 'RETIRED') return notSaved(fail('that Price Book rule is retired and cannot be applied to a new quote.'))
+      if (rule.status === 'DRAFT' && !line.allowDraft) {
+        return notSaved(fail('that Price Book rule is still DRAFT. Explicitly allow the draft candidate (allowDraft) or approve it before applying it.'))
+      }
+      if (rule.rule_kind !== 'BASE_RATE') {
+        return notSaved(fail('save_quote_draft applies BASE_RATE rules to quote lines. Discounts/minimums/surcharges remain explicit MANUAL lines.'))
+      }
+      if (rule.status === 'APPROVED') {
+        const today = new Date().toISOString().slice(0, 10)
+        if (rule.effective_from && rule.effective_from > today) return notSaved(fail('that approved price is not effective yet.'))
+        if (rule.effective_through && rule.effective_through < today) return notSaved(fail('that approved price is no longer effective.'))
+      }
+      if (rule.amount === null) return notSaved(fail('that Price Book rule does not contain a fixed amount and cannot be applied yet.'))
+
+      const basis = effectiveBillingBasis(rule)
+      if (basis === 'PERCENT') return notSaved(fail('percentage pricing is not a base quote-line calculation here — use a MANUAL line.'))
+      const rate = Number(rule.amount)
+      let multiplier = quantity
+      if (basis === 'PER_HOUR' || basis === 'PER_DAY' || basis === 'PER_MILE') {
+        const billingUnits = line.billingUnits ?? NaN
+        if (!Number.isFinite(billingUnits) || billingUnits <= 0) return notSaved(fail(`${basis} pricing requires billingUnits greater than zero.`))
+        multiplier *= billingUnits
+      }
+      const policyTotal = roundMoney(rate * multiplier)
+      const proposedTotal = line.proposedTotal === undefined ? policyTotal : roundMoney(line.proposedTotal)
+      if (!Number.isFinite(proposedTotal)) return notSaved(fail('proposedTotal must be a finite number.'))
+      if (proposedTotal < 0 && line.lineType !== 'DISCOUNT') return notSaved(fail('proposedTotal cannot be negative for this line type.'))
+      const differsFromPolicy = Math.abs(proposedTotal - policyTotal) > 0.009
+      if (differsFromPolicy && !line.priceAdjustmentReason?.trim()) {
+        return notSaved(fail('a priceAdjustmentReason is required when the proposed price differs from the Price Book rate.'))
+      }
+
+      const duration = effectiveDuration(rule)
+      const authorityState = rule.status === 'APPROVED' ? 'APPROVED_AUTHORITY' : 'DRAFT_CANDIDATE'
+      const customerUnitPrice = roundMoney(proposedTotal / quantity)
+
+      preparedLines.push({
+        line_type: line.lineType,
+        group_label: line.groupLabel?.trim() || null,
+        resource_id: rule.resource_id ?? null,
+        description: line.description?.trim() || rule.name,
+        detail_text: line.detailText?.trim() || null,
+        quantity,
+        unit_price: customerUnitPrice,
+        line_total: proposedTotal,
+        pricing_rule_id: rule.id,
+        policy_amount_snapshot: rule.amount,
+        policy_percentage_snapshot: rule.percentage,
+        policy_price_position: rule.price_position,
+        policy_billing_basis: basis,
+        policy_duration_value: duration.value,
+        policy_duration_unit: duration.unit,
+        policy_total_snapshot: policyTotal,
+        pricing_authority_state: authorityState,
+        price_adjustment_reason: line.priceAdjustmentReason?.trim() || null,
+        metadata: { pricing_runtime: 'mcp_v1', calculation_method: 'PRICE_RULE_APPLIED' },
+      })
+      continue
+    }
+
+    return notSaved(fail(`invalid source ${(line as any).source}. Must be MANUAL or PRICE_RULE.`))
+  }
+
+  const { data: userData } = await supabase.auth.getUser()
+  const actorUserId = userData.user?.id ?? null
+  const today = new Date().toISOString().slice(0, 10)
+
+  const { data: doc, error: docError } = await supabase
+    .from('commercial_documents')
+    .insert({
+      engagement_id: engagement.id,
+      document_type: 'QUOTE',
+      transaction_type: args.transactionType ?? 'UNKNOWN',
+      document_state: 'DRAFT',
+      source_system: 'Stage Presence OS',
+      document_date: today,
+      currency: 'USD',
+      certainty_state: 'KNOWN',
+      notes: args.notes?.trim() || null,
+      valid_through: args.validThrough || null,
+      version_no: (currentQuote?.version_no ?? 0) + 1,
+      supersedes_document_id: currentQuote?.id ?? null,
+      client_visible: true,
+      created_by: actorUserId,
+      metadata: { pricing_runtime: 'mcp_v1', commercial_origin: 'MCP', mcp_idempotency_key: sourceKey, mcp_payload_signature: payloadSignature },
+    })
+    .select('id')
+    .single()
+  if (docError) return notSaved(`Could not create the quote document: ${docError.message}`)
+
+  const { error: linesError } = await supabase
+    .from('commercial_document_lines')
+    .insert(preparedLines.map((line) => ({ ...line, commercial_document_id: doc.id })))
+  if (linesError) return notSaved(`Could not write quote lines: ${linesError.message}`, { quoteId: doc.id })
+
+  // Mirrors src/lib/pricingRuntime.ts's recalculateQuoteTotals exactly: any negative line_total
+  // counts as a discount for subtotal/discount_total purposes, not just DISCOUNT-typed lines.
+  let subtotal = 0
+  let discounts = 0
+  let total = 0
+  for (const l of preparedLines) {
+    const amount = Number(l.line_total ?? 0)
+    total += amount
+    if (l.line_type === 'DISCOUNT' || amount < 0) discounts += Math.abs(amount)
+    else subtotal += amount
+  }
+  const { error: totalsError } = await supabase.from('commercial_documents').update({
+    subtotal: roundMoney(subtotal),
+    discount_total: roundMoney(discounts),
+    total: roundMoney(total),
+    grand_total: roundMoney(total),
+  }).eq('id', doc.id)
+  if (totalsError) return notSaved(`Quote and lines were written but totals could not be recalculated: ${totalsError.message}`, { quoteId: doc.id })
+
+  return rereadSavedQuote(supabase, doc.id, null)
+}
+
+async function rereadSavedQuote(supabase: ScopedSupabase, quoteId: string, note: string | null) {
+  // Canonical re-read: never trust the write response alone.
+  const { data: doc, error: docError } = await supabase
+    .from('commercial_documents')
+    .select('id,engagement_id,document_type,document_state,transaction_type,version_no,currency,subtotal,discount_total,total,grand_total,notes,valid_through')
+    .eq('id', quoteId)
+    .maybeSingle()
+  if (docError) return { saved: false, verificationState: 'NOT_SAVED', reason: `Canonical re-read failed: ${docError.message}` }
+  if (!doc || doc.document_type !== 'QUOTE' || doc.document_state !== 'DRAFT') {
+    return { saved: false, verificationState: 'NOT_SAVED', reason: 'Canonical re-read did not confirm a DRAFT quote document.' }
+  }
+
+  const { data: lines, error: linesError } = await supabase
+    .from('commercial_line_pricing_v')
+    .select('commercial_line_id,line_type,description,quantity,unit_price,line_total,pricing_rule_id,current_pricing_rule_status,resource_name')
+    .eq('commercial_document_id', quoteId)
+  if (linesError) return { saved: false, verificationState: 'NOT_SAVED', reason: `Canonical line re-read failed: ${linesError.message}` }
+  if (!lines || lines.length === 0) {
+    return { saved: false, verificationState: 'NOT_SAVED', reason: 'Canonical re-read found the quote but no lines.' }
+  }
+
+  const { data: engagementRow } = await supabase
+    .from('engagements')
+    .select('engagement_number')
+    .eq('id', doc.engagement_id)
+    .maybeSingle()
+
+  return {
+    saved: true,
+    verificationState: 'VERIFIED_SAVED',
+    quoteId: doc.id,
+    engagementNumber: engagementRow?.engagement_number ?? null,
+    documentState: doc.document_state,
+    versionNo: doc.version_no,
+    currency: doc.currency,
+    subtotal: doc.subtotal,
+    discountTotal: doc.discount_total,
+    total: doc.total,
+    grandTotal: doc.grand_total,
+    lines,
+    note,
+  }
+}
+
 Deno.serve(
   pipeline(
     [withOAuthProtectedResource(), withSupabase({ auth: 'user' })],
     async (req, { supabase }) => {
       const handler = createMcpHandler(() => {
-        const server = new McpServer({ name: 'stage-presence', version: '1.2.0' })
+        const server = new McpServer({ name: 'stage-presence', version: '1.3.0' })
 
         server.registerTool('find_contact', {
           description: 'Search Stage Presence contacts by name, organization, email, or phone. Read-only.',
@@ -1143,6 +1573,49 @@ Deno.serve(
           annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true },
         }, async (args) => {
           try { return toolResult(await createLead(supabase, args)) }
+          catch (error) { return toolError(error) }
+        })
+
+        server.registerTool('build_quote_draft', {
+          description:
+            'Read-only. Proposes (but never persists) a quote for a real engagement: matches its linked resources against the current Price Book, computing each line\'s amount where possible and clearly marking authority_state (APPROVED_AUTHORITY vs DRAFT_CANDIDATE) and any resource that needsPrice. Nothing is written — review this output with the human, then pass the approved lines explicitly to save_quote_draft.',
+          inputSchema: z.object({
+            engagementNumber: z.string().describe('Real engagement number, e.g. SP-000014'),
+          }),
+          annotations: { readOnlyHint: true },
+        }, async (args) => {
+          try { return toolResult(await buildQuoteDraft(supabase, args)) }
+          catch (error) { return toolError(error) }
+        })
+
+        server.registerTool('save_quote_draft', {
+          description:
+            'Persist ONE new DRAFT quote (commercial_documents + lines) on a real engagement — ONLY after the human has explicitly approved the exact line list (confirmed=true), normally the reviewed output of build_quote_draft. Never promotes a DRAFT_CANDIDATE Price Book rate to approved policy — it only snapshots which authority state was in effect. Respects the existing one-current-DRAFT-quote-per-engagement rule rather than creating a duplicate. Every line is validated before anything is written, so one invalid line aborts the whole call. Idempotent: a retry with the same idempotencyKey AND the same lines returns the already-created quote instead of duplicating it; the same idempotencyKey with different lines is refused (NOT_SAVED). Always re-reads the canonical quote and lines before reporting VERIFIED_SAVED.',
+          inputSchema: z.object({
+            engagementNumber: z.string(),
+            transactionType: z.enum(TRANSACTION_TYPES).optional(),
+            notes: z.string().optional(),
+            validThrough: z.string().optional().describe('ISO date (YYYY-MM-DD)'),
+            lines: z.array(z.object({
+              source: z.enum(['MANUAL', 'PRICE_RULE']),
+              lineType: z.enum(COMMERCIAL_LINE_TYPES),
+              description: z.string().optional().describe('Required for a MANUAL line.'),
+              quantity: z.number().optional().describe('Defaults to 1.'),
+              unitPrice: z.number().optional().describe('Required for a MANUAL line.'),
+              pricingRuleId: z.string().optional().describe('Required for a PRICE_RULE line.'),
+              billingUnits: z.number().optional().describe('Required for PER_HOUR/PER_DAY/PER_MILE rules.'),
+              allowDraft: z.boolean().optional().describe('Must be true to apply a DRAFT (unapproved) Price Book rule.'),
+              proposedTotal: z.number().optional().describe('Defaults to the Price Book policy amount.'),
+              priceAdjustmentReason: z.string().optional().describe('Required if proposedTotal differs from the Price Book rate.'),
+              groupLabel: z.string().optional(),
+              detailText: z.string().optional(),
+            })).min(1),
+            confirmed: z.literal(true).describe('Must be literally true. Set only after the human clicked Approve on the exact proposed line list.'),
+            idempotencyKey: z.string().describe('A unique key for this proposed quote; a retry with the same key and the same lines is a no-op, different lines are refused.'),
+          }),
+          annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true },
+        }, async (args) => {
+          try { return toolResult(await saveQuoteDraft(supabase, args)) }
           catch (error) { return toolError(error) }
         })
 

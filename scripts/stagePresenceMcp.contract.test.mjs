@@ -13,9 +13,10 @@ const readTools = [
   'search_stage_presence',
   'get_attention_items',
   'get_upcoming_engagements',
+  'build_quote_draft',
 ]
 
-const writeTools = ['set_next_action', 'complete_next_action', 'update_next_action', 'create_lead']
+const writeTools = ['set_next_action', 'complete_next_action', 'update_next_action', 'create_lead', 'save_quote_draft']
 
 test('every expected tool is registered exactly once', () => {
   for (const name of [...readTools, ...writeTools]) {
@@ -24,15 +25,15 @@ test('every expected tool is registered exactly once', () => {
   }
 })
 
-test('exactly 12 tools are registered — no silent extra or missing tool', () => {
+test('exactly 14 tools are registered — no silent extra or missing tool', () => {
   const matches = source.match(/server\.registerTool\('[a-z_]+'/g) ?? []
-  assert.equal(matches.length, 12, `expected 12 registerTool calls, found ${matches.length}`)
+  assert.equal(matches.length, 14, `expected 14 registerTool calls, found ${matches.length}`)
 })
 
 test('read tools are marked readOnlyHint: true', () => {
   for (const name of readTools) {
     const start = source.indexOf(`server.registerTool('${name}'`)
-    const block = source.slice(start, start + 800)
+    const block = source.slice(start, start + 1200)
     assert.match(block, /annotations: \{ readOnlyHint: true \}/, `${name} must declare readOnlyHint: true`)
   }
 })
@@ -40,7 +41,7 @@ test('read tools are marked readOnlyHint: true', () => {
 test('write tools declare non-destructive, idempotent, non-readonly annotations', () => {
   for (const name of writeTools) {
     const start = source.indexOf(`server.registerTool('${name}'`)
-    const block = source.slice(start, start + 2400)
+    const block = source.slice(start, start + 3600)
     assert.match(block, /annotations: \{ readOnlyHint: false, destructiveHint: false, idempotentHint: true \}/, `${name} must declare write annotations`)
   }
 })
@@ -48,7 +49,7 @@ test('write tools declare non-destructive, idempotent, non-readonly annotations'
 test('write tools require confirmed literally true and a non-optional idempotencyKey', () => {
   for (const name of writeTools) {
     const start = source.indexOf(`server.registerTool('${name}'`)
-    const block = source.slice(start, start + 2400)
+    const block = source.slice(start, start + 3600)
     assert.match(block, /confirmed: z\.literal\(true\)/, `${name} schema must require confirmed: z.literal(true)`)
     assert.match(block, /idempotencyKey: z\.string\(\)/, `${name} schema must require idempotencyKey`)
     assert.doesNotMatch(block.split('idempotencyKey:')[1]?.split('\n')[0] ?? '', /optional\(\)/, `${name}'s idempotencyKey must not be optional`)
@@ -56,7 +57,7 @@ test('write tools require confirmed literally true and a non-optional idempotenc
 })
 
 test('every write handler refuses when confirmed is not literally true', () => {
-  for (const fn of ['setNextAction', 'completeNextAction', 'updateNextAction', 'createLead']) {
+  for (const fn of ['setNextAction', 'completeNextAction', 'updateNextAction', 'createLead', 'saveQuoteDraft']) {
     const start = source.indexOf(`async function ${fn}(`)
     assert.ok(start >= 0, `could not find ${fn} implementation`)
     const block = source.slice(start, start + 800)
@@ -111,15 +112,64 @@ test('set_next_action rejects idempotency-key reuse with a different payload', (
   assert.match(block, /already used for a different proposed change/)
 })
 
-test('all four write tools perform a canonical re-read before reporting VERIFIED_SAVED', () => {
-  for (const fn of ['setNextAction', 'rereadCompletedWorkItem', 'rereadUpdatedWorkItem', 'rereadCreatedLead']) {
+test('all five write tools perform a canonical re-read before reporting VERIFIED_SAVED', () => {
+  for (const fn of ['setNextAction', 'rereadCompletedWorkItem', 'rereadUpdatedWorkItem', 'rereadCreatedLead', 'rereadSavedQuote']) {
     const start = source.indexOf(`async function ${fn}(`)
     assert.ok(start >= 0, `could not find ${fn}`)
   }
   const verifiedCount = (source.match(/VERIFIED_SAVED/g) ?? []).length
   const canonicalRereadComments = (source.match(/Canonical re-read: never trust the write/g) ?? []).length
-  assert.ok(verifiedCount >= 4, 'expected VERIFIED_SAVED to appear for each write capability')
-  assert.equal(canonicalRereadComments, 4, 'expected an explicit canonical-re-read step for each of the 4 write tools')
+  assert.ok(verifiedCount >= 5, 'expected VERIFIED_SAVED to appear for each write capability')
+  assert.equal(canonicalRereadComments, 5, 'expected an explicit canonical-re-read step for each of the 5 write tools')
+})
+
+test('save_quote_draft never promotes a DRAFT_CANDIDATE Price Book rate to approved policy', () => {
+  const start = source.indexOf('async function saveQuoteDraft(')
+  const end = source.indexOf('async function rereadSavedQuote(')
+  const block = source.slice(start, end)
+  assert.doesNotMatch(block, /status:\s*'APPROVED'/)
+  assert.match(block, /pricing_rules/)
+  assert.match(block, /authorityState = rule\.status === 'APPROVED' \? 'APPROVED_AUTHORITY' : 'DRAFT_CANDIDATE'/)
+})
+
+test('save_quote_draft refuses a DRAFT Price Book rule unless allowDraft is explicitly set', () => {
+  const start = source.indexOf('async function saveQuoteDraft(')
+  const end = source.indexOf('async function rereadSavedQuote(')
+  const block = source.slice(start, end)
+  assert.match(block, /rule\.status === 'DRAFT' && !line\.allowDraft/)
+})
+
+test('save_quote_draft requires a reason when the proposed price differs from the Price Book rate', () => {
+  const start = source.indexOf('async function saveQuoteDraft(')
+  const end = source.indexOf('async function rereadSavedQuote(')
+  const block = source.slice(start, end)
+  assert.match(block, /differsFromPolicy && !line\.priceAdjustmentReason/)
+})
+
+test('save_quote_draft validates every line before writing anything (no partial quotes)', () => {
+  const start = source.indexOf('async function saveQuoteDraft(')
+  const end = source.indexOf('async function rereadSavedQuote(')
+  const block = source.slice(start, end)
+  const validationLoopIndex = block.indexOf('for (const [index, line] of args.lines.entries())')
+  const insertIndex = block.indexOf(".from('commercial_documents')\n    .insert(")
+  assert.ok(validationLoopIndex >= 0, 'expected a validation pass over every line')
+  assert.ok(insertIndex > validationLoopIndex, 'the quote document insert must happen after all lines are validated')
+})
+
+test('save_quote_draft respects the one-current-DRAFT-quote-per-engagement rule instead of creating a duplicate', () => {
+  const start = source.indexOf('async function saveQuoteDraft(')
+  const end = source.indexOf('async function rereadSavedQuote(')
+  const block = source.slice(start, end)
+  assert.match(block, /already has a current DRAFT quote/)
+})
+
+test('build_quote_draft never writes — it only reads', () => {
+  const start = source.indexOf('async function buildQuoteDraft(')
+  const end = source.indexOf('/* ============================== save_quote_draft')
+  const block = source.slice(start, end)
+  assert.doesNotMatch(block, /\.insert\(/)
+  assert.doesNotMatch(block, /\.update\(/)
+  assert.match(block, /proposalOnly: true/)
 })
 
 test('create_lead never auto-merges an ambiguous contact or venue match', () => {
@@ -162,5 +212,5 @@ test('create_lead does not silently promote a lead\'s default commercial/commitm
 })
 
 test('server manifest version was bumped for the new tool set', () => {
-  assert.match(source, /new McpServer\(\{ name: 'stage-presence', version: '1\.2\.0' \}\)/)
+  assert.match(source, /new McpServer\(\{ name: 'stage-presence', version: '1\.3\.0' \}\)/)
 })
